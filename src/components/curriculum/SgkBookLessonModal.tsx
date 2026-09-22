@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { SgkBook } from '../../data/sgkData';
-import { X, Search, BookOpen } from 'lucide-react';
+import { X, Search, BookOpen, ExternalLink } from 'lucide-react';
 
 interface Props {
   book: SgkBook | null;
@@ -71,12 +71,25 @@ export const SgkBookLessonModal: React.FC<Props> = ({ book, onClose }) => {
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 self-start flex-shrink-0">
+            <a
+              href={`https://hanhtrangso.nxbgd.vn/sach-dien-tu/sach-${book.bookId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-mono text-xs font-semibold shadow-sm transition"
+              title="Mở toàn bộ sách điện tử trên nền tảng Hành Trang Số"
+            >
+              <span>Mở sách gốc</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Search within book lessons */}
@@ -110,50 +123,78 @@ export const SgkBookLessonModal: React.FC<Props> = ({ book, onClose }) => {
                     <th className="py-2.5 px-3 text-center w-14">STT</th>
                     <th className="py-2.5 px-3 w-28">Mã bài</th>
                     <th className="py-2.5 px-4 min-w-[220px]">Tên bài học</th>
-                    <th className="py-2.5 px-4 min-w-[200px]">Chủ đề / Chương</th>
+                    <th className="py-2.5 px-4 min-w-[180px]">Chủ đề / Chương</th>
                     <th className="py-2.5 px-3 text-center w-20">Trang</th>
-                    <th className="py-2.5 px-3 min-w-[160px]">Hoạt động chính</th>
+                    <th className="py-2.5 px-3 min-w-[140px]">Hoạt động</th>
+                    <th className="py-2.5 px-3 text-center w-28">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                  {filteredLessons.map((lesson) => (
-                    <tr
-                      key={lesson.stt}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-850/50 transition-colors"
-                    >
-                      <td className="py-3 px-3 text-center font-mono font-semibold text-slate-500">
-                        {lesson.stt}
-                      </td>
-                      <td className="py-3 px-3 font-mono font-bold text-sky-700 dark:text-sky-400">
-                        {lesson.code}
-                      </td>
-                      <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
-                        {lesson.title}
-                      </td>
-                      <td className="py-3 px-4 text-slate-600 dark:text-slate-400 text-[11px]">
-                        {lesson.chapter}
-                      </td>
-                      <td className="py-3 px-3 text-center font-mono text-slate-500 text-[11px]">
-                        {lesson.page ? `Tr. ${lesson.page}` : '—'}
-                      </td>
-                      <td className="py-3 px-3">
-                        {lesson.activities && lesson.activities.length > 0 ? (
-                          <div className="flex items-center gap-1 flex-wrap">
-                            {lesson.activities.map((act, i) => (
-                              <span
-                                key={i}
-                                className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono"
-                              >
-                                {act}
-                              </span>
-                            ))}
+                  {filteredLessons.map((lesson) => {
+                    const readUrl = `https://hanhtrangso.nxbgd.vn/ebook/read/sach-${book.bookId}?page=${lesson.page || 1}`;
+                    return (
+                      <tr
+                        key={lesson.stt}
+                        className="hover:bg-slate-50 dark:hover:bg-slate-850/50 transition-colors"
+                      >
+                        <td className="py-3 px-3 text-center font-mono font-semibold text-slate-500">
+                          {lesson.stt}
+                        </td>
+                        <td className="py-3 px-3 font-mono font-bold text-sky-700 dark:text-sky-400">
+                          {lesson.code}
+                        </td>
+                        <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{lesson.title}</span>
+                            <a
+                              href={readUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sky-600 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-300 inline-flex items-center gap-0.5 text-[10px] font-mono px-1.5 py-0.2 rounded bg-sky-50 dark:bg-sky-950 border border-sky-200 dark:border-sky-800"
+                              title={`Mở bài học này (Trang ${lesson.page || 1}) trên Hành Trang Số`}
+                            >
+                              <span>Mở bài</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
                           </div>
-                        ) : (
-                          <span className="text-slate-400 text-[11px] italic">Bài học chuẩn</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400 text-[11px]">
+                          {lesson.chapter}
+                        </td>
+                        <td className="py-3 px-3 text-center font-mono text-slate-500 text-[11px]">
+                          {lesson.page ? `Tr. ${lesson.page}` : '—'}
+                        </td>
+                        <td className="py-3 px-3">
+                          {lesson.activities && lesson.activities.length > 0 ? (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {lesson.activities.map((act, i) => (
+                                <span
+                                  key={i}
+                                  className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono"
+                                >
+                                  {act}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 text-[11px] italic">Bài học chuẩn</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <a
+                            href={readUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800 font-mono text-[11px] font-semibold transition"
+                            title={`Mở trang ${lesson.page || 1} của sách trên Hành Trang Số`}
+                          >
+                            <span>Mở bài</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

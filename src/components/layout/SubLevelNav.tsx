@@ -79,33 +79,33 @@ export const SubLevelNav: React.FC<Props> = ({
             })}
           </div>
 
-          <div className="hidden sm:block h-4 w-[1px] bg-slate-200 dark:bg-slate-800" />
+          {subjects.length > 0 && (
+            <>
+              <div className="hidden sm:block h-4 w-[1px] bg-slate-200 dark:bg-slate-800" />
 
-          {/* Subject Selector */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500 uppercase mr-1">Môn:</span>
-            {subjects.length === 0 ? (
-              <span className="text-xs text-slate-400 italic">Chưa có môn học cho khối này</span>
-            ) : (
-              subjects.map((sub) => {
-                const isSelected = selectedSubjectId === sub.id;
-                return (
-                  <button
-                    key={sub.id}
-                    onClick={() => onSelectSubject(sub.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium border transition ${
-                      isSelected
-                        ? 'bg-sky-50 dark:bg-sky-950/50 border-sky-500 text-sky-800 dark:text-sky-300 shadow-sm'
-                        : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700'
-                    }`}
-                  >
-                    {renderSubjectIcon(sub.icon)}
-                    <span>{sub.name}</span>
-                  </button>
-                );
-              })
-            )}
-          </div>
+              {/* Subject Selector */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500 uppercase mr-1">Môn:</span>
+                {subjects.map((sub) => {
+                  const isSelected = selectedSubjectId === sub.id;
+                  return (
+                    <button
+                      key={sub.id}
+                      onClick={() => onSelectSubject(sub.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium border transition ${
+                        isSelected
+                          ? 'bg-sky-50 dark:bg-sky-950/50 border-sky-500 text-sky-800 dark:text-sky-300 shadow-sm'
+                          : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700'
+                      }`}
+                    >
+                      {renderSubjectIcon(sub.icon)}
+                      <span>{sub.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

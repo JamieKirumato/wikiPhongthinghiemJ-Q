@@ -112,6 +112,33 @@ export const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Navigate to grade SGK view from search
+  const handleNavigateToGradeFromSearch = (gradeId: string) => {
+    if (gradeId === 'mam-non') {
+      setSelectedLevelId('mam-non');
+      setSelectedGradeId('mn-4-5');
+    } else if (gradeId === 'lop-1') {
+      setSelectedLevelId('tieu-hoc');
+      setSelectedGradeId('th-lop-1');
+    } else if (gradeId === 'lop-2') {
+      setSelectedLevelId('tieu-hoc');
+      setSelectedGradeId('th-lop-2');
+    } else if (gradeId === 'lop-3') {
+      setSelectedLevelId('tieu-hoc');
+      setSelectedGradeId('th-lop-3');
+    } else if (gradeId === 'lop-4') {
+      setSelectedLevelId('tieu-hoc');
+      setSelectedGradeId('th-lop-4');
+    } else if (gradeId === 'lop-5') {
+      setSelectedLevelId('tieu-hoc');
+      setSelectedGradeId('th-lop-5');
+    }
+    setActiveView('curriculum');
+    setTimeout(() => {
+      window.scrollTo({ top: 350, behavior: 'smooth' });
+    }, 100);
+  };
+
   // Filtered lists for current state
   const currentLevelInfo = LEVELS.find((l) => l.id === selectedLevelId)!;
   const currentGrades = GRADES.filter((g) => g.levelId === selectedLevelId);
@@ -192,6 +219,7 @@ export const App: React.FC = () => {
         onClose={() => setIsSearchOpen(false)}
         onSelectLesson={handleSelectLessonFromSearch}
         onSelectSimulation={handleSelectSimulationFromSearch}
+        onNavigateToGrade={handleNavigateToGradeFromSearch}
       />
 
       {/* Floating Action Button: AI Đọc & System Diagnostics */}
