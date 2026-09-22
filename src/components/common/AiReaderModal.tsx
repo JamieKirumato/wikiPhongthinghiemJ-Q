@@ -16,7 +16,7 @@ interface Props {
   selectedLevelId: string;
   selectedGradeId: string;
   selectedSubjectId: string;
-  selectedLessonId: string;
+  selectedLessonId?: string;
   theme: 'light' | 'dark';
 }
 
@@ -25,7 +25,7 @@ export const AiReaderModal: React.FC<Props> = ({
   selectedLevelId,
   selectedGradeId,
   selectedSubjectId,
-  selectedLessonId,
+  selectedLessonId = '',
   theme,
 }) => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
