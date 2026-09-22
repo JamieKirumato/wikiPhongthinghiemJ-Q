@@ -324,9 +324,9 @@ export const GRADE_PHILOSOPHIES: Record<string, GradePhilosophy> = {
     ageRange: '15 - 18 tuổi',
     bookSeriesFocus: 'Kết nối tri thức với cuộc sống (Chuyên đề học tập nâng cao)',
     generalPhilosophy: {
-      summary: 'Triết lý "Tư duy Nguyên Lý Sơ Khởi (First-Principles), toán học hóa sâu sắc và định hướng nghề nghiệp tương lai". Học sinh làm chủ các mô hình toán học vi phân, lượng tử và năng lượng để sẵn sàng bước vào đại học hoặc làm chủ công nghệ mới.',
+      summary: 'Triết lý "Toán học hóa sâu sắc, tư duy khoa học thực nghiệm và định hướng nghề nghiệp tương lai". Học sinh làm chủ các mô hình toán học vi phân, lượng tử và năng lượng để sẵn sàng bước vào đại học hoặc làm chủ công nghệ mới.',
       corePrinciples: [
-        'Nguyên lý sơ khởi (Andrej Karpathy & Elon Musk): Hiểu cội nguồn mọi định luật qua đạo hàm, tích phân và vector.',
+        'Tư duy mô hình hóa toán học: Hiểu cội nguồn mọi định luật qua đạo hàm, tích phân và vector.',
         'Định hướng nghề nghiệp và tự chủ định hình tương lai.',
         'Tự do sáng tạo và khai phóng tiềm năng trí tuệ cá nhân.'
       ]

@@ -202,15 +202,6 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Global Footer */}
-        <footer className="border-t border-slate-200 dark:border-slate-800/80 bg-slate-100/80 dark:bg-[#080c14] py-6 px-4 text-xs text-slate-600 dark:text-slate-500 text-center font-mono space-y-1 mt-auto transition-colors">
-          <div>
-            K-12 Wiki & Interactive Simulator • Xây dựng theo triết lý First-Principles của Andrej Karpathy
-          </div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-600">
-            Chương trình giáo dục phổ thông Việt Nam (GDPT 2018) • Nguồn học liệu: Bộ sách giáo khoa Kết nối tri thức với cuộc sống
-          </div>
-        </footer>
       </div>
 
       {/* Global Search Modal (Ctrl+K) */}

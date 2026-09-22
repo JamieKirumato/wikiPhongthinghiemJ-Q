@@ -1,5 +1,4 @@
-import React from 'react';
-import { BookOpen, FlaskConical, ShieldCheck, X } from 'lucide-react';
+import { BookOpen, FlaskConical, X } from 'lucide-react';
 
 interface Props {
   activeView: 'curriculum' | 'simulations';
@@ -47,7 +46,7 @@ export const AppSidebar: React.FC<Props> = ({
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                  First-Principles • Andrej Karpathy
+                  Wiki Thí Nghiệm & Mô Phỏng
                 </p>
               </div>
             </div>
@@ -137,27 +136,11 @@ export const AppSidebar: React.FC<Props> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5 leading-snug">
-                  70 thí nghiệm K-12 & 6 dạng tương tác First-Principles
+                  70 thí nghiệm K-12 & 6 dạng tương tác thực nghiệm
                 </p>
               </div>
             </button>
           </div>
-
-          {/* Philosophy Note */}
-          <div className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-gradient-to-br dark:from-amber-950/20 dark:to-slate-900 border border-amber-200 dark:border-amber-500/20 space-y-1.5 text-xs mt-6">
-            <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-800 dark:text-amber-300">
-              <ShieldCheck className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-              <span>Triết lý Andrej Karpathy</span>
-            </div>
-            <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed italic">
-              "Don't just memorize formulas. Build the intuition, sweep parameters, and inspect the code."
-            </p>
-          </div>
-        </div>
-
-        {/* Clean minimal footer */}
-        <div className="p-3 border-t border-slate-200 dark:border-slate-800/80 text-[10px] text-slate-400 dark:text-slate-500 text-center font-mono">
-          First-Principles Science Lab
         </div>
       </aside>
     </>

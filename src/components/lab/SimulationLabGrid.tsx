@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SIMULATIONS } from '../../data/curriculumData';
-import { FlaskConical, Play, Sparkles, X } from 'lucide-react';
+import { Play, Sparkles, X } from 'lucide-react';
 import { ColorMixerSim } from '../simulations/ColorMixerSim';
 import { BalanceScaleSim } from '../simulations/BalanceScaleSim';
 import { ElectricCircuitSim } from '../simulations/ElectricCircuitSim';
@@ -48,15 +48,11 @@ export const SimulationLabGrid: React.FC<Props> = ({ focusSimId }) => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-8 transition-colors">
       {/* 1. Lab Header */}
       <div className="text-center max-w-4xl mx-auto space-y-3 pt-2">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-mono">
-          <FlaskConical className="w-3.5 h-3.5" />
-          <span>K-12 First-Principles Interactive Engine</span>
-        </div>
         <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight font-mono">
           Thư Viện Mô Phỏng & Phòng Lab Thực Nghiệm
         </h1>
         <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed max-w-2xl mx-auto">
-          Xây dựng trực giác khoa học sâu sắc từ Mầm non đến Lớp 12 theo triết lý của <strong>Andrej Karpathy</strong>: Trực quan hóa bản chất, tự do điều khiển tham số và mở tung mã nguồn logic.
+          Xây dựng trực giác khoa học sâu sắc từ Mầm non đến Lớp 12: Trực quan hóa bản chất, tự do điều khiển tham số và thực nghiệm thời gian thực.
         </p>
       </div>
 

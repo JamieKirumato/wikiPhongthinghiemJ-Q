@@ -48,7 +48,7 @@ export const AiReaderModal: React.FC<Props> = ({
   // Structured summary for AI
   const fullSystemSchema = {
     website_name: "K-12 Wiki & Interactive Lab (GDPT 2018)",
-    pedagogy: "Andrej Karpathy First-Principles Learning Engine",
+    pedagogy: "K-12 Interactive STEM Learning Engine",
     deployment_url: "https://wiki-phongthinghiem-j-q-5fv1.vercel.app/",
     github_repository: "https://github.com/JamieKirumato/wikiPhongthinghiemJ-Q",
     system_state: {

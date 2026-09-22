@@ -30,8 +30,8 @@ export const CodeInspectorModal: React.FC<Props> = ({ simulation, isOpen, onClos
             </div>
             <div>
               <h3 className="font-semibold text-slate-100 text-base flex items-center gap-2">
-                Inspect Code & First-Principles
-                <span className="text-xs px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-mono">Karpathy Mode</span>
+                Inspect Code & Thuật toán mô phỏng
+                <span className="text-xs px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-mono">Live Code</span>
               </h3>
               <p className="text-xs text-slate-400">{simulation.title}</p>
             </div>
@@ -49,7 +49,7 @@ export const CodeInspectorModal: React.FC<Props> = ({ simulation, isOpen, onClos
           {/* Explanation */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-4">
             <h4 className="text-sky-400 font-medium text-xs tracking-wider uppercase flex items-center gap-1.5 mb-2 font-mono">
-              <BookOpen className="w-3.5 h-3.5" /> Bản chất nguyên lý sơ khởi (First Principles)
+              <BookOpen className="w-3.5 h-3.5" /> Bản chất nguyên lý khoa học
             </h4>
             <p className="text-slate-300 leading-relaxed text-sm">
               {simulation.firstPrinciplesExplanation}

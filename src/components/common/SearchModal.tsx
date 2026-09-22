@@ -445,12 +445,12 @@ export const SearchModal: React.FC<Props> = ({
               </div>
             )}
 
-            {/* SECTION C: Bài học Cốt Lõi First-Principles */}
+            {/* SECTION C: Bài học Cốt Lõi Trọng Tâm */}
             {(activeTab === 'all' || activeTab === 'sgk') && matchedCoreLessons.length > 0 && (
               <div className="space-y-3 pt-2">
                 <div className="flex items-center gap-2 font-mono font-bold text-purple-700 dark:text-purple-400 uppercase text-[11px] border-b border-slate-200 dark:border-slate-800 pb-1.5">
                   <GraduationCap className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                  <span>Bài học cốt lõi First-Principles ({matchedCoreLessons.length})</span>
+                  <span>Bài học cốt lõi trọng tâm ({matchedCoreLessons.length})</span>
                 </div>
 
                 <div className="space-y-2">

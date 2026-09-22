@@ -60,7 +60,7 @@ export const INTERACTION_PATTERNS: InteractionPattern[] = [
   {
     id: 'pattern-code-inspector',
     name: '5. Mở Tung Hộp Đen & Inspect Mã Nguồn (Code Inspector & White-Box Physics)',
-    tagline: 'Triết lý Andrej Karpathy: "If you cannot write the code to simulate it, you don’t understand it"',
+    tagline: 'Tư duy thuật toán: Hiểu cách máy tính mô phỏng và tính toán các định luật khoa học',
     description: 'Bên cạnh mô phỏng đồ họa, hệ thống luôn tích hợp nút "Inspect Code" để học sinh mở xem phương trình toán học giải tích LaTeX và đoạn mã nguồn thuật toán TypeScript tính toán vật lý (như tích phân Euler-Cromer, thuật toán Runge-Kutta, phép chiếu vector).',
     pedagogy: 'Kết nối Khoa học tự nhiên với Tư duy máy tính (Computational Thinking). Học sinh không chỉ là người tiêu thụ nội dung mà được khích lệ trở thành người sáng tạo công nghệ, hiểu cách máy tính số hóa và tính toán quy luật của tự nhiên.',
     examples: [
