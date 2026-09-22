@@ -60,3 +60,36 @@ export interface SimulationItem {
   mathLatex?: string;
   codeSnippet: string;
 }
+
+export interface InteractionPattern {
+  id: string;
+  name: string;
+  tagline: string;
+  description: string;
+  pedagogy: string;
+  examples: string[];
+  icon: string;
+  accentColor: string;
+}
+
+export interface SimulationCatalogItem {
+  stt: number;
+  id: string;
+  title: string;
+  purpose: string;
+  procedure: string[];
+  extractedFrom: {
+    subject: string;
+    grade: string;
+    lesson: string;
+    textbook: string;
+  };
+  levelId: LevelId;
+  interactionPatternId: string;
+  interactionPatternName: string;
+  hasLiveSim: boolean;
+  liveSimId?: string;
+  keyVariables?: string[];
+  firstPrinciplesNote?: string;
+}
+

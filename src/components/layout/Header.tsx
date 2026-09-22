@@ -1,62 +1,48 @@
 import React from 'react';
-import { BookOpen, FlaskConical, Search, ExternalLink } from 'lucide-react';
+import { Menu, Search, ExternalLink, BookOpen, FlaskConical } from 'lucide-react';
 
 interface Props {
   activeView: 'curriculum' | 'simulations';
-  setActiveView: (view: 'curriculum' | 'simulations') => void;
   onOpenSearch: () => void;
+  onOpenMobileSidebar: () => void;
 }
 
-export const Header: React.FC<Props> = ({ activeView, setActiveView, onOpenSearch }) => {
+export const Header: React.FC<Props> = ({
+  activeView,
+  onOpenSearch,
+  onOpenMobileSidebar,
+}) => {
   return (
-    <header className="sticky top-0 z-40 bg-[#0b0f17]/95 backdrop-blur border-b border-slate-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-        {/* Logo & Slogan */}
+    <header className="sticky top-0 z-30 bg-[#0b0f17]/90 backdrop-blur border-b border-slate-800/90 h-14">
+      <div className="w-full px-4 sm:px-6 h-full flex items-center justify-between gap-4">
+        {/* Left: Mobile hamburger & Breadcrumb */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 font-mono font-bold text-lg">
-            K
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-100 text-base tracking-tight font-mono">K-12 WIKI & LAB</span>
-              <span className="hidden sm:inline-block text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 font-mono border border-sky-500/20">
-                Karpathy Style
+          <button
+            onClick={onOpenMobileSidebar}
+            className="lg:hidden p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition"
+            title="Mở menu điều hướng"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
+
+          <div className="flex items-center gap-2 text-xs font-mono">
+            <span className="text-slate-500 hidden sm:inline">K-12 Platform</span>
+            <span className="text-slate-600 hidden sm:inline">/</span>
+            {activeView === 'curriculum' ? (
+              <span className="flex items-center gap-1.5 text-sky-300 font-semibold bg-sky-500/10 px-2.5 py-1 rounded-md border border-sky-500/20">
+                <BookOpen className="w-3.5 h-3.5 text-sky-400" />
+                <span>Tổng quan chương trình</span>
               </span>
-            </div>
-            <p className="text-[11px] text-slate-400 hidden md:block">
-              Học hiểu bản chất First-Principles • SGK Kết nối tri thức
-            </p>
+            ) : (
+              <span className="flex items-center gap-1.5 text-emerald-300 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20">
+                <FlaskConical className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Thư viện mô phỏng</span>
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Central View Switcher */}
-        <div className="flex items-center bg-slate-900/90 border border-slate-800 p-1 rounded-xl">
-          <button
-            onClick={() => setActiveView('curriculum')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
-              activeView === 'curriculum'
-                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>Tổng quan chương trình</span>
-          </button>
-          <button
-            onClick={() => setActiveView('simulations')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition ${
-              activeView === 'simulations'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <FlaskConical className="w-3.5 h-3.5" />
-            <span>Thư viện mô phỏng</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-          </button>
-        </div>
-
-        {/* Actions */}
+        {/* Right: Actions */}
         <div className="flex items-center gap-2.5">
           <button
             onClick={onOpenSearch}
@@ -73,7 +59,7 @@ export const Header: React.FC<Props> = ({ activeView, setActiveView, onOpenSearc
             href="https://hanhtrangso.nxbgd.vn/"
             target="_blank"
             rel="noreferrer"
-            className="hidden lg:flex items-center gap-1.5 text-xs text-slate-400 hover:text-sky-300 px-2.5 py-1.5 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-800 transition"
+            className="hidden md:flex items-center gap-1.5 text-xs text-slate-400 hover:text-sky-300 px-2.5 py-1.5 rounded-lg hover:bg-slate-900 border border-transparent hover:border-slate-800 transition"
             title="Nguồn học liệu Hành Trang Số"
           >
             <span className="text-[11px]">Hành Trang Số</span>

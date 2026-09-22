@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LevelId } from './types/curriculum';
 import { LEVELS, GRADES, SUBJECTS, CHAPTERS, LESSONS } from './data/curriculumData';
+import { AppSidebar } from './components/layout/AppSidebar';
 import { Header } from './components/layout/Header';
 import { LevelTabs } from './components/layout/LevelTabs';
 import { SubLevelNav } from './components/layout/SubLevelNav';
@@ -24,6 +25,9 @@ export const App: React.FC = () => {
 
   // Search Modal state
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
+
+  // Mobile sidebar drawer state
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   // Keyboard shortcut Ctrl+K for search
   useEffect(() => {
@@ -123,69 +127,84 @@ export const App: React.FC = () => {
   const activeSubject = SUBJECTS.find((s) => s.id === selectedSubjectId);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#0b0f17] text-slate-200">
-      {/* 1. Header with Mode Toggle & Search */}
-      <Header
+    <div className="min-h-screen flex bg-[#0b0f17] text-slate-200 antialiased">
+      {/* 1. Vertical Navigation Sidebar (Left side of screen) */}
+      <AppSidebar
         activeView={activeView}
         setActiveView={setActiveView}
         onOpenSearch={() => setIsSearchOpen(true)}
+        isOpenMobile={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
 
-      {/* 2. Main Workspace */}
-      {activeView === 'curriculum' ? (
-        <div className="flex-1 flex flex-col">
-          {/* Level Tabs: [Mầm non] [Tiểu học] [THCS] [THPT] */}
-          <LevelTabs
-            selectedLevel={selectedLevelId}
-            onSelectLevel={handleSelectLevel}
-          />
+      {/* 2. Right Main Work Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top Header Bar */}
+        <Header
+          activeView={activeView}
+          onOpenSearch={() => setIsSearchOpen(true)}
+          onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+        />
 
-          {/* SubLevel Bar: Grade pills + Subject chips + Philosophy */}
-          <SubLevelNav
-            levelInfo={currentLevelInfo}
-            grades={currentGrades}
-            selectedGradeId={selectedGradeId}
-            onSelectGrade={handleSelectGrade}
-            subjects={currentSubjects}
-            selectedSubjectId={selectedSubjectId}
-            onSelectSubject={handleSelectSubject}
-          />
-
-          {/* Two-Column Wiki Workspace */}
-          <div className="flex-1 max-w-7xl w-full mx-auto flex flex-col lg:flex-row">
-            {/* Left Column: Lesson Tree */}
-            <SidebarLessonTree
-              chapters={currentChapters}
-              lessons={currentLessons}
-              selectedLessonId={activeLesson.id}
-              onSelectLesson={setSelectedLessonId}
-              subjectName={activeSubject?.name || ''}
+        {/* Content View Switcher */}
+        {activeView === 'curriculum' ? (
+          /* TAB 1: Tổng quan chương trình (Thanh công cụ nội dung vẫn giữ nguyên) */
+          <div className="flex-1 flex flex-col">
+            {/* Level Tabs: [Mầm non] [Tiểu học] [THCS] [THPT] */}
+            <LevelTabs
+              selectedLevel={selectedLevelId}
+              onSelectLevel={handleSelectLevel}
             />
 
-            {/* Right Column: Lesson Content + Embedded Simulator */}
-            <LessonView
-              lesson={activeLesson}
-              subject={activeSubject}
-              onNavigateToSimLab={handleNavigateToSimLab}
+            {/* SubLevel Bar: Grade pills + Subject chips + Philosophy */}
+            <SubLevelNav
+              levelInfo={currentLevelInfo}
+              grades={currentGrades}
+              selectedGradeId={selectedGradeId}
+              onSelectGrade={handleSelectGrade}
+              subjects={currentSubjects}
+              selectedSubjectId={selectedSubjectId}
+              onSelectSubject={handleSelectSubject}
             />
+
+            {/* Two-Column Wiki Workspace */}
+            <div className="flex-1 max-w-7xl w-full mx-auto flex flex-col lg:flex-row">
+              {/* Left Column: Lesson Tree */}
+              <SidebarLessonTree
+                chapters={currentChapters}
+                lessons={currentLessons}
+                selectedLessonId={activeLesson.id}
+                onSelectLesson={setSelectedLessonId}
+                subjectName={activeSubject?.name || ''}
+              />
+
+              {/* Right Column: Lesson Content + Embedded Simulator */}
+              <LessonView
+                lesson={activeLesson}
+                subject={activeSubject}
+                onNavigateToSimLab={handleNavigateToSimLab}
+              />
+            </div>
           </div>
-        </div>
-      ) : (
-        /* Mode 2: Dedicated Simulation Lab Grid */
-        <SimulationLabGrid focusSimId={focusSimId} />
-      )}
+        ) : (
+          /* TAB 2: Thư viện mô phỏng (Đề xuất Dạng tương tác + Bảng danh mục 5 cột + Live Lab) */
+          <div className="flex-1">
+            <SimulationLabGrid focusSimId={focusSimId} />
+          </div>
+        )}
 
-      {/* Footer */}
-      <footer className="border-t border-slate-800 bg-[#080c14] py-6 text-xs text-slate-500 text-center font-mono space-y-1">
-        <div>
-          K-12 Wiki & Interactive Simulator • Xây dựng theo triết lý First-Principles của Andrej Karpathy
-        </div>
-        <div className="text-[11px] text-slate-600">
-          Chương trình giáo dục phổ thông Việt Nam (GDPT 2018) • Bộ sách Kết nối tri thức với cuộc sống (Hành Trang Số)
-        </div>
-      </footer>
+        {/* Global Footer */}
+        <footer className="border-t border-slate-800/80 bg-[#080c14] py-6 px-4 text-xs text-slate-500 text-center font-mono space-y-1 mt-auto">
+          <div>
+            K-12 Wiki & Interactive Simulator • Xây dựng theo triết lý First-Principles của Andrej Karpathy
+          </div>
+          <div className="text-[11px] text-slate-600">
+            Chương trình giáo dục phổ thông Việt Nam (GDPT 2018) • Nguồn học liệu: Hành Trang Số (NXBGDVN)
+          </div>
+        </footer>
+      </div>
 
-      {/* Search Modal */}
+      {/* Global Search Modal (Ctrl+K) */}
       <SearchModal
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
@@ -195,4 +214,5 @@ export const App: React.FC = () => {
     </div>
   );
 };
+
 export default App;
