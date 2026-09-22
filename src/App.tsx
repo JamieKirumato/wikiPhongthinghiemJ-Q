@@ -9,10 +9,31 @@ import { SidebarLessonTree } from './components/layout/SidebarLessonTree';
 import { LessonView } from './components/layout/LessonView';
 import { SimulationLabGrid } from './components/lab/SimulationLabGrid';
 import { SearchModal } from './components/common/SearchModal';
+import { AiReaderModal } from './components/common/AiReaderModal';
 
 export const App: React.FC = () => {
   // Navigation view state: 'curriculum' vs 'simulations'
   const [activeView, setActiveView] = useState<'curriculum' | 'simulations'>('curriculum');
+
+  // Theme state: Default is 'light' as requested
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('wiki_theme');
+    return (saved === 'dark' || saved === 'light') ? saved : 'light';
+  });
+
+  // Apply theme class to document.documentElement
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('wiki_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  };
 
   // Hierarchy Selection States
   const [selectedLevelId, setSelectedLevelId] = useState<LevelId>('thcs');
@@ -127,12 +148,11 @@ export const App: React.FC = () => {
   const activeSubject = SUBJECTS.find((s) => s.id === selectedSubjectId);
 
   return (
-    <div className="min-h-screen flex bg-[#0b0f17] text-slate-200 antialiased">
+    <div className="min-h-screen flex bg-slate-50 dark:bg-[#0b0f17] text-slate-900 dark:text-slate-200 antialiased transition-colors duration-150 relative">
       {/* 1. Vertical Navigation Sidebar (Left side of screen) */}
       <AppSidebar
         activeView={activeView}
         setActiveView={setActiveView}
-        onOpenSearch={() => setIsSearchOpen(true)}
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
@@ -144,6 +164,8 @@ export const App: React.FC = () => {
           activeView={activeView}
           onOpenSearch={() => setIsSearchOpen(true)}
           onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
 
         {/* Content View Switcher */}
@@ -187,19 +209,19 @@ export const App: React.FC = () => {
             </div>
           </div>
         ) : (
-          /* TAB 2: Thư viện mô phỏng (Đề xuất Dạng tương tác + Bảng danh mục 5 cột + Live Lab) */
+          /* TAB 2: Thư viện mô phỏng (Đề xuất Dạng tương tác 2 cột + Bảng danh mục 170 thí nghiệm + Live Lab) */
           <div className="flex-1">
             <SimulationLabGrid focusSimId={focusSimId} />
           </div>
         )}
 
         {/* Global Footer */}
-        <footer className="border-t border-slate-800/80 bg-[#080c14] py-6 px-4 text-xs text-slate-500 text-center font-mono space-y-1 mt-auto">
+        <footer className="border-t border-slate-200 dark:border-slate-800/80 bg-slate-100/80 dark:bg-[#080c14] py-6 px-4 text-xs text-slate-600 dark:text-slate-500 text-center font-mono space-y-1 mt-auto transition-colors">
           <div>
             K-12 Wiki & Interactive Simulator • Xây dựng theo triết lý First-Principles của Andrej Karpathy
           </div>
-          <div className="text-[11px] text-slate-600">
-            Chương trình giáo dục phổ thông Việt Nam (GDPT 2018) • Nguồn học liệu: Hành Trang Số (NXBGDVN)
+          <div className="text-[11px] text-slate-500 dark:text-slate-600">
+            Chương trình giáo dục phổ thông Việt Nam (GDPT 2018) • Nguồn học liệu: Bộ sách giáo khoa Kết nối tri thức với cuộc sống
           </div>
         </footer>
       </div>
@@ -210,6 +232,16 @@ export const App: React.FC = () => {
         onClose={() => setIsSearchOpen(false)}
         onSelectLesson={handleSelectLessonFromSearch}
         onSelectSimulation={handleSelectSimulationFromSearch}
+      />
+
+      {/* Floating Action Button: AI Đọc & System Diagnostics */}
+      <AiReaderModal
+        activeView={activeView}
+        selectedLevelId={selectedLevelId}
+        selectedGradeId={selectedGradeId}
+        selectedSubjectId={selectedSubjectId}
+        selectedLessonId={selectedLessonId}
+        theme={theme}
       />
     </div>
   );

@@ -10,7 +10,8 @@ import {
   Sparkles,
   ChevronRight,
   Info,
-  Layers
+  Layers,
+  CheckCircle2
 } from 'lucide-react';
 
 export const InteractionPatternsGuide: React.FC = () => {
@@ -22,146 +23,157 @@ export const InteractionPatternsGuide: React.FC = () => {
   const renderIcon = (iconName: string) => {
     switch (iconName) {
       case 'SlidersHorizontal':
-        return <SlidersHorizontal className="w-5 h-5 text-sky-400" />;
+        return <SlidersHorizontal className="w-5 h-5 text-sky-500" />;
       case 'Move':
-        return <Move className="w-5 h-5 text-amber-400" />;
+        return <Move className="w-5 h-5 text-amber-500" />;
       case 'Atom':
-        return <Atom className="w-5 h-5 text-emerald-400" />;
+        return <Atom className="w-5 h-5 text-emerald-500" />;
       case 'Timer':
-        return <Timer className="w-5 h-5 text-purple-400" />;
+        return <Timer className="w-5 h-5 text-purple-500" />;
       case 'Code2':
-        return <Code2 className="w-5 h-5 text-cyan-400" />;
+        return <Code2 className="w-5 h-5 text-cyan-500" />;
       case 'HelpCircle':
-        return <HelpCircle className="w-5 h-5 text-rose-400" />;
+        return <HelpCircle className="w-5 h-5 text-rose-500" />;
       default:
-        return <Sparkles className="w-5 h-5 text-sky-400" />;
+        return <Sparkles className="w-5 h-5 text-sky-500" />;
     }
   };
 
   return (
-    <div className="space-y-6 bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-xl">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
-        <div>
-          <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-xs font-mono mb-2">
-            <Layers className="w-3.5 h-3.5" />
-            <span>Mô Hình Sư Phạm First-Principles</span>
-          </div>
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-100 font-mono tracking-tight">
-            Đề Xuất Các Dạng Tương Tác Trong Thí Nghiệm
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-3xl">
-            Để mô phỏng không biến thành một bộ phim hoạt hình thụ động, người học cần được trao các công cụ tương tác thực thụ. Dưới đây là <strong>6 dạng tương tác cốt lõi</strong> được chuẩn hóa cho toàn bộ thí nghiệm từ Mầm non đến THPT.
-          </p>
+    <div className="space-y-5 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm dark:shadow-xl transition-colors">
+      {/* Title */}
+      <div className="border-b border-slate-100 dark:border-slate-800/80 pb-4">
+        <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-600 dark:text-sky-400 text-xs font-mono mb-2">
+          <Layers className="w-3.5 h-3.5" />
+          <span>Mô Hình Sư Phạm First-Principles</span>
         </div>
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono tracking-tight">
+          Đề Xuất Các Dạng Tương Tác Trong Thí Nghiệm
+        </h2>
+        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-3xl">
+          Để mô phỏng không biến thành video thụ động, người học cần được trao các công cụ tương tác thực thụ. Bấm chọn từng dạng bên trái để xem bảng nội dung minh họa thao tác và giá trị sư phạm ở bên phải.
+        </p>
       </div>
 
-      {/* Grid of 6 Patterns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {INTERACTION_PATTERNS.map((pattern) => {
-          const isSelected = selectedPatternId === pattern.id;
+      {/* 2-Column Split: Left Selector & Right Inspection Board */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* Left Column: 6 Interaction Patterns List (5 cols) */}
+        <div className="lg:col-span-5 space-y-2.5">
+          <div className="text-[11px] uppercase tracking-wider font-mono font-semibold text-slate-400 dark:text-slate-500 px-1">
+            Chọn Dạng Tương Tác (1 đến 6):
+          </div>
 
-          return (
-            <button
-              key={pattern.id}
-              onClick={() => setSelectedPatternId(pattern.id)}
-              className={`p-4 rounded-xl border text-left transition-all relative flex flex-col justify-between space-y-3 ${
-                isSelected
-                  ? 'bg-slate-850/90 border-sky-500/60 shadow-[0_0_15px_rgba(56,189,248,0.12)]'
-                  : 'bg-[#0b0f17]/70 border-slate-800 hover:border-slate-700 hover:bg-slate-850/40'
-              }`}
-            >
-              {isSelected && (
-                <div className="absolute top-0 left-4 right-4 h-[2px] bg-gradient-to-r from-sky-400 via-cyan-400 to-sky-400" />
-              )}
+          <div className="space-y-2">
+            {INTERACTION_PATTERNS.map((pattern, idx) => {
+              const isSelected = selectedPatternId === pattern.id;
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+              return (
+                <button
+                  key={pattern.id}
+                  onClick={() => setSelectedPatternId(pattern.id)}
+                  className={`w-full p-3.5 rounded-xl border text-left transition-all flex items-start gap-3 relative ${
+                    isSelected
+                      ? 'bg-sky-50 dark:bg-slate-800/90 border-sky-500 text-slate-900 dark:text-slate-100 shadow-md ring-1 ring-sky-500/30'
+                      : 'bg-slate-50/70 dark:bg-[#0b0f17]/70 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-100/70 dark:hover:bg-slate-850/50 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  {isSelected && (
+                    <div className="absolute top-2 bottom-2 left-0 w-1 bg-sky-500 rounded-r" />
+                  )}
+
+                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex-shrink-0 mt-0.5">
                     {renderIcon(pattern.icon)}
                   </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">
-                    {pattern.id.replace('pattern-', 'DẠNG ')}
-                  </span>
-                </div>
 
-                <h3 className="font-semibold text-xs sm:text-sm text-slate-100 leading-snug">
-                  {pattern.name}
-                </h3>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1 mb-0.5">
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold">
+                        DẠNG {idx + 1}
+                      </span>
+                      {isSelected && (
+                        <span className="text-[10px] text-sky-600 dark:text-sky-400 font-mono font-semibold flex items-center gap-0.5">
+                          Đang xem <ChevronRight className="w-3 h-3" />
+                        </span>
+                      )}
+                    </div>
 
-                <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
-                  {pattern.tagline}
-                </p>
-              </div>
+                    <h3 className="font-semibold text-xs sm:text-sm text-slate-900 dark:text-slate-100 leading-snug">
+                      {pattern.name.split('(')[0].replace(/^\d+\.\s*/, '')}
+                    </h3>
 
-              <div className="flex items-center text-[11px] text-sky-400 font-mono gap-1 pt-1 border-t border-slate-800/60">
-                <span>Xem chi tiết sư phạm</span>
-                <ChevronRight className="w-3 h-3" />
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Selected Pattern Detailed Inspection Panel */}
-      <div className="p-5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-4 animate-fadeIn">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
-              {renderIcon(activePattern.icon)}
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-100 text-base">{activePattern.name}</h3>
-              <p className="text-xs text-sky-400 font-mono">{activePattern.tagline}</p>
-            </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                      {pattern.tagline}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
           </div>
-          <span className="text-xs px-2.5 py-1 rounded bg-slate-900 text-slate-300 font-mono border border-slate-800 self-start sm:self-auto">
-            Chuẩn tương tác STEM GDPT 2018
-          </span>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 text-xs sm:text-sm">
-          {/* Column 1: UI Description & Pedagogy */}
-          <div className="space-y-3.5">
-            <div>
-              <div className="text-[11px] uppercase tracking-wider font-mono font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
-                <Info className="w-3.5 h-3.5 text-sky-400" />
-                <span>Thao tác kỹ thuật của người học:</span>
+        {/* Right Column: Inspection Board with Technical Details & Pedagogy (7 cols) */}
+        <div className="lg:col-span-7 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 transition-colors">
+          {/* Header of Active Pattern */}
+          <div className="flex items-start justify-between gap-3 border-b border-slate-200 dark:border-slate-800/80 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+                {renderIcon(activePattern.icon)}
               </div>
-              <p className="text-slate-300 leading-relaxed text-xs">
-                {activePattern.description}
-              </p>
-            </div>
-
-            <div className="p-3.5 rounded-lg bg-sky-950/20 border border-sky-500/20 space-y-1.5">
-              <div className="text-[11px] uppercase tracking-wider font-mono font-semibold text-sky-300 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-                <span>Giá trị sư phạm & Tư duy First-Principles:</span>
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base sm:text-lg">
+                  {activePattern.name}
+                </h3>
+                <p className="text-xs text-sky-600 dark:text-sky-400 font-mono">
+                  {activePattern.tagline}
+                </p>
               </div>
-              <p className="text-slate-300 leading-relaxed text-xs">
-                {activePattern.pedagogy}
-              </p>
             </div>
+            <span className="text-[10px] px-2.5 py-1 rounded bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 font-mono border border-slate-200 dark:border-slate-800 whitespace-nowrap hidden sm:inline-block">
+              Chuẩn GDPT 2018
+            </span>
           </div>
 
-          {/* Column 2: Applied Examples in Curriculum */}
-          <div className="space-y-3">
-            <div className="text-[11px] uppercase tracking-wider font-mono font-semibold text-slate-400 mb-1">
-              Ví dụ áp dụng trong chương trình học:
+          {/* Block 1: Technical Execution */}
+          <div className="space-y-1.5">
+            <div className="text-[11px] uppercase tracking-wider font-mono font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <Info className="w-3.5 h-3.5 text-sky-500" />
+              <span>Thao tác kỹ thuật của người học:</span>
             </div>
-            <ul className="space-y-2">
-              {activePattern.examples.map((ex, idx) => (
-                <li
-                  key={idx}
-                  className="flex items-start gap-2.5 p-2.5 rounded-lg bg-slate-900/60 border border-slate-800/80 text-xs text-slate-300"
+            <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed bg-white dark:bg-slate-900/60 p-3.5 rounded-lg border border-slate-200 dark:border-slate-800">
+              {activePattern.description}
+            </p>
+          </div>
+
+          {/* Block 2: First-Principles Pedagogy */}
+          <div className="space-y-1.5">
+            <div className="text-[11px] uppercase tracking-wider font-mono font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+              <span>Giá trị sư phạm & Tư duy First-Principles:</span>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed bg-emerald-50/60 dark:bg-emerald-950/20 p-3.5 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
+              {activePattern.pedagogy}
+            </p>
+          </div>
+
+          {/* Block 3: Curriculum Examples */}
+          <div className="space-y-2">
+            <div className="text-[11px] uppercase tracking-wider font-mono font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-sky-500" />
+              <span>Ví dụ áp dụng trong chương trình học GDPT:</span>
+            </div>
+            <div className="space-y-1.5">
+              {activePattern.examples.map((ex, exIdx) => (
+                <div
+                  key={exIdx}
+                  className="flex items-start gap-2.5 p-2.5 rounded-lg bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300"
                 >
-                  <span className="w-5 h-5 rounded-full bg-slate-800 text-sky-400 flex items-center justify-center font-mono text-[10px] flex-shrink-0 mt-0.5">
-                    {idx + 1}
+                  <span className="w-5 h-5 rounded-full bg-sky-100 dark:bg-slate-800 text-sky-600 dark:text-sky-400 flex items-center justify-center font-mono text-[10px] flex-shrink-0 mt-0.5 font-bold">
+                    {exIdx + 1}
                   </span>
                   <span className="leading-relaxed">{ex}</span>
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
         </div>
       </div>
