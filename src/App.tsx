@@ -10,6 +10,8 @@ import { LessonView } from './components/layout/LessonView';
 import { SimulationLabGrid } from './components/lab/SimulationLabGrid';
 import { SearchModal } from './components/common/SearchModal';
 import { AiReaderModal } from './components/common/AiReaderModal';
+import { GradePhilosophyCard } from './components/curriculum/GradePhilosophyCard';
+import { SgkBookBrowser } from './components/curriculum/SgkBookBrowser';
 
 export const App: React.FC = () => {
   // Navigation view state: 'curriculum' vs 'simulations'
@@ -189,23 +191,41 @@ export const App: React.FC = () => {
               onSelectSubject={handleSelectSubject}
             />
 
-            {/* Two-Column Wiki Workspace */}
-            <div className="flex-1 max-w-7xl w-full mx-auto flex flex-col lg:flex-row">
-              {/* Left Column: Lesson Tree */}
-              <SidebarLessonTree
-                chapters={currentChapters}
-                lessons={currentLessons}
-                selectedLessonId={activeLesson.id}
-                onSelectLesson={setSelectedLessonId}
-                subjectName={activeSubject?.name || ''}
-              />
+            {/* Main Curriculum Content Area */}
+            <div className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+              {/* 1. Khung Triết lý giáo dục 4 trụ cột của khối đang chọn */}
+              <GradePhilosophyCard gradeId={selectedGradeId} />
 
-              {/* Right Column: Lesson Content + Embedded Simulator */}
-              <LessonView
-                lesson={activeLesson}
-                subject={activeSubject}
-                onNavigateToSimLab={handleNavigateToSimLab}
-              />
+              {/* 2. Kho sách giáo khoa và danh mục bài học từ bài 1 đến bài cuối của khối */}
+              <SgkBookBrowser gradeId={selectedGradeId} />
+
+              {/* 3. Bài học cốt lõi & Phòng thí nghiệm trực quan First-Principles */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
+                  <h3 className="font-bold text-sm font-mono text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                    Bài Học Cốt Lõi & Khám Phá Mô Phỏng (First-Principles)
+                  </h3>
+                </div>
+
+                <div className="bg-white dark:bg-[#0c101a] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex flex-col lg:flex-row">
+                  {/* Left Column: Lesson Tree */}
+                  <SidebarLessonTree
+                    chapters={currentChapters}
+                    lessons={currentLessons}
+                    selectedLessonId={activeLesson.id}
+                    onSelectLesson={setSelectedLessonId}
+                    subjectName={activeSubject?.name || ''}
+                  />
+
+                  {/* Right Column: Lesson Content + Embedded Simulator */}
+                  <LessonView
+                    lesson={activeLesson}
+                    subject={activeSubject}
+                    onNavigateToSimLab={handleNavigateToSimLab}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         ) : (

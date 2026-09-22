@@ -234,7 +234,7 @@ export const SimulationCatalogTable: React.FC<Props> = ({ onRunLiveSimulation })
               paginatedItems.map((item) => (
                 <tr
                   key={item.id}
-                  className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors group align-top"
+                  className="hover:outline hover:outline-1 hover:outline-red-500 dark:hover:outline-red-500 transition-all group align-top"
                 >
                   {/* Cột 1: STT */}
                   <td className="py-4 px-3 text-center font-mono font-bold text-slate-600 dark:text-slate-400">
@@ -254,7 +254,7 @@ export const SimulationCatalogTable: React.FC<Props> = ({ onRunLiveSimulation })
                         </span>
                       )}
                     </div>
-                    <div className="font-semibold text-slate-900 dark:text-slate-100 text-sm leading-snug group-hover:text-sky-600 dark:group-hover:text-sky-300 transition-colors">
+                    <div className="font-semibold text-slate-900 dark:text-slate-100 text-sm leading-snug transition-colors">
                       {item.title}
                     </div>
                     <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">

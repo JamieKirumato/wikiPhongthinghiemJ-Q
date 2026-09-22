@@ -74,7 +74,7 @@ export const InteractionPatternsGuide: React.FC = () => {
                   className={`w-full p-3.5 rounded-xl border text-left transition-all flex items-start gap-3 relative ${
                     isSelected
                       ? 'bg-sky-50 dark:bg-slate-800/90 border-sky-500 text-slate-900 dark:text-slate-100 shadow-md ring-1 ring-sky-500/30'
-                      : 'bg-slate-50/70 dark:bg-[#0b0f17]/70 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-100/70 dark:hover:bg-slate-850/50 text-slate-700 dark:text-slate-300'
+                      : 'bg-slate-50/70 dark:bg-[#0b0f17]/70 border-slate-200 dark:border-slate-800 hover:border-red-500 dark:hover:border-red-500 text-slate-700 dark:text-slate-300'
                   }`}
                 >
                   {isSelected && (
@@ -165,7 +165,7 @@ export const InteractionPatternsGuide: React.FC = () => {
               {activePattern.examples.map((ex, exIdx) => (
                 <div
                   key={exIdx}
-                  className="flex items-start gap-2.5 p-2.5 rounded-lg bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300"
+                  className="flex items-start gap-2.5 p-2.5 rounded-lg bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 hover:border-red-500 dark:hover:border-red-500 transition-colors text-xs text-slate-700 dark:text-slate-300"
                 >
                   <span className="w-5 h-5 rounded-full bg-sky-100 dark:bg-slate-800 text-sky-600 dark:text-sky-400 flex items-center justify-center font-mono text-[10px] flex-shrink-0 mt-0.5 font-bold">
                     {exIdx + 1}

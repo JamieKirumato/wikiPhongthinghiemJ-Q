@@ -120,7 +120,7 @@ export const SimulationLabGrid: React.FC<Props> = ({ focusSimId }) => {
             return (
               <div
                 key={sim.id}
-                className={`flex flex-col justify-between bg-slate-50/70 dark:bg-slate-950/70 border rounded-xl p-4 hover:border-slate-300 dark:hover:border-slate-700 transition space-y-3 ${
+                className={`flex flex-col justify-between bg-slate-50/70 dark:bg-slate-950/70 border rounded-xl p-4 hover:border-red-500 dark:hover:border-red-500 transition space-y-3 ${
                   isSelected ? 'border-emerald-500 ring-1 ring-emerald-500/40' : 'border-slate-200 dark:border-slate-800'
                 }`}
               >
