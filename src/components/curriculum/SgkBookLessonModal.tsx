@@ -122,11 +122,9 @@ export const SgkBookLessonModal: React.FC<Props> = ({ book, onClose }) => {
                   <tr>
                     <th className="py-2.5 px-3 text-center w-14">STT</th>
                     <th className="py-2.5 px-3 w-28">Mã bài</th>
-                    <th className="py-2.5 px-4 min-w-[220px]">Tên bài học</th>
-                    <th className="py-2.5 px-4 min-w-[180px]">Chủ đề / Chương</th>
-                    <th className="py-2.5 px-3 text-center w-20">Trang</th>
-                    <th className="py-2.5 px-3 min-w-[140px]">Hoạt động</th>
-                    <th className="py-2.5 px-3 text-center w-28">Thao tác</th>
+                    <th className="py-2.5 px-4">Tên bài học</th>
+                    <th className="py-2.5 px-3 text-center w-24">Trang</th>
+                    <th className="py-2.5 px-3 text-center w-32">Mở bài</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
@@ -143,53 +141,22 @@ export const SgkBookLessonModal: React.FC<Props> = ({ book, onClose }) => {
                         <td className="py-3 px-3 font-mono font-bold text-sky-700 dark:text-sky-400">
                           {lesson.code}
                         </td>
-                        <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span>{lesson.title}</span>
-                            <a
-                              href={readUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sky-600 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-300 inline-flex items-center gap-0.5 text-[10px] font-mono px-1.5 py-0.2 rounded bg-sky-50 dark:bg-sky-950 border border-sky-200 dark:border-sky-800"
-                              title={`Mở bài học này (Trang ${lesson.page || 1}) trên Hành Trang Số`}
-                            >
-                              <span>Mở bài</span>
-                              <ExternalLink className="w-2.5 h-2.5" />
-                            </a>
-                          </div>
+                        <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100 text-sm">
+                          {lesson.title}
                         </td>
-                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400 text-[11px]">
-                          {lesson.chapter}
-                        </td>
-                        <td className="py-3 px-3 text-center font-mono text-slate-500 text-[11px]">
+                        <td className="py-3 px-3 text-center font-mono text-slate-500 text-xs">
                           {lesson.page ? `Tr. ${lesson.page}` : '—'}
-                        </td>
-                        <td className="py-3 px-3">
-                          {lesson.activities && lesson.activities.length > 0 ? (
-                            <div className="flex items-center gap-1 flex-wrap">
-                              {lesson.activities.map((act, i) => (
-                                <span
-                                  key={i}
-                                  className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono"
-                                >
-                                  {act}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400 text-[11px] italic">Bài học chuẩn</span>
-                          )}
                         </td>
                         <td className="py-3 px-3 text-center">
                           <a
                             href={readUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800 font-mono text-[11px] font-semibold transition"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800 font-mono text-xs font-semibold transition"
                             title={`Mở trang ${lesson.page || 1} của sách trên Hành Trang Số`}
                           >
                             <span>Mở bài</span>
-                            <ExternalLink className="w-3 h-3" />
+                            <ExternalLink className="w-3.5 h-3.5" />
                           </a>
                         </td>
                       </tr>
