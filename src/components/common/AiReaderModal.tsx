@@ -172,7 +172,7 @@ export const AiReaderModal: React.FC<Props> = ({
                       CỔNG DỮ LIỆU DÀNH CHO AI (AI READER & DIAGNOSTICS)
                     </h3>
                     <span className="text-[10px] px-2 py-0.2 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                      Live 170 Labs
+                      Live 70 Labs
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-400">
@@ -211,7 +211,7 @@ export const AiReaderModal: React.FC<Props> = ({
                       : 'bg-slate-850 text-slate-400 hover:text-white'
                   }`}
                 >
-                  170 Thí nghiệm
+                  70 Thí nghiệm
                 </button>
                 <button
                   onClick={() => setActiveTab('curriculum')}

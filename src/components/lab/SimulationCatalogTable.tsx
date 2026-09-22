@@ -102,7 +102,7 @@ export const SimulationCatalogTable: React.FC<Props> = ({ onRunLiveSimulation })
             Danh Mục Thí Nghiệm Theo Cấp Học (Mầm non - THPT)
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-3xl">
-            Toàn bộ 170 thí nghiệm được trích xuất trực tiếp từ chương trình GDPT 2018 (SGK Kết nối tri thức với cuộc sống), phân loại theo cấp học, mục đích và quy trình tiến hành chuẩn mực.
+            Toàn bộ 70 thí nghiệm được trích xuất trực tiếp từ chương trình GDPT 2018 (SGK Kết nối tri thức với cuộc sống), phân loại theo cấp học, mục đích và quy trình tiến hành chuẩn mực.
           </p>
         </div>
 

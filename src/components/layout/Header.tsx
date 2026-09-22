@@ -38,7 +38,7 @@ export const Header: React.FC<Props> = ({
             ) : (
               <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300 font-semibold bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-200 dark:border-emerald-500/20">
                 <FlaskConical className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span>Thư viện mô phỏng (170 thí nghiệm)</span>
+                <span>Thư viện mô phỏng (70 thí nghiệm)</span>
               </span>
             )}
           </div>

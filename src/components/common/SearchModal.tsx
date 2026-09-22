@@ -244,11 +244,11 @@ export const SearchModal: React.FC<Props> = ({
                     <span>Tìm kiếm toàn diện trong toàn bộ hệ thống</span>
                   </div>
                   <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
-                    Hệ thống đã chỉ mục <strong>139 đầu sách giáo khoa</strong> của NXB Giáo dục Việt Nam (từ Mầm non đến Lớp 5) cùng <strong>170 mô phỏng thí nghiệm tương tác</strong> (từ Mầm non đến Lớp 12).
+                    Hệ thống đã chỉ mục <strong>139 đầu sách giáo khoa</strong> của NXB Giáo dục Việt Nam (từ Mầm non đến Lớp 5) cùng <strong>70 mô phỏng thí nghiệm tương tác</strong> (từ Mầm non đến Lớp 12).
                   </p>
                   <div className="flex items-center gap-4 text-[11px] font-mono text-slate-500 dark:text-slate-400 pt-1">
                     <span>• {allSgkLessons.length.toLocaleString('vi-VN')} bài học SGK</span>
-                    <span>• 170 mô phỏng thực nghiệm</span>
+                    <span>• 70 mô phỏng thực nghiệm</span>
                     <span>• Đầy đủ link đọc trực tiếp trên Hành Trang Số</span>
                   </div>
                 </div>
@@ -382,7 +382,7 @@ export const SearchModal: React.FC<Props> = ({
               </div>
             )}
 
-            {/* SECTION B: Mô Phỏng Thí Nghiệm (170 Thí Nghiệm Chuẩn) */}
+            {/* SECTION B: Mô Phỏng Thí Nghiệm (70 Thí Nghiệm Chuẩn) */}
             {(activeTab === 'all' || activeTab === 'sims') && matchedSims.length > 0 && (
               <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-1.5">

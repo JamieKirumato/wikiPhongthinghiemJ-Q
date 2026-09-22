@@ -133,11 +133,11 @@ export const AppSidebar: React.FC<Props> = ({
                   </span>
                   <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-mono border border-emerald-300 dark:border-emerald-500/30">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    170 lab
+                    70 lab
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5 leading-snug">
-                  170 thí nghiệm K-12 & 6 dạng tương tác First-Principles
+                  70 thí nghiệm K-12 & 6 dạng tương tác First-Principles
                 </p>
               </div>
             </button>
