@@ -10,6 +10,7 @@ import { SearchModal } from './components/common/SearchModal';
 import { AiReaderModal } from './components/common/AiReaderModal';
 import { GradePhilosophyCard } from './components/curriculum/GradePhilosophyCard';
 import { SgkBookBrowser } from './components/curriculum/SgkBookBrowser';
+import { SimulationCatalogTable } from './components/lab/SimulationCatalogTable';
 
 export const App: React.FC = () => {
   // Navigation view state: 'curriculum' vs 'simulations'
@@ -35,10 +36,10 @@ export const App: React.FC = () => {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
 
-  // Hierarchy Selection States
-  const [selectedLevelId, setSelectedLevelId] = useState<LevelId>('thcs');
-  const [selectedGradeId, setSelectedGradeId] = useState<string>('thcs-lop-8');
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string>('thcs-khtn-8');
+  // Hierarchy Selection States - Default to Preschool (Mầm non) as requested
+  const [selectedLevelId, setSelectedLevelId] = useState<LevelId>('mam-non');
+  const [selectedGradeId, setSelectedGradeId] = useState<string>('mn-4-5');
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>('mn-kham-pha');
 
   // Focus Simulation ID (for when clicking "Mở trong Thư viện mô phỏng")
   const [focusSimId, setFocusSimId] = useState<string | undefined>(undefined);
@@ -159,6 +160,7 @@ export const App: React.FC = () => {
         {/* Top Header Bar */}
         <Header
           activeView={activeView}
+          onSelectView={setActiveView}
           onOpenSearch={() => setIsSearchOpen(true)}
           onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
           theme={theme}
@@ -190,6 +192,28 @@ export const App: React.FC = () => {
             <div className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
               {/* 1. Khung Triết lý giáo dục 4 trụ cột của khối đang chọn */}
               <GradePhilosophyCard gradeId={selectedGradeId} />
+
+              {/* Nếu đang chọn cấp Mầm non, hiển thị ngay bảng 30 thí nghiệm tương tác */}
+              {selectedLevelId === 'mam-non' && (
+                <div className="space-y-3 pt-2">
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-sky-500/10 to-transparent border border-emerald-500/30 flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-base sm:text-lg text-slate-900 dark:text-white font-mono flex items-center gap-2">
+                        <span>🌟 Kho 30 Hoạt Động Thí Nghiệm & Khám Phá Mầm Non</span>
+                      </h3>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                        Tổ chức chuẩn hóa theo 5 Lĩnh vực GDMN với 2 hướng tiếp cận: <strong>Cơ bản</strong> (kịch bản chuẩn) &amp; <strong>Khám phá</strong> (Sandbox What-If) cùng 100% Chạy Lab.
+                      </p>
+                    </div>
+                  </div>
+                  <SimulationCatalogTable
+                    onRunLiveSimulation={(simId) => {
+                      setFocusSimId(simId);
+                      setActiveView('simulations');
+                    }}
+                  />
+                </div>
+              )}
 
               {/* 2. Kho sách giáo khoa và danh mục bài học từ bài 1 đến bài cuối của khối */}
               <SgkBookBrowser gradeId={selectedGradeId} />

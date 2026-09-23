@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { SIMULATIONS } from '../../data/curriculumData';
+import { SIMULATION_CATALOG } from '../../data/simulationCatalogData';
 import { Play, Sparkles, X } from 'lucide-react';
 import { ColorMixerSim } from '../simulations/ColorMixerSim';
 import { BalanceScaleSim } from '../simulations/BalanceScaleSim';
 import { ElectricCircuitSim } from '../simulations/ElectricCircuitSim';
 import { PendulumCalculusSim } from '../simulations/PendulumCalculusSim';
+import { UniversalPreschoolSimLab } from '../simulations/UniversalPreschoolSimLab';
 import { InteractionPatternsGuide } from './InteractionPatternsGuide';
 import { SimulationCatalogTable } from './SimulationCatalogTable';
 
@@ -23,8 +25,20 @@ export const SimulationLabGrid: React.FC<Props> = ({ focusSimId }) => {
   }, [focusSimId]);
 
   const activeSim = SIMULATIONS.find((s) => s.id === activeSimId);
+  const activeCatalogItem = SIMULATION_CATALOG.find((i) => i.id === activeSimId || i.liveSimId === activeSimId);
+  const hasActiveSim = Boolean(activeSim || (activeCatalogItem && activeCatalogItem.levelId === 'mam-non'));
 
   const renderSimComponent = (id: string) => {
+    if (id.startsWith('sim-mn-')) {
+      return (
+        <UniversalPreschoolSimLab
+          simId={id}
+          onSelectOtherSim={handleRunLiveSim}
+          onClose={() => setActiveSimId(null)}
+        />
+      );
+    }
+
     switch (id) {
       case 'sim-color-mixer':
         return <ColorMixerSim />;
@@ -57,19 +71,22 @@ export const SimulationLabGrid: React.FC<Props> = ({ focusSimId }) => {
       </div>
 
       {/* 2. Active Focus Simulator Workspace (If Running) */}
-      {activeSim && (
+      {hasActiveSim && activeSimId && (
         <section className="p-6 bg-white dark:bg-slate-900/95 border-2 border-emerald-500 rounded-2xl shadow-xl dark:shadow-2xl space-y-4 animate-fadeIn ring-2 ring-emerald-500/20">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs px-2.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-mono font-semibold">
-                  {activeSim.gradeLabel} • {activeSim.subjectName}
+                  {activeSim?.gradeLabel || activeCatalogItem?.extractedFrom.grade || 'Mầm non'} •{' '}
+                  {activeSim?.subjectName || activeCatalogItem?.extractedFrom.subject || 'Khám phá Khoa học'}
                 </span>
                 <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono">
                   Phòng Lab Tương Tác Trực Tiếp
                 </span>
               </div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white mt-1">{activeSim.title}</h2>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white mt-1">
+                {activeSim?.title || activeCatalogItem?.title}
+              </h2>
             </div>
 
             <button
@@ -81,7 +98,7 @@ export const SimulationLabGrid: React.FC<Props> = ({ focusSimId }) => {
             </button>
           </div>
 
-          <div>{renderSimComponent(activeSim.id)}</div>
+          <div>{renderSimComponent(activeSimId)}</div>
         </section>
       )}
 

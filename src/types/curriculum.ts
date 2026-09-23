@@ -72,6 +72,40 @@ export interface InteractionPattern {
   accentColor: string;
 }
 
+export type PreschoolDomain = 
+  | 'nhan-thuc'        // Phát triển Nhận thức (Khám phá khoa học & Toán)
+  | 'the-chat'         // Phát triển Thể chất (Vận động & Giác quan)
+  | 'tham-my'          // Phát triển Thẩm mỹ (Màu sắc, Âm thanh & Nghệ thuật)
+  | 'ngon-ngu'         // Phát triển Ngôn ngữ (Mô tả, Đặt câu hỏi)
+  | 'tinh-cam-xa-hoi'; // Phát triển Tình cảm & Kỹ năng xã hội
+
+export interface PreschoolExplorationData {
+  domain: PreschoolDomain;
+  domainLabel: string;
+  ageGroup: '3 - 4 tuổi' | '4 - 5 tuổi' | '5 - 6 tuổi';
+  materials: string[];
+  teacherPrompt: string;
+  variableTuning: {
+    name: string;
+    description: string;
+    options: { label: string; outcome: string }[];
+  };
+  spatialLayout: {
+    action: string;
+    outcome: string;
+  };
+  gestureDynamics: {
+    action: string;
+    outcome: string;
+  };
+  whatIfChallenge: {
+    question: string;
+    discoveryOutcome: string;
+    badgeName: string;
+    badgeIcon?: string;
+  };
+}
+
 export interface SimulationCatalogItem {
   stt: number;
   id: string;
@@ -91,5 +125,6 @@ export interface SimulationCatalogItem {
   liveSimId?: string;
   keyVariables?: string[];
   firstPrinciplesNote?: string;
+  preschoolProfile?: PreschoolExplorationData;
 }
 

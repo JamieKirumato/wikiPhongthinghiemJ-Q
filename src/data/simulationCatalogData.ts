@@ -1,4 +1,5 @@
-import { InteractionPattern, SimulationCatalogItem } from '../types/curriculum';
+import { InteractionPattern, SimulationCatalogItem, PreschoolExplorationData } from '../types/curriculum';
+import { PRESCHOOL_EXPLORATION_MAP } from './preschoolExplorationData';
 
 export const INTERACTION_PATTERNS: InteractionPattern[] = [
   {
@@ -104,22 +105,31 @@ const createItem = (
   hasLiveSim = false,
   liveSimId?: string,
   keyVariables?: string[],
-  firstPrinciplesNote?: string
-): SimulationCatalogItem => ({
-  stt,
-  id,
-  title,
-  purpose,
-  procedure,
-  extractedFrom: { subject, grade, lesson, textbook },
-  levelId,
-  interactionPatternId,
-  interactionPatternName,
-  hasLiveSim,
-  liveSimId,
-  keyVariables,
-  firstPrinciplesNote
-});
+  firstPrinciplesNote?: string,
+  preschoolProfile?: PreschoolExplorationData
+): SimulationCatalogItem => {
+  const isPreschool = levelId === 'mam-non';
+  const resolvedHasLiveSim = isPreschool ? true : hasLiveSim;
+  const resolvedLiveSimId = isPreschool ? (liveSimId || id) : liveSimId;
+  const resolvedPreschoolProfile = isPreschool ? (preschoolProfile || PRESCHOOL_EXPLORATION_MAP[id]) : undefined;
+
+  return {
+    stt,
+    id,
+    title,
+    purpose,
+    procedure,
+    extractedFrom: { subject, grade, lesson, textbook },
+    levelId,
+    interactionPatternId,
+    interactionPatternName,
+    hasLiveSim: resolvedHasLiveSim,
+    liveSimId: resolvedLiveSimId,
+    keyVariables,
+    firstPrinciplesNote,
+    preschoolProfile: resolvedPreschoolProfile
+  };
+};
 
 export const SIMULATION_CATALOG: SimulationCatalogItem[] = [
   // =========================================================================
