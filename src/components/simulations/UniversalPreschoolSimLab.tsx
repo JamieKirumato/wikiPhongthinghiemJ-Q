@@ -16,6 +16,8 @@ import {
   ArrowRight,
   BookOpen
 } from 'lucide-react';
+import { ColorMixerSim } from './ColorMixerSim';
+import { soundEngine } from '../../utils/audioEffects';
 
 interface Props {
   simId: string;
@@ -95,10 +97,14 @@ export const UniversalPreschoolSimLab: React.FC<Props> = ({
     }
   };
 
+  // Guided step completion tracking
+  const [guidedStepDone, setGuidedStepDone] = useState<boolean[]>([false, false, false, false]);
+
   // Reset states when changing experiment
   useEffect(() => {
     setGuidedStep(0);
     setGuidedCompleted(false);
+    setGuidedStepDone([false, false, false, false]);
     setBadgeUnlocked(false);
     setShowBadgeNotification(false);
     setMascotMessage(profile.teacherPrompt);
@@ -124,7 +130,146 @@ export const UniversalPreschoolSimLab: React.FC<Props> = ({
     setSimChoice(0);
     setSimToggle(false);
     setSimActionTrigger(0);
+    setGuidedStepDone([false, false, false, false]);
   }, [simId]);
+
+  // Step Action Handlers: Make each step directly PLAYABLE on the simulation canvas
+  const handleExecuteStepAction = (stepIdx: number) => {
+    const sId = currentItem.id;
+    playChime(440 + stepIdx * 120, 'triangle', 0.3);
+
+    setGuidedStepDone((prev) => {
+      const next = [...prev];
+      next[stepIdx] = true;
+      return next;
+    });
+
+    if (sId === 'sim-mn-01') {
+      if (stepIdx === 0) {
+        setSimParam1(10); setSimParam2(10); setSimParam3(10);
+        setMascotMessage('Bước 1: Cốc nước trong suốt đã sẵn sàng trên bàn thí nghiệm!');
+      } else if (stepIdx === 1) {
+        setSimParam1(95); setSimParam2(0); setSimParam3(0);
+        setMascotMessage('Bước 2: Bé vừa nhỏ màu Đỏ rực rỡ vào cốc nước đầu tiên!');
+      } else if (stepIdx === 2) {
+        setSimParam1(95); setSimParam2(85); setSimParam3(0);
+        setMascotMessage('Bước 3: Khuấy đều Đỏ và Vàng biến thành màu Cam tuyệt đẹp!');
+      } else {
+        setSimParam1(100); setSimParam2(100); setSimParam3(100);
+        setMascotMessage('Bước 4: Kỳ diệu! Hòa trộn cả 3 màu tạo nên Ánh Sáng Trắng rạng rỡ!');
+        triggerBadgeUnlock();
+        setGuidedCompleted(true);
+      }
+    } else if (sId === 'sim-mn-02') {
+      if (stepIdx === 0) {
+        setSimChoice(0);
+        setMascotMessage('Bước 1: Bể nước trong veo đã chuẩn bị xong, chờ bé thả đồ vật!');
+      } else if (stepIdx === 1) {
+        setSimChoice(0); // Quả bóng nhựa
+        setMascotMessage('Bước 2: Bé thả quả bóng nhựa nhẹ tênh: Quả bóng nổi bồng bềnh!');
+      } else if (stepIdx === 2) {
+        setSimChoice(3); // Hòn sỏi
+        setMascotMessage('Bước 3: Bé thả hòn sỏi nặng: Hòn sỏi chìm vèo xuống đáy bể!');
+      } else {
+        setSimChoice(1); // Chiếc lá
+        setMascotMessage('Bước 4: Hoan hô! Bé đã hiểu: Vật nhẹ nổi bồng bềnh, vật nặng chìm nghỉm!');
+        triggerBadgeUnlock();
+        setGuidedCompleted(true);
+      }
+    } else if (sId === 'sim-mn-03') {
+      if (stepIdx === 0) {
+        setSimParam1(15); setSimParam2(50);
+        setMascotMessage('Bước 1: Lắp thanh bập bênh vững chãi!');
+      } else if (stepIdx === 1) {
+        setSimParam1(25);
+        setMascotMessage('Bước 2: Đặt bạn Gấu béo lên bên trái: Cầu bập bênh nghiêng hẳn sang trái!');
+      } else if (stepIdx === 2) {
+        setSimParam1(60); // 3 rabbits = balance!
+        setMascotMessage('Bước 3: Đặt 3 bạn Thỏ lên bên phải: BẬP BÊNH THĂNG BẰNG HOÀN HẢO!');
+      } else {
+        setSimParam1(60);
+        setMascotMessage('Bước 4: Tuyệt vời! Bé đã tìm ra bí quyết thăng bằng cho bập bênh!');
+        triggerBadgeUnlock();
+        setGuidedCompleted(true);
+      }
+    } else if (sId === 'sim-mn-04') {
+      if (stepIdx === 0) {
+        setSimParam1(85);
+        setMascotMessage('Bước 1: Bật ngọn đèn pin chiếu chùm sáng lên tường!');
+      } else if (stepIdx === 1) {
+        setSimParam1(80);
+        setMascotMessage('Bước 2: Đặt Khủng long ở xa đèn: Chiếc bóng trên tường nhỏ xíu.');
+      } else if (stepIdx === 2) {
+        setSimParam1(20);
+        setMascotMessage('Bước 3: Kéo Khủng long lại sát ngọn đèn: Chiếc bóng phóng to khổng lồ!');
+      } else {
+        setSimParam1(20);
+        setMascotMessage('Bước 4: Bé đã khám phá: Vật càng gần nguồn sáng, bóng in trên tường càng to lớn!');
+        triggerBadgeUnlock();
+        setGuidedCompleted(true);
+      }
+    } else if (sId === 'sim-mn-05') {
+      if (stepIdx === 0) {
+        setSimChoice(0);
+        setMascotMessage('Bước 1: Chuẩn bị 5 cốc nước thủy tinh với mực nước khác nhau!');
+      } else if (stepIdx === 1) {
+        setSimChoice(0);
+        playChime(261.6, 'triangle', 0.4);
+        setMascotMessage('Bước 2: Gõ cốc đầy nước nhất: Nốt Đồ phát ra tiếng trầm ấm!');
+      } else if (stepIdx === 2) {
+        setSimChoice(4);
+        playChime(392.0, 'triangle', 0.4);
+        setMascotMessage('Bước 3: Gõ cốc ít nước nhất: Nốt Sol vang lên thanh trong vút cao!');
+      } else {
+        setSimChoice(2);
+        playChime(329.6, 'triangle', 0.5);
+        setMascotMessage('Bước 4: Bé là một nhạc trưởng tí hon! Mực nước khác nhau tạo nên âm thanh khác nhau.');
+        triggerBadgeUnlock();
+        setGuidedCompleted(true);
+      }
+    } else {
+      if (stepIdx === 0) {
+        setSimParam1(25);
+        setMascotMessage(`Bước 1 đã thực hiện: ${currentItem.procedure[0]}`);
+      } else if (stepIdx === 1) {
+        setSimParam1(55);
+        setMascotMessage(`Bước 2 đã thực hiện: ${currentItem.procedure[1]}`);
+      } else if (stepIdx === 2) {
+        setSimParam1(90);
+        setMascotMessage(`Bước 3 đã thực hiện: ${currentItem.procedure[2]}`);
+      } else {
+        setSimParam1(100);
+        setMascotMessage(`Bước 4 hoàn thành! ${currentItem.procedure[3]}`);
+        triggerBadgeUnlock();
+        setGuidedCompleted(true);
+      }
+    }
+  };
+
+  const getPlayableActionButtonText = (sId: string, stepIdx: number) => {
+    if (sId === 'sim-mn-01') {
+      const texts = ['🚰 Bấm Rót Nước Vào Cốc', '🧪 Bấm Nhỏ Màu Đỏ Vào Cốc', '🥄 Bấm Khuấy Hòa Màu Cam', '🏆 Bấm Tổng Hợp Ánh Sáng Trắng'];
+      return texts[stepIdx] || 'Chạm để thực hiện';
+    }
+    if (sId === 'sim-mn-02') {
+      const texts = ['🌊 Bấm Chuẩn Bị Bể Nước', '⚽ Bấm Thả Quả Bóng (Nổi)', '🪨 Bấm Thả Hòn Sỏi (Chìm)', '🏆 Bấm Nhận Huy Hiệu Khoa Học'];
+      return texts[stepIdx] || 'Chạm để thực hiện';
+    }
+    if (sId === 'sim-mn-03') {
+      const texts = ['🪵 Bấm Lắp Cầu Bập Bênh', '🐻 Bấm Đặt Bạn Gấu Nặng', '🐰 Bấm Đặt 3 Bạn Thỏ Cân Bằng', '🏆 Bấm Nhận Huy Hiệu Thăng Bằng'];
+      return texts[stepIdx] || 'Chạm để thực hiện';
+    }
+    if (sId === 'sim-mn-04') {
+      const texts = ['🔦 Bấm Bật Đèn Pin', '🦖 Bấm Đặt Khủng Long Ở Xa', '🔍 Bấm Kéo Khủng Long Lại Gần', '🏆 Bấm Nhận Huy Hiệu Ảo Thuật'];
+      return texts[stepIdx] || 'Chạm để thực hiện';
+    }
+    if (sId === 'sim-mn-05') {
+      const texts = ['🥛 Bấm Rót 5 Cốc Nước', '🎵 Bấm Gõ Cốc Trầm (Đồ)', '🎶 Bấm Gõ Cốc Bổng (Sol)', '🏆 Bấm Nhận Huy Hiệu Nhạc Trưởng'];
+      return texts[stepIdx] || 'Chạm để thực hiện';
+    }
+    const generic = ['👉 Bấm Thực Hiện Bước 1', '👉 Bấm Thao Tác Bước 2', '👉 Bấm Khám Phá Bước 3', '🏆 Bấm Hoàn Thành & Nhận Sao'];
+    return generic[stepIdx] || 'Chạm để thực hiện';
+  };
 
   // Handle guided next step
   const handleNextGuidedStep = () => {
@@ -142,6 +287,7 @@ export const UniversalPreschoolSimLab: React.FC<Props> = ({
   const handleResetSim = () => {
     setGuidedStep(0);
     setGuidedCompleted(false);
+    setGuidedStepDone([false, false, false, false]);
     setSimParam1(50);
     setSimParam2(50);
     setSimParam3(50);
@@ -853,116 +999,187 @@ export const UniversalPreschoolSimLab: React.FC<Props> = ({
       </div>
 
       {/* 3. Main Workspace: Interactive Scene + Controls */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 divide-y lg:divide-y-0 lg:divide-x divide-slate-800">
-        {/* Left Side: Visual Interactive Stage (7 Cols) */}
-        <div className="lg:col-span-7 flex flex-col justify-between bg-gradient-to-b from-[#0b101c] to-[#070b14] relative">
-          {/* Badge celebration overlay */}
-          {showBadgeNotification && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-bold px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-2 animate-bounce">
-              <Sparkles className="w-5 h-5 fill-current" />
-              <span>Chúc mừng bé đã mở khóa: "{profile.whatIfChallenge.badgeName}"!</span>
-            </div>
-          )}
-
-          {/* Render Scene */}
-          <div className="flex-1 flex items-center justify-center">
-            {renderExperimentScene()}
-          </div>
-
-          {/* Mascot Speech Bubble (Mimi Tò Mò) */}
-          <div className="m-4 p-3.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 shadow-lg flex items-start gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-2xl flex-shrink-0">
-              🐵
-            </div>
-            <div className="space-y-0.5">
-              <div className="text-[11px] font-bold text-amber-400 font-mono uppercase">
-                Bạn Mimi Tò Mò mách nhỏ:
-              </div>
-              <p className="text-xs text-slate-200 leading-relaxed">{mascotMessage}</p>
-            </div>
-          </div>
+      {playMode === 'sandbox' && currentItem.id === 'sim-mn-01' ? (
+        <div className="p-4 sm:p-6 bg-[#0b0f17]">
+          <ColorMixerSim />
         </div>
-
-        {/* Right Side: Interactive Controls / Step Guide (5 Cols) */}
-        <div className="lg:col-span-5 p-5 space-y-5 bg-[#0e1526]">
-          {playMode === 'guided' ? (
-            /* ================= GUIDED MODE PANEL ================= */
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <span className="text-xs font-mono text-slate-400 uppercase font-semibold">
-                  Tiến trình 4 bước chuẩn mực:
-                </span>
-                <span className="text-xs font-mono text-sky-400 font-bold">
-                  Bước {guidedStep + 1} / {currentItem.procedure.length}
-                </span>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 divide-y lg:divide-y-0 lg:divide-x divide-slate-800">
+          {/* Left Side: Visual Interactive Stage (7 Cols) */}
+          <div className="lg:col-span-7 flex flex-col justify-between bg-gradient-to-b from-[#0b101c] to-[#070b14] relative">
+            {/* Badge celebration overlay */}
+            {showBadgeNotification && (
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-bold px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-2 animate-bounce">
+                <Sparkles className="w-5 h-5 fill-current" />
+                <span>Chúc mừng bé đã mở khóa: "{profile.whatIfChallenge.badgeName}"!</span>
               </div>
+            )}
 
-              {/* Steps List */}
-              <div className="space-y-2">
-                {currentItem.procedure.map((step, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => {
-                      setGuidedStep(idx);
-                      playChime(400 + idx * 80, 'sine', 0.15);
-                      setMascotMessage(step);
-                    }}
-                    className={`p-3 rounded-xl border text-xs leading-relaxed cursor-pointer transition ${
-                      idx === guidedStep
-                        ? 'bg-sky-500/20 border-sky-500 text-white font-medium shadow-md'
-                        : idx < guidedStep
-                        ? 'bg-slate-900/40 border-slate-800 text-emerald-400/80'
-                        : 'bg-slate-900/20 border-slate-800/60 text-slate-500'
-                    }`}
+            {/* Render Scene */}
+            <div className="flex-1 flex items-center justify-center">
+              {renderExperimentScene()}
+            </div>
+
+            {/* Mascot Speech Bubble (Mimi Tò Mò) */}
+            <div className="m-4 p-3.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 shadow-lg flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-2xl flex-shrink-0">
+                🐵
+              </div>
+              <div className="space-y-0.5 min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-amber-400 font-mono uppercase">
+                    Bạn Mimi Tò Mò mách nhỏ:
+                  </span>
+                  <button
+                    onClick={() => soundEngine.speakText(mascotMessage)}
+                    className="flex items-center gap-1 text-[10px] text-amber-300/80 hover:text-amber-200 font-mono"
+                    title="Nghe Mimi nói"
                   >
-                    <div className="flex items-start gap-2">
-                      <span
-                        className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                          idx === guidedStep
-                            ? 'bg-sky-500 text-white'
-                            : idx < guidedStep
-                            ? 'bg-emerald-500/30 text-emerald-300'
-                            : 'bg-slate-800 text-slate-400'
+                    <Volume2 className="w-3.5 h-3.5" />
+                    <span>Nghe</span>
+                  </button>
+                </div>
+                <p className="text-xs text-slate-200 leading-relaxed">{mascotMessage}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Side: Interactive Controls / Step Guide (5 Cols) */}
+          <div className="lg:col-span-5 p-5 space-y-5 bg-[#0e1526]">
+            {playMode === 'guided' ? (
+              /* ================= GUIDED MODE PANEL ================= */
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <span className="text-xs font-mono text-slate-400 uppercase font-semibold">
+                    Tiến trình 4 bước chuẩn mực:
+                  </span>
+                  <span className="text-xs font-mono text-sky-400 font-bold">
+                    Bước {guidedStep + 1} / {currentItem.procedure.length}
+                  </span>
+                </div>
+
+                {/* Steps List */}
+                <div className="space-y-2.5">
+                  {currentItem.procedure.map((step, idx) => {
+                    const isCurrent = idx === guidedStep;
+                    const isDone = guidedStepDone[idx];
+
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => {
+                          setGuidedStep(idx);
+                          playChime(400 + idx * 80, 'sine', 0.15);
+                          setMascotMessage(step);
+                        }}
+                        className={`p-3.5 rounded-xl border text-xs leading-relaxed transition ${
+                          isCurrent
+                            ? 'bg-sky-950/40 border-sky-500 shadow-md ring-1 ring-sky-500/30'
+                            : isDone
+                            ? 'bg-slate-900/60 border-emerald-500/40 text-emerald-300'
+                            : 'bg-slate-900/20 border-slate-800/60 text-slate-500'
                         }`}
                       >
-                        {idx + 1}
-                      </span>
-                      <span>{step}</span>
-                    </div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            <span
+                              className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                                isDone
+                                  ? 'bg-emerald-500 text-white'
+                                  : isCurrent
+                                  ? 'bg-sky-500 text-white'
+                                  : 'bg-slate-800 text-slate-400'
+                              }`}
+                            >
+                              {isDone ? '✓' : idx + 1}
+                            </span>
+                            <span className={isCurrent ? 'font-semibold text-white' : ''}>
+                              {step}
+                            </span>
+                          </div>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              soundEngine.speakText(step);
+                            }}
+                            className="p-1 rounded text-slate-400 hover:text-white"
+                            title="Nghe cô giáo đọc bước này"
+                          >
+                            <Volume2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Interactive Play Button for Active Step */}
+                        {isCurrent && (
+                          <div className="mt-3 pt-2.5 border-t border-sky-500/30 space-y-2">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="font-bold text-amber-300 flex items-center gap-1">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Bé chạm nút này để thao tác:</span>
+                              </span>
+                              {isDone && (
+                                <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/40">
+                                  ✓ ĐÃ LÀM XONG
+                                </span>
+                              )}
+                            </div>
+
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleExecuteStepAction(idx);
+                              }}
+                              className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold font-mono transition shadow-lg flex items-center justify-center gap-2 active:scale-95 ${
+                                isDone
+                                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                  : 'bg-gradient-to-r from-sky-500 via-teal-500 to-emerald-500 hover:from-sky-400 hover:to-emerald-400 text-white animate-pulse'
+                              }`}
+                            >
+                              <Play className="w-3.5 h-3.5 fill-current" />
+                              <span>{getPlayableActionButtonText(currentItem.id, idx)}</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Next Step Action Button */}
+                <div className="pt-2">
+                  <button
+                    onClick={handleNextGuidedStep}
+                    className={`w-full py-2.5 rounded-xl text-xs font-bold font-mono transition shadow-lg flex items-center justify-center gap-2 ${
+                      guidedCompleted
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                        : 'bg-sky-600 hover:bg-sky-500 text-white'
+                    }`}
+                  >
+                    <span>{guidedCompleted ? 'Lặp Lại Từ Đầu' : 'Tiếp Tục Bước Kế Tiếp'}</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Teacher Preparation Checklist */}
+                <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1.5 text-xs">
+                  <div className="font-mono text-slate-400 uppercase text-[10px] font-semibold flex items-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Chuẩn bị đồ dùng thực tế:</span>
                   </div>
-                ))}
-              </div>
-
-              {/* Next Step Action Button */}
-              <div className="pt-2">
-                <button
-                  onClick={handleNextGuidedStep}
-                  className="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold font-mono transition shadow-lg flex items-center justify-center gap-2"
-                >
-                  <span>{guidedCompleted ? 'Lặp Lại Từ Đầu' : 'Tiếp Tục Bước Kế Tiếp'}</span>
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Teacher Preparation Checklist */}
-              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1.5 text-xs">
-                <div className="font-mono text-slate-400 uppercase text-[10px] font-semibold flex items-center gap-1.5">
-                  <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Chuẩn bị đồ dùng thực tế:</span>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {profile.materials.map((m, mIdx) => (
-                    <span
-                      key={mIdx}
-                      className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[11px]"
-                    >
-                      • {m}
-                    </span>
-                  ))}
+                  <div className="flex flex-wrap gap-1">
+                    {profile.materials.map((m, mIdx) => (
+                      <span
+                        key={mIdx}
+                        className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[11px]"
+                      >
+                        • {m}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
+            ) : (
             /* ================= SANDBOX EXPLORATION PANEL ================= */
             <div className="space-y-4">
               <div className="border-b border-slate-800 pb-2">
@@ -1075,6 +1292,7 @@ export const UniversalPreschoolSimLab: React.FC<Props> = ({
           )}
         </div>
       </div>
-    </div>
-  );
+    )}
+  </div>
+);
 };

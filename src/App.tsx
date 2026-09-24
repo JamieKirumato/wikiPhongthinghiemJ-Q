@@ -11,10 +11,11 @@ import { AiReaderModal } from './components/common/AiReaderModal';
 import { GradePhilosophyCard } from './components/curriculum/GradePhilosophyCard';
 import { SgkBookBrowser } from './components/curriculum/SgkBookBrowser';
 import { SimulationCatalogTable } from './components/lab/SimulationCatalogTable';
+import { PreschoolProductsView } from './components/preschool/PreschoolProductsView';
 
 export const App: React.FC = () => {
-  // Navigation view state: 'curriculum' vs 'simulations'
-  const [activeView, setActiveView] = useState<'curriculum' | 'simulations'>('curriculum');
+  // Navigation view state: 'curriculum' vs 'simulations' vs 'preschool-products'
+  const [activeView, setActiveView] = useState<'curriculum' | 'simulations' | 'preschool-products'>('curriculum');
 
   // Theme state: Default is 'light' as requested
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -218,6 +219,11 @@ export const App: React.FC = () => {
               {/* 2. Kho sách giáo khoa và danh mục bài học từ bài 1 đến bài cuối của khối */}
               <SgkBookBrowser gradeId={selectedGradeId} />
             </div>
+          </div>
+        ) : activeView === 'preschool-products' ? (
+          /* TAB CON: Sản phẩm Mầm non (Bảng mô tả các thí nghiệm đang làm + Phòng lab tương tác) */
+          <div className="flex-1">
+            <PreschoolProductsView />
           </div>
         ) : (
           /* TAB 2: Thư viện mô phỏng (Đề xuất Dạng tương tác 2 cột + Bảng danh mục 170 thí nghiệm + Live Lab) */

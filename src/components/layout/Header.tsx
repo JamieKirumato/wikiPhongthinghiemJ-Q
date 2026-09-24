@@ -2,8 +2,8 @@ import React from 'react';
 import { Menu, Search, ExternalLink, BookOpen, FlaskConical, Sun, Moon } from 'lucide-react';
 
 interface Props {
-  activeView: 'curriculum' | 'simulations';
-  onSelectView?: (view: 'curriculum' | 'simulations') => void;
+  activeView: 'curriculum' | 'simulations' | 'preschool-products';
+  onSelectView?: (view: 'curriculum' | 'simulations' | 'preschool-products') => void;
   onOpenSearch: () => void;
   onOpenMobileSidebar: () => void;
   theme: 'light' | 'dark';
@@ -45,15 +45,20 @@ export const Header: React.FC<Props> = ({
             </button>
 
             <button
-              onClick={() => onSelectView && onSelectView('simulations')}
+              onClick={() => onSelectView && onSelectView('preschool-products')}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition ${
-                activeView === 'simulations'
+                activeView === 'simulations' || activeView === 'preschool-products'
                   ? 'bg-emerald-600 text-white font-bold shadow-xs'
                   : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               <FlaskConical className="w-3.5 h-3.5" />
               <span>Thư viện Thí nghiệm & Lab</span>
+              {activeView === 'preschool-products' && (
+                <span className="text-[9px] bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded-full font-mono font-bold">
+                  Mầm non
+                </span>
+              )}
             </button>
           </div>
         </div>

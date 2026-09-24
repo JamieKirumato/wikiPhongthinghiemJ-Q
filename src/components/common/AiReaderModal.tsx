@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 interface Props {
-  activeView: 'curriculum' | 'simulations';
+  activeView: 'curriculum' | 'simulations' | 'preschool-products';
   selectedLevelId: string;
   selectedGradeId: string;
   selectedSubjectId: string;
@@ -103,7 +103,13 @@ export const AiReaderModal: React.FC<Props> = ({
   const bugReportTemplate = `### YÊU CẦU CHỈNH SỬA / BÁO CÁO CHO AI
 **Trang web**: https://wiki-phongthinghiem-j-q-5fv1.vercel.app/
 **Trạng thái hiện tại**:
-- Tab đang xem: ${activeView === 'curriculum' ? 'Tổng quan chương trình' : 'Thư viện mô phỏng'}
+- Tab đang xem: ${
+  activeView === 'curriculum'
+    ? 'Tổng quan chương trình'
+    : activeView === 'preschool-products'
+    ? 'Sản phẩm Mầm non (3 Thí nghiệm Cải tiến & Khám phá)'
+    : 'Thư viện mô phỏng K-12'
+}
 - Cấp học: ${activeLevel?.name || 'Chưa chọn'}
 - Khối lớp: ${activeGrade?.name || 'Chưa chọn'}
 - Môn học: ${activeSubject?.name || 'Chưa chọn'}
