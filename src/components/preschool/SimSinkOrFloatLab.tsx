@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Sparkles, 
   RotateCcw, 
@@ -14,7 +14,8 @@ import {
   VolumeX, 
   Lightbulb,
   ArrowUp,
-  Trophy
+  Trophy,
+  Beaker
 } from 'lucide-react';
 import { soundEngine } from '../../utils/audioEffects';
 
@@ -22,35 +23,39 @@ interface Props {
   onBackToTable?: () => void;
 }
 
-// 10+ Preschool Familiar Items for the Sensory Play Tank
+// 10 Preschool Familiar Items for the Sensory Play Tank
 export interface TankObject {
   id: string;
   name: string;
   icon: string;
   weightGrams: number;
   volumeMl: number; // Volume for Archimedes displacement
-  floats: boolean;
+  floatsDefault: boolean; // floats in fresh water
   desc: string;
   densityNote: string;
   // Dynamic physics states
   inTank: boolean;
-  xPercent: number; // 10% to 90%
-  yPos: number; // pixel position in tank (top=0 to bottom=360)
-  vy: number;
+  x: number; // pixel x position in tank
+  y: number; // pixel y position in tank
+  vx: number; // px/s
+  vy: number; // px/s
+  angle: number; // degrees
+  vRot: number; // deg/s
+  settled: boolean;
   status: 'basket' | 'falling' | 'floating' | 'sunk' | 'pushed';
 }
 
 const PLAY_ITEMS_PRESETS: TankObject[] = [
-  { id: 'item-pebble', name: 'Hòn sỏi', icon: '🪨', weightGrams: 50, volumeMl: 20, floats: false, desc: 'Đá tự nhiên', densityNote: 'Đặc và nặng hơn nước nên chìm sâu xuống đáy', inTank: false, xPercent: 20, yPos: 40, vy: 0, status: 'basket' },
-  { id: 'item-spoon', name: 'Thìa inox', icon: '🥄', weightGrams: 35, volumeMl: 8, floats: false, desc: 'Kim loại đặc', densityNote: 'Kim loại đặc nặng hơn nước nên chìm nhanh', inTank: false, xPercent: 35, yPos: 40, vy: 0, status: 'basket' },
-  { id: 'item-pingpong', name: 'Bóng bàn', icon: '⚪', weightGrams: 3, volumeMl: 40, floats: true, desc: 'Nhựa rỗng chứa khí', densityNote: 'Bên trong chứa đầy không khí; dìm xuống đáy sẽ bắn vọt lên!', inTank: false, xPercent: 50, yPos: 40, vy: 0, status: 'basket' },
-  { id: 'item-duck', name: 'Vịt cao su', icon: '🐥', weightGrams: 12, volumeMl: 55, floats: true, desc: 'Cao su rỗng ruột', densityNote: 'Nổi bồng bềnh dập dềnh theo từng con sóng nước', inTank: false, xPercent: 65, yPos: 40, vy: 0, status: 'basket' },
-  { id: 'item-wood', name: 'Khối gỗ', icon: '🪵', weightGrams: 28, volumeMl: 45, floats: true, desc: 'Gỗ khô', densityNote: 'Khối lượng riêng nhỏ hơn nước nên nổi lơ lửng ở mặt nước', inTank: false, xPercent: 80, yPos: 40, vy: 0, status: 'basket' },
-  { id: 'item-leaf', name: 'Chiếc lá tươi', icon: '🍃', weightGrams: 1, volumeMl: 5, floats: true, desc: 'Lá cây', densityNote: 'Diện tích rộng và cực nhẹ nên nằm êm dịu trên mặt nước', inTank: false, xPercent: 25, yPos: 40, vy: 0, status: 'basket' },
-  { id: 'item-foam', name: 'Mẩu xốp', icon: '🧱', weightGrams: 2, volumeMl: 35, floats: true, desc: 'Xốp nhẹ', densityNote: 'Cấu trúc triệu lỗ khí li ti, siêu nổi', inTank: false, xPercent: 40, yPos: 40, vy: 0, status: 'basket' },
-  { id: 'item-apple', name: 'Quả táo', icon: '🍎', weightGrams: 75, volumeMl: 90, floats: true, desc: 'Trái cây ruột xốp', densityNote: 'Ruột táo chứa 25% là túi khí nên nổi và làm mực nước dâng cao', inTank: false, xPercent: 55, yPos: 40, vy: 0, status: 'basket' },
-  { id: 'item-egg', name: 'Quả trứng', icon: '🥚', weightGrams: 55, volumeMl: 48, floats: false, desc: 'Trứng gà tươi', densityNote: 'Đặc ruột nên chìm nghỉm trong nước lọc bình thường', inTank: false, xPercent: 70, yPos: 40, vy: 0, status: 'basket' },
-  { id: 'item-keys', name: 'Chùm chìa khóa', icon: '🔑', weightGrams: 42, volumeMl: 10, floats: false, desc: 'Kim loại nặng', densityNote: 'Kim loại đặc chìm thẳng tắp phát ra tiếng tõm', inTank: false, xPercent: 85, yPos: 40, vy: 0, status: 'basket' }
+  { id: 'item-pebble', name: 'Hòn sỏi', icon: '🪨', weightGrams: 50, volumeMl: 20, floatsDefault: false, desc: 'Đá tự nhiên', densityNote: 'Đặc và nặng hơn nước (d = 2.5 g/cm³), chìm thẳng xuống đáy', inTank: false, x: 120, y: 50, vx: 0, vy: 0, angle: 0, vRot: 0, settled: false, status: 'basket' },
+  { id: 'item-spoon', name: 'Thìa inox', icon: '🥄', weightGrams: 35, volumeMl: 7, floatsDefault: false, desc: 'Kim loại phẳng', densityNote: 'Kim loại nặng (d = 5.0 g/cm³), chao đảo liệng nghiêng khi chìm', inTank: false, x: 170, y: 50, vx: 0, vy: 0, angle: -15, vRot: 0, settled: false, status: 'basket' },
+  { id: 'item-pingpong', name: 'Bóng bàn', icon: '⚪', weightGrams: 3, volumeMl: 40, floatsDefault: true, desc: 'Nhựa rỗng chứa khí', densityNote: 'Siêu nhẹ (d = 0.08 g/cm³), bập bềnh cao; dìm xuống đáy sẽ phóng vọt lên!', inTank: false, x: 220, y: 50, vx: 0, vy: 0, angle: 0, vRot: 0, settled: false, status: 'basket' },
+  { id: 'item-duck', name: 'Vịt cao su', icon: '🐥', weightGrams: 12, volumeMl: 55, floatsDefault: true, desc: 'Cao su rỗng ruột', densityNote: 'Rất nhẹ (d = 0.22 g/cm³), dập dềnh bồng bềnh theo từng đợt sóng nước', inTank: false, x: 270, y: 50, vx: 0, vy: 0, angle: 0, vRot: 0, settled: false, status: 'basket' },
+  { id: 'item-wood', name: 'Khối gỗ', icon: '🪵', weightGrams: 28, volumeMl: 45, floatsDefault: true, desc: 'Gỗ khô', densityNote: 'Nhẹ hơn nước (d = 0.62 g/cm³), nổi vững chãi chìm khoảng một nửa', inTank: false, x: 320, y: 50, vx: 0, vy: 0, angle: 5, vRot: 0, settled: false, status: 'basket' },
+  { id: 'item-leaf', name: 'Chiếc lá tươi', icon: '🍃', weightGrams: 1, volumeMl: 5, floatsDefault: true, desc: 'Lá cây tự nhiên', densityNote: 'Bản rộng và siêu nhẹ (d = 0.20 g/cm³), lượn êm dịu nằm trên mặt nước', inTank: false, x: 370, y: 50, vx: 0, vy: 0, angle: 10, vRot: 0, settled: false, status: 'basket' },
+  { id: 'item-foam', name: 'Mẩu xốp', icon: '🧱', weightGrams: 2, volumeMl: 35, floatsDefault: true, desc: 'Xốp bọt biển', densityNote: 'Hàng triệu lỗ khí li ti (d = 0.06 g/cm³), nổi sát trên bề mặt', inTank: false, x: 420, y: 50, vx: 0, vy: 0, angle: 0, vRot: 0, settled: false, status: 'basket' },
+  { id: 'item-apple', name: 'Quả táo', icon: '🍎', weightGrams: 75, volumeMl: 90, floatsDefault: true, desc: 'Trái cây ruột xốp', densityNote: 'Ruột táo chứa 25% túi khí (d = 0.83 g/cm³), nổi sâu làm nước dâng cao', inTank: false, x: 470, y: 50, vx: 0, vy: 0, angle: 0, vRot: 0, settled: false, status: 'basket' },
+  { id: 'item-egg', name: 'Quả trứng', icon: '🥚', weightGrams: 55, volumeMl: 50, floatsDefault: false, desc: 'Trứng gà tươi', densityNote: 'Nặng hơn nước ngọt (d = 1.10 g/cm³) nên CHÌM, nhưng sẽ NỔI trong nước muối!', inTank: false, x: 520, y: 50, vx: 0, vy: 0, angle: 0, vRot: 0, settled: false, status: 'basket' },
+  { id: 'item-keys', name: 'Chùm chìa khóa', icon: '🔑', weightGrams: 42, volumeMl: 10, floatsDefault: false, desc: 'Kim loại nặng', densityNote: 'Kim loại đặc (d = 4.2 g/cm³), rơi thẳng tắp phát ra tiếng tõm và va cát', inTank: false, x: 570, y: 50, vx: 0, vy: 0, angle: 25, vRot: 0, settled: false, status: 'basket' }
 ];
 
 interface SplashParticle {
@@ -71,6 +76,26 @@ interface BubbleParticle {
   vy: number;
   size: number;
   wobble: number;
+  alpha: number;
+}
+
+interface SandDustParticle {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  alpha: number;
+  life: number;
+}
+
+interface SaltParticle {
+  id: number;
+  x: number;
+  y: number;
+  vy: number;
+  size: number;
   alpha: number;
 }
 
@@ -102,18 +127,31 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
 
   // Mascot guidance message
   const [message, setMessage] = useState<string>(
-    'Chào các bạn nhỏ! Bé hãy tự tay cầm đồ vật trong Giỏ đồ chơi nhúng vào bể nước xem điều gì kỳ diệu xảy ra nhé!'
+    'Chào các bạn nhỏ! Bé hãy tự tay cầm đồ vật thả rơi từ trên cao vào bể nước, hoặc ấn dìm bóng xuống đáy xem nhé!'
   );
 
   // =========================================================================
-  // PART 1A: TACTILE WATER TANK PHYSICS STATE
+  // 10 PHYSICS & ENGINE STATES
   // =========================================================================
   const [items, setItems] = useState<TankObject[]>(PLAY_ITEMS_PRESETS);
+  const itemsRef = useRef<TankObject[]>(PLAY_ITEMS_PRESETS);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
   const [holdingItemId, setHoldingItemId] = useState<string | null>(null);
   const [holdingPos, setHoldingPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [submergingItemId, setSubmergingItemId] = useState<string | null>(null);
   const [showXRay, setShowXRay] = useState(false);
-  const [activeTool, setActiveTool] = useState<'hand' | 'net'>('hand');
+  const [activeTool, setActiveTool] = useState<'hand' | 'salt' | 'net'>('hand');
+
+  // Pointer fling velocity tracking
+  const pointerHistory = useRef<{ x: number; y: number; time: number }[]>([]);
+  const lastStirSoundTime = useRef<number>(0);
+
+  // Feature 10: Salt Water Salinity Density State
+  const [saltSpoons, setSaltSpoons] = useState<number>(0); // 0 to 5 spoons
+  const waterDensity = 1.00 + saltSpoons * 0.035; // 1.00 -> 1.175 g/cm³
 
   // Drop race mode: comparing 2 items dropped simultaneously
   const [raceModeActive, setRaceModeActive] = useState<boolean>(false);
@@ -125,86 +163,117 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
   const tankRef = useRef<HTMLDivElement | null>(null);
 
   // Water level constants
-  const BASE_WATER_SURFACE_Y = 120; // Default surface pixel line in 380px tall tank
-  const TANK_BOTTOM_Y = 320;
+  const BASE_WATER_SURFACE_Y = 125; // Default surface line in 380px tall tank
+  const TANK_BOTTOM_Y = 320; // Sand bed collision plane
 
   // Calculate Archimedes water displacement (mực nước dâng)
   const totalVolumeInWater = items
     .filter((i) => i.inTank)
     .reduce((sum, i) => sum + i.volumeMl, 0);
-  const waterLevelRisePx = Math.min(45, Math.round(totalVolumeInWater * 0.14));
+  const waterLevelRisePx = Math.min(42, Math.round(totalVolumeInWater * 0.12));
   const currentWaterSurfaceY = BASE_WATER_SURFACE_Y - waterLevelRisePx;
 
-  // =========================================================================
-  // DYNAMIC WAVE & PARTICLE SIMULATION (SPRING WAVE NODES)
-  // =========================================================================
+  // Wave springs & Particle systems
   const [waveSprings, setWaveSprings] = useState<number[]>(() => Array(40).fill(0));
   const waveVelocities = useRef<number[]>(Array(40).fill(0));
   const [splashParticles, setSplashParticles] = useState<SplashParticle[]>([]);
   const [bubbles, setBubbles] = useState<BubbleParticle[]>([]);
+  const [sandDust, setSandDust] = useState<SandDustParticle[]>([]);
+  const [saltParticles, setSaltParticles] = useState<SaltParticle[]>([]);
 
-  // Trigger splash particles and wave impact at a specific x-position
-  const createWaterSplash = (xPx: number, isHeavy: boolean) => {
+  // =========================================================================
+  // WATER IMPACT SPLASH, CRATER & BUBBLES
+  // =========================================================================
+  const createWaterSplash = useCallback((xPx: number, isHeavy: boolean, impactSpeed: number = 100) => {
     if (soundEnabled) {
-      soundEngine.playWaterSplash(isHeavy);
+      soundEngine.playWaterSplash(isHeavy || impactSpeed > 250);
     }
 
-    // 1. Disturb wave springs near xPx
+    // 1. Disturb wave springs near xPx (Impact crater)
     if (tankRef.current) {
-      const tankWidth = tankRef.current.clientWidth || 500;
+      const tankWidth = tankRef.current.clientWidth || 600;
       const nodeIndex = Math.min(39, Math.max(0, Math.floor((xPx / tankWidth) * 40)));
-      waveVelocities.current[nodeIndex] = isHeavy ? 28 : 14;
-      if (nodeIndex > 0) waveVelocities.current[nodeIndex - 1] = isHeavy ? 18 : 9;
-      if (nodeIndex < 39) waveVelocities.current[nodeIndex + 1] = isHeavy ? 18 : 9;
+      const baseForce = Math.min(42, Math.max(14, impactSpeed * 0.12));
+      waveVelocities.current[nodeIndex] = baseForce;
+      if (nodeIndex > 0) waveVelocities.current[nodeIndex - 1] = baseForce * 0.7;
+      if (nodeIndex < 39) waveVelocities.current[nodeIndex + 1] = baseForce * 0.7;
+      if (nodeIndex > 1) waveVelocities.current[nodeIndex - 2] = baseForce * 0.4;
+      if (nodeIndex < 38) waveVelocities.current[nodeIndex + 2] = baseForce * 0.4;
     }
 
-    // 2. Spawn 15-25 water droplets
-    const count = isHeavy ? 24 : 14;
+    // 2. Spawn Splash Crown droplets
+    const count = Math.min(32, Math.max(10, Math.round((impactSpeed / 20) * (isHeavy ? 1.4 : 1.0))));
     const newParticles: SplashParticle[] = [];
     for (let i = 0; i < count; i++) {
-      const angle = (Math.random() * Math.PI) / 1.3 + Math.PI * 0.15; // Shoot upward
-      const speed = Math.random() * (isHeavy ? 7 : 4.5) + 2;
+      const angle = (Math.random() * Math.PI) * 0.75 + Math.PI * 0.125;
+      const speed = Math.random() * (isHeavy ? 6.5 : 4.5) + 2.5;
       newParticles.push({
         id: Date.now() + Math.random(),
-        x: xPx + (Math.random() * 20 - 10),
+        x: xPx + (Math.random() * 24 - 12),
         y: currentWaterSurfaceY,
         vx: Math.cos(angle) * speed * (Math.random() > 0.5 ? 1 : -1),
         vy: -Math.abs(Math.sin(angle) * speed),
-        size: Math.random() * (isHeavy ? 6 : 4) + 2.5,
-        alpha: 0.9,
+        size: Math.random() * (isHeavy ? 5.5 : 3.8) + 2.5,
+        alpha: 0.95,
         life: 1
       });
     }
-    setSplashParticles((prev) => [...prev, ...newParticles]);
+    setSplashParticles((prev) => [...prev.slice(-40), ...newParticles]);
 
-    // 3. Spawn underwater bubbles if sinking
-    if (isHeavy) {
-      const newBubbles: BubbleParticle[] = [];
-      for (let i = 0; i < 8; i++) {
-        newBubbles.push({
-          id: Date.now() + Math.random(),
-          x: xPx + (Math.random() * 24 - 12),
-          y: currentWaterSurfaceY + 20 + i * 15,
-          vy: -(Math.random() * 1.5 + 1),
-          size: Math.random() * 5 + 3,
-          wobble: Math.random() * 10,
-          alpha: 0.8
-        });
-      }
-      setBubbles((prev) => [...prev, ...newBubbles]);
-      if (soundEnabled) soundEngine.playBubbleGlug();
+    // 3. Spawn cavitation bubbles trailing underwater
+    const bubbleCount = isHeavy ? 10 : 5;
+    const newBubbles: BubbleParticle[] = [];
+    for (let i = 0; i < bubbleCount; i++) {
+      newBubbles.push({
+        id: Date.now() + Math.random(),
+        x: xPx + (Math.random() * 26 - 13),
+        y: currentWaterSurfaceY + 15 + i * 12,
+        vy: -(Math.random() * 1.6 + 0.8),
+        size: Math.random() * 4.5 + 2.5,
+        wobble: Math.random() * 10,
+        alpha: 0.85
+      });
     }
-  };
+    setBubbles((prev) => [...prev.slice(-30), ...newBubbles]);
+    if (isHeavy && soundEnabled) soundEngine.playBubbleGlug();
+  }, [currentWaterSurfaceY, soundEnabled]);
 
-  // Main Animation Physics Loop
+  // Sand bed dust cloud puff
+  const createSandBedDust = useCallback((xPx: number) => {
+    if (soundEnabled) {
+      soundEngine.playSandThump();
+    }
+    const newPuffs: SandDustParticle[] = [];
+    for (let i = 0; i < 14; i++) {
+      newPuffs.push({
+        id: Date.now() + Math.random(),
+        x: xPx + (Math.random() * 28 - 14),
+        y: TANK_BOTTOM_Y - 4,
+        vx: (Math.random() - 0.5) * 35,
+        vy: -(Math.random() * 25 + 10),
+        size: Math.random() * 7 + 4,
+        alpha: 0.75,
+        life: 1.0
+      });
+    }
+    setSandDust((prev) => [...prev.slice(-30), ...newPuffs]);
+  }, [soundEnabled, TANK_BOTTOM_Y]);
+
+  // =========================================================================
+  // 60 FPS 2D PHYSICS ENGINE LOOP (requestAnimationFrame)
+  // =========================================================================
   useEffect(() => {
     let animId: number;
+    let lastTime = performance.now();
 
-    const tick = () => {
-      // 1. Update wave springs (Euler Spring Dampening)
-      const tension = 0.025;
-      const dampening = 0.04;
-      const spread = 0.22;
+    const tick = (currentTime: number) => {
+      const dt = Math.min(0.04, (currentTime - lastTime) / 1000);
+      lastTime = currentTime;
+
+      // 1. Wave Springs Update (Euler Dampened Wave Equation)
+      const tension = 0.028;
+      const dampening = 0.038;
+      const spread = 0.24;
 
       setWaveSprings((prevSprings) => {
         const next = [...prevSprings];
@@ -216,7 +285,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
           next[i] += vels[i];
         }
 
-        // Pass momentum to neighbors
+        // Propagate ripple wave momentum to adjacent nodes
         for (let j = 0; j < 4; j++) {
           for (let i = 0; i < next.length; i++) {
             if (i > 0) {
@@ -234,46 +303,208 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
         return next;
       });
 
-      // 2. Update splash particles
+      // 2. Splash droplets physics (gravity & velocity)
       setSplashParticles((prev) =>
         prev
           .map((p) => ({
             ...p,
             x: p.x + p.vx,
             y: p.y + p.vy,
-            vy: p.vy + 0.35, // Gravity
-            alpha: p.alpha - 0.035,
-            life: p.life - 0.035
+            vy: p.vy + 0.38, // Gravity
+            alpha: p.alpha - 0.032,
+            life: p.life - 0.032
           }))
           .filter((p) => p.life > 0)
       );
 
-      // 3. Update underwater bubbles
+      // 3. Sand dust cloud physics (rising & slow fade)
+      setSandDust((prev) =>
+        prev
+          .map((d) => ({
+            ...d,
+            x: d.x + d.vx * dt,
+            y: d.y + d.vy * dt,
+            size: d.size + 0.15,
+            alpha: d.alpha - 0.016,
+            life: d.life - 0.02
+          }))
+          .filter((d) => d.life > 0 && d.alpha > 0)
+      );
+
+      // 4. Underwater Cavitation Bubbles (wobbling upwards)
       setBubbles((prev) =>
         prev
           .map((b) => ({
             ...b,
             y: b.y + b.vy,
-            x: b.x + Math.sin(b.y * 0.1 + b.wobble) * 0.6,
+            x: b.x + Math.sin(b.y * 0.1 + b.wobble) * 0.7,
             alpha: b.alpha - 0.015
           }))
           .filter((b) => b.y > currentWaterSurfaceY && b.alpha > 0)
       );
+
+      // 5. Salt Crystal Particles (dissolving into brine)
+      setSaltParticles((prev) =>
+        prev
+          .map((s) => ({
+            ...s,
+            y: s.y + s.vy,
+            alpha: s.alpha - 0.02
+          }))
+          .filter((s) => s.y < TANK_BOTTOM_Y && s.alpha > 0)
+      );
+
+      // 6. Tank Objects 2D Physics Step
+      const currentTankItems = itemsRef.current;
+      let hasChanges = false;
+      const nextItems = currentTankItems.map((item) => {
+        // Skip items in basket or currently held by hand
+        if (!item.inTank || item.id === holdingItemId) return item;
+
+        // Skip items currently being pressed down by finger
+        if (item.status === 'pushed') return item;
+
+        let { x, y, vx, vy, angle, vRot, status } = item;
+        const currentDensity = item.weightGrams / item.volumeMl;
+        const willFloatInCurrentLiquid = currentDensity < waterDensity;
+
+        const isSubmerged = y >= currentWaterSurfaceY - 10;
+
+        if (!isSubmerged) {
+          // ================= IN AIR (FREE FALL) =================
+          const gAir = 680; // px/s^2
+          vy += gAir * dt;
+          vx *= 1 - 0.4 * dt; // Slight air drag
+          y += vy * dt;
+          x += vx * dt;
+          angle += vRot * dt;
+
+          // Check if hitting water surface this frame
+          if (y >= currentWaterSurfaceY - 10) {
+            // Impact with water surface!
+            createWaterSplash(x, !willFloatInCurrentLiquid, Math.abs(vy));
+            status = willFloatInCurrentLiquid ? 'floating' : 'sunk';
+          }
+          hasChanges = true;
+        } else {
+          // ================= UNDERWATER / AT WATER SURFACE =================
+          // Hydrodynamic Fluid Drag: F_drag = - 0.5 * Cd * rho * v^2 - beta * v
+          const fluidDragY = -5.8 * vy;
+          const fluidDragX = -6.2 * vx;
+
+          // Buoyancy vs Gravity:
+          // Net buoyant acceleration: a_b = (rho_liquid * V - m) * g_scale / m
+          const buoyancyFactor = (waterDensity * item.volumeMl - item.weightGrams);
+          const archimedesAccel = (buoyancyFactor / item.weightGrams) * 360;
+
+          // Equilibrium waterline Y for floating items
+          const equilibriumSubmergedFraction = Math.min(1, currentDensity / waterDensity);
+          const equilibriumY = currentWaterSurfaceY + (equilibriumSubmergedFraction * 24 - 16);
+
+          if (willFloatInCurrentLiquid) {
+            // Floating item: Damped Harmonic Bobbing around equilibrium waterline
+            const displacement = y - equilibriumY;
+            const springK = 35; // Waterline harmonic spring
+            const restoringForce = -springK * displacement;
+            
+            vy += (restoringForce + fluidDragY) * dt;
+            y += vy * dt;
+            vx += fluidDragX * dt;
+            x += vx * dt;
+
+            // Restrict from flying too high above surface unless propelled
+            if (y < currentWaterSurfaceY - 24 && vy < 0) {
+              vy *= 0.5;
+            }
+
+            // Hydrodynamic leveling of floating objects
+            angle += (0 - angle) * 4 * dt;
+            vRot *= 0.85;
+
+            // Settle check
+            if (Math.abs(vy) < 1.5 && Math.abs(displacement) < 1.0) {
+              y = equilibriumY;
+              vy = 0;
+            }
+            status = 'floating';
+            hasChanges = true;
+          } else {
+            // Sinking item: descends with terminal velocity
+            const gravityDown = 320;
+            const terminalDecel = archimedesAccel; // negative value opposing gravity
+            vy += (gravityDown + terminalDecel + fluidDragY) * dt;
+            
+            // Hydrodynamic Fluttering Wobble (Especially Spoon and Flat Objects)
+            if (item.id === 'item-spoon') {
+              angle = Math.sin(currentTime * 0.007) * 20;
+              vx = Math.cos(currentTime * 0.007) * 14;
+            } else if (item.id === 'item-leaf') {
+              angle = Math.sin(currentTime * 0.004) * 15;
+              vx = Math.cos(currentTime * 0.004) * 8;
+            } else {
+              angle += (0 - angle) * 2 * dt;
+              vx += fluidDragX * dt;
+            }
+
+            y += vy * dt;
+            x += vx * dt;
+
+            // Check Sand Bed Collision
+            if (y >= TANK_BOTTOM_Y - 14) {
+              if (vy > 35) {
+                // Soft rebound and sand dust puff!
+                createSandBedDust(x);
+                vy = -vy * 0.18; // Inelastic sand bounce
+              } else {
+                y = TANK_BOTTOM_Y - 14;
+                vy = 0;
+                vx = 0;
+              }
+            }
+            status = 'sunk';
+            hasChanges = true;
+          }
+        }
+
+        // Clamp tank horizontal walls
+        const tankWidth = tankRef.current?.clientWidth || 600;
+        if (x < 30) {
+          x = 30;
+          vx = -vx * 0.3;
+        } else if (x > tankWidth - 30) {
+          x = tankWidth - 30;
+          vx = -vx * 0.3;
+        }
+
+        return {
+          ...item,
+          x,
+          y,
+          vx,
+          vy,
+          angle,
+          vRot,
+          status
+        };
+      });
+
+      if (hasChanges) {
+        setItems(nextItems);
+      }
 
       animId = requestAnimationFrame(tick);
     };
 
     animId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animId);
-  }, [currentWaterSurfaceY]);
+  }, [currentWaterSurfaceY, waterDensity, holdingItemId, createWaterSplash, createSandBedDust, TANK_BOTTOM_Y]);
 
   // =========================================================================
-  // HAND INTERACTION: PICK UP, HOLD, DIP, AND RELEASE
+  // HAND INTERACTION: PICK UP, THROW WITH MOMENTUM & DRENCH
   // =========================================================================
   const handleStartHold = (item: TankObject, e: React.PointerEvent) => {
     e.preventDefault();
     if (activeTool === 'net') {
-      // Net tool scoops item back to basket
       handleScoopItem(item.id);
       return;
     }
@@ -282,27 +513,51 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
 
     if (tankRef.current) {
       const rect = tankRef.current.getBoundingClientRect();
-      setHoldingPos({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-      });
+      const currX = e.clientX - rect.left;
+      const currY = e.clientY - rect.top;
+      setHoldingPos({ x: currX, y: currY });
+      pointerHistory.current = [{ x: currX, y: currY, time: performance.now() }];
     }
 
-    setMessage(`Bé đang cầm "${item.name} ${item.icon}". Hãy đưa lại gần mặt nước và tự tay thả xem nhé!`);
+    setMessage(`Bé đang cầm "${item.name} ${item.icon}". Bé có thể giơ cao thả rơi tự do hoặc vung tay ném vào bể nhé!`);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!holdingItemId || !tankRef.current) return;
+    if (!tankRef.current) return;
     const rect = tankRef.current.getBoundingClientRect();
-    const currX = Math.max(20, Math.min(rect.width - 20, e.clientX - rect.left));
-    const currY = Math.max(10, Math.min(rect.height - 10, e.clientY - rect.top));
+    const currX = Math.max(25, Math.min(rect.width - 25, e.clientX - rect.left));
+    const currY = Math.max(15, Math.min(rect.height - 15, e.clientY - rect.top));
 
-    setHoldingPos({ x: currX, y: currY });
+    // Record pointer history for fling / throw velocity
+    const now = performance.now();
+    pointerHistory.current.push({ x: currX, y: currY, time: now });
+    if (pointerHistory.current.length > 5) {
+      pointerHistory.current.shift();
+    }
 
-    // Detect if touching water surface
-    if (Math.abs(currY - currentWaterSurfaceY) < 15) {
-      if (soundEnabled && Math.random() < 0.15) {
-        soundEngine.playGentleDip();
+    if (holdingItemId) {
+      setHoldingPos({ x: currX, y: currY });
+    } else if (activeTool === 'hand' && e.buttons === 1) {
+      // Feature 7: Water Stirring & Finger Touch Ripple
+      if (currY >= currentWaterSurfaceY - 15 && currY <= TANK_BOTTOM_Y) {
+        const tankWidth = rect.width || 600;
+        const nodeIndex = Math.min(39, Math.max(0, Math.floor((currX / tankWidth) * 40)));
+        waveVelocities.current[nodeIndex] = 12;
+
+        // Push nearby floating items with finger water current
+        setItems((prev) =>
+          prev.map((i) => {
+            if (i.inTank && i.status === 'floating' && Math.abs(i.x - currX) < 55) {
+              return { ...i, vx: i.vx + (currX > i.x ? -15 : 15) };
+            }
+            return i;
+          })
+        );
+
+        if (soundEnabled && now - lastStirSoundTime.current > 180) {
+          soundEngine.playWaterStir();
+          lastStirSoundTime.current = now;
+        }
       }
     }
   };
@@ -315,42 +570,55 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
       return;
     }
 
-    const tankWidth = tankRef.current.clientWidth || 500;
-    const dropXPercent = Math.min(90, Math.max(10, Math.round((holdingPos.x / tankWidth) * 100)));
+    // Compute Throw / Fling Release Velocity
+    let flingVx = 0;
+    let flingVy = 0;
+    const history = pointerHistory.current;
+    if (history.length >= 2) {
+      const first = history[0];
+      const last = history[history.length - 1];
+      const dtSec = (last.time - first.time) / 1000;
+      if (dtSec > 0.01) {
+        flingVx = Math.min(450, Math.max(-450, (last.x - first.x) / dtSec));
+        flingVy = Math.min(500, Math.max(-450, (last.y - first.y) / dtSec));
+      }
+    }
+
     const droppedFromAir = holdingPos.y < currentWaterSurfaceY;
+    const currentDensity = item.weightGrams / item.volumeMl;
+    const willFloat = currentDensity < waterDensity;
 
-    // Splash effect and audio
-    createWaterSplash(holdingPos.x, !item.floats);
-
-    // Calculate final resting Y position
-    const finalYPos = item.floats
-      ? currentWaterSurfaceY - (item.id === 'item-wood' ? 5 : item.id === 'item-leaf' ? 8 : 12)
-      : TANK_BOTTOM_Y;
-
-    // Update item position in tank
+    // Update item position and assign throw velocity
     setItems((prev) =>
       prev.map((i) =>
         i.id === item.id
           ? {
               ...i,
               inTank: true,
-              xPercent: dropXPercent,
-              yPos: finalYPos,
-              status: item.floats ? 'floating' : 'sunk'
+              x: holdingPos.x,
+              y: holdingPos.y,
+              vx: flingVx * 0.75,
+              vy: Math.max(flingVy * 0.75, droppedFromAir ? 60 : 0),
+              status: willFloat ? 'floating' : 'sunk'
             }
           : i
       )
     );
 
+    // If released directly in/at water, create splash
+    if (!droppedFromAir || Math.abs(holdingPos.y - currentWaterSurfaceY) < 20) {
+      createWaterSplash(holdingPos.x, !willFloat, Math.max(80, Math.abs(flingVy)));
+    }
+
     // Pedagogical message
-    if (item.floats) {
+    if (willFloat) {
       setMessage(
         `💧 ${item.name} ${droppedFromAir ? 'rơi tõm xuống nước' : 'được nhúng xuống'} nhưng đã NỔI BỒNG BỀNH! ${item.densityNote}.`
       );
       if (soundEnabled) soundEngine.playWaterDrop();
     } else {
       setMessage(
-        `⚓ ${item.name} rơi thẳng xuống đáy và CHÌM NGHỈM! ${item.densityNote}.`
+        `⚓ ${item.name} rơi xuống nước và CHÌM XUỐNG ĐÁY! ${item.densityNote}.`
       );
     }
 
@@ -358,11 +626,14 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
   };
 
   // =========================================================================
-  // SPECIAL INTERACTION: DÌM BÓNG XUỐNG ĐÁY & BẬT VỌT LÊN (PUSH DOWN & POP UP)
+  // FEATURE 3 & 4: PUSH DOWN BALL & POP UP ROCKET
   // =========================================================================
   const handlePushDownItem = (item: TankObject, e: React.PointerEvent) => {
     e.stopPropagation();
-    if (!item.floats || !item.inTank) return;
+    if (!item.inTank) return;
+    const currentDensity = item.weightGrams / item.volumeMl;
+    const willFloat = currentDensity < waterDensity;
+    if (!willFloat) return;
 
     setSubmergingItemId(item.id);
     setMessage(`Bé đang dùng ngón tay ấn dìm ${item.name} xuống đáy nước! Nước đang sinh lực đẩy rất mạnh! Buông tay ra xem nào!`);
@@ -371,9 +642,9 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
       soundEngine.playBubbleGlug();
     }
 
-    // Set item temporarily pushed down to near bottom
+    // Set item pushed down to near bottom
     setItems((prev) =>
-      prev.map((i) => (i.id === item.id ? { ...i, yPos: TANK_BOTTOM_Y - 30, status: 'pushed' } : i))
+      prev.map((i) => (i.id === item.id ? { ...i, y: TANK_BOTTOM_Y - 25, vy: 0, status: 'pushed' } : i))
     );
   };
 
@@ -390,31 +661,88 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
       soundEngine.playBuoyantPop();
     }
 
-    // Create splash at surface
-    if (tankRef.current) {
-      const tankWidth = tankRef.current.clientWidth || 500;
-      createWaterSplash((item.xPercent / 100) * tankWidth, false);
-    }
-
-    // Shoot back up to surface with harmonic bounce
-    const finalYPos = currentWaterSurfaceY - (item.id === 'item-wood' ? 5 : item.id === 'item-leaf' ? 8 : 12);
-
+    // Launch item upwards with explosive buoyancy!
     setItems((prev) =>
       prev.map((i) =>
         i.id === item.id
           ? {
               ...i,
-              yPos: finalYPos,
+              vy: -420, // Rocket upwards!
               status: 'floating'
             }
           : i
       )
     );
 
+    // Spawn bubbles in its wake
+    const newBubbles: BubbleParticle[] = [];
+    for (let k = 0; k < 8; k++) {
+      newBubbles.push({
+        id: Date.now() + Math.random(),
+        x: item.x + (Math.random() * 20 - 10),
+        y: TANK_BOTTOM_Y - 15 - k * 18,
+        vy: -(Math.random() * 2 + 1.2),
+        size: Math.random() * 5 + 3,
+        wobble: Math.random() * 8,
+        alpha: 0.9
+      });
+    }
+    setBubbles((prev) => [...prev, ...newBubbles]);
+
     setMessage(
-      `🚀 VÈO... BẬT LÊN RỒI! ${item.name} bị dìm xuống đáy đã phóng vút lên mặt nước! Lực đẩy của nước quá mạnh mẽ!`
+      `🚀 VÈO... BẬT LÊN RỒI! ${item.name} bị dìm xuống đáy đã phóng vút lên mặt nước! Lực đẩy Ác-si-mét quá mạnh mẽ!`
     );
     setSubmergingItemId(null);
+  };
+
+  // =========================================================================
+  // FEATURE 10: SALT WATER DENSITY EXPERIMENT (THÊM MUỐI ĐỔI TỶ TRỌNG)
+  // =========================================================================
+  const handleAddSalt = () => {
+    if (saltSpoons >= 5) {
+      setMessage('Bể nước đã bão hòa muối biển cực đậm đặc (tỷ trọng 1.175 g/cm³)!');
+      return;
+    }
+    const nextSpoons = saltSpoons + 1;
+    setSaltSpoons(nextSpoons);
+
+    if (soundEnabled) soundEngine.playSaltPour();
+
+    // Spawn falling salt crystals
+    const tankWidth = tankRef.current?.clientWidth || 600;
+    const newSalt: SaltParticle[] = [];
+    for (let i = 0; i < 25; i++) {
+      newSalt.push({
+        id: Date.now() + Math.random(),
+        x: tankWidth * 0.25 + Math.random() * (tankWidth * 0.5),
+        y: 20 + Math.random() * 60,
+        vy: Math.random() * 3 + 2,
+        size: Math.random() * 3 + 1.5,
+        alpha: 0.95
+      });
+    }
+    setSaltParticles((prev) => [...prev, ...newSalt]);
+
+    const newDensity = 1.00 + nextSpoons * 0.035;
+
+    // Check if Egg will now float!
+    const eggItem = items.find((i) => i.id === 'item-egg');
+    if (nextSpoons >= 3 && eggItem && eggItem.inTank) {
+      setMessage(
+        `🧂 KỲ DIỆU CHƯA! Đã hòa tan ${nextSpoons} thìa muối! Tỷ trọng nước tăng lên ${newDensity.toFixed(3)} g/cm³, LỚN HƠN tỷ trọng Quả Trứng (1.10 g/cm³)! Lực đẩy nâng quả trứng TỰ ĐỘNG BƠI NỔI LÊN MẶT NƯỚC như ở Biển Chết!`
+      );
+      if (soundEnabled) soundEngine.playMagicChime();
+    } else {
+      setMessage(
+        `🧂 Bé vừa hòa tan thêm 1 thìa muối biển! Tỷ trọng nước tăng lên ${newDensity.toFixed(3)} g/cm³. Nước càng mặn thì sức nâng càng lớn!`
+      );
+    }
+  };
+
+  const handleResetSalt = () => {
+    setSaltSpoons(0);
+    if (soundEnabled) soundEngine.playWaterSplash(false);
+    setMessage('Đã thay nước ngọt tinh khiết mới (tỷ trọng 1.000 g/cm³)! Quả trứng lại chìm nghỉm xuống đáy cát.');
   };
 
   // Scoop item out with net tool
@@ -427,7 +755,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
     }
 
     setItems((prev) =>
-      prev.map((i) => (i.id === itemId ? { ...i, inTank: false, status: 'basket', yPos: 40 } : i))
+      prev.map((i) => (i.id === itemId ? { ...i, inTank: false, status: 'basket', y: 50, vy: 0, vx: 0 } : i))
     );
     setMessage(`Bé đã dùng vợt lưới vớt ${item.name} cất lại vào giỏ đồ chơi!`);
   };
@@ -448,45 +776,51 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
     const itemB = items.find((i) => i.id === raceSlotB);
     if (!itemA || !itemB) return;
 
+    const tankWidth = tankRef.current?.clientWidth || 600;
+
     setRaceRunning(true);
-    setMessage('Chuẩn bị... 3... 2... 1... THẢ CÙNG LÚC!');
+    setMessage('Chuẩn bị... 3... 2... 1... THẢ CÙNG LÚC TỪ TRÊN CAO!');
+
+    // Position both in air above water and drop simultaneously!
+    setItems((prev) =>
+      prev.map((i) => {
+        if (i.id === itemA.id) {
+          return {
+            ...i,
+            inTank: true,
+            x: tankWidth * 0.35,
+            y: 35,
+            vx: 0,
+            vy: 0,
+            status: 'falling'
+          };
+        }
+        if (i.id === itemB.id) {
+          return {
+            ...i,
+            inTank: true,
+            x: tankWidth * 0.65,
+            y: 35,
+            vx: 0,
+            vy: 0,
+            status: 'falling'
+          };
+        }
+        return i;
+      })
+    );
 
     setTimeout(() => {
-      if (tankRef.current) {
-        const tankWidth = tankRef.current.clientWidth || 500;
-        createWaterSplash(tankWidth * 0.35, !itemA.floats);
-        createWaterSplash(tankWidth * 0.65, !itemB.floats);
-      }
-
-      setItems((prev) =>
-        prev.map((i) => {
-          if (i.id === itemA.id) {
-            return {
-              ...i,
-              inTank: true,
-              xPercent: 35,
-              yPos: itemA.floats ? currentWaterSurfaceY - 10 : TANK_BOTTOM_Y,
-              status: itemA.floats ? 'floating' : 'sunk'
-            };
-          }
-          if (i.id === itemB.id) {
-            return {
-              ...i,
-              inTank: true,
-              xPercent: 65,
-              yPos: itemB.floats ? currentWaterSurfaceY - 10 : TANK_BOTTOM_Y,
-              status: itemB.floats ? 'floating' : 'sunk'
-            };
-          }
-          return i;
-        })
-      );
-
       setRaceRunning(false);
+      const aDensity = itemA.weightGrams / itemA.volumeMl;
+      const bDensity = itemB.weightGrams / itemB.volumeMl;
+      const aFloats = aDensity < waterDensity;
+      const bFloats = bDensity < waterDensity;
+
       setMessage(
-        `🏁 KẾT QUẢ ĐUA: ${itemA.name} ${itemA.floats ? 'NỔI' : 'CHÌM'}, còn ${itemB.name} ${itemB.floats ? 'NỔI' : 'CHÌM'}! Bé thấy chưa, to hay nhỏ không quyết định, mà do chất liệu và không khí bên trong!`
+        `🏁 KẾT QUẢ ĐUA: ${itemA.name} ${aFloats ? 'NỔI' : 'CHÌM'}, còn ${itemB.name} ${bFloats ? 'NỔI' : 'CHÌM'}! Bé thấy chưa, to hay nhỏ không quyết định, mà do tỷ trọng chất liệu và không khí bên trong!`
       );
-    }, 700);
+    }, 1500);
   };
 
   // =========================================================================
@@ -581,7 +915,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
               Thí nghiệm 1 • Mầm non (3 - 6 tuổi)
             </span>
             <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-900 text-xs font-bold font-mono">
-              Khoa học Tương tác Thực Nghiệm
+              Động cơ Vật lý & Thủy động học 2D
             </span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-2">
@@ -601,7 +935,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
             }`}
           >
             <Sparkles className="w-4 h-4 text-amber-500" />
-            <span>Phần 1: Bể Nước Chìm Nổi Tương Tác</span>
+            <span>Phần 1: Bể Nước Vật Lý Siêu Thực</span>
           </button>
 
           <button
@@ -681,8 +1015,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
               </div>
 
               {part1Mode === 'tank' && (
-                <div className="flex items-center gap-2">
-                  {/* Tool Selection: Hand vs Net Scoop */}
+                <div className="flex items-center flex-wrap gap-2">
+                  {/* Tool Selection: Hand vs Salt Shaker vs Net Scoop */}
                   <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono">
                     <button
                       onClick={() => setActiveTool('hand')}
@@ -691,9 +1025,21 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                           ? 'bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-300 shadow-xs'
                           : 'text-slate-500 hover:text-slate-900'
                       }`}
-                      title="Dùng bàn tay tự do cầm, nhúng và dìm đồ vật"
+                      title="Cầm nắm, quăng ném, nhúng và khuấy nước bằng tay"
                     >
-                      <span>🖐️ Bàn tay nhúng</span>
+                      <span>🖐️ Tay nhúng & ném</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setActiveTool('salt'); handleAddSalt(); }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition font-bold ${
+                        activeTool === 'salt'
+                          ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-300 shadow-xs'
+                          : 'text-slate-500 hover:text-slate-900'
+                      }`}
+                      title="Rắc muối biển để tăng tỷ trọng nước (làm trứng nổi lên)"
+                    >
+                      <span>🧂 Thêm Muối ({saltSpoons}/5)</span>
                     </button>
 
                     <button
@@ -703,7 +1049,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                           ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-300 shadow-xs'
                           : 'text-slate-500 hover:text-slate-900'
                       }`}
-                      title="Dùng vợt lưới vớt đồ vật trong bể cất lại vào giỏ"
+                      title="Vợt lưới vớt đồ vật trong bể cất lại vào giỏ"
                     >
                       <span>🧺 Vợt vớt đồ</span>
                     </button>
@@ -727,7 +1073,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
 
             {part1Mode === 'tank' ? (
               /* ========================================================================= */
-              /* THE REALISTIC TACTILE WATER TANK (BỂ NƯỚC VẬT LÝ SIÊU THỰC)              */
+              /* THE REALISTIC TACTILE WATER TANK WITH 2D PHYSICS ENGINE                    */
               /* ========================================================================= */
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 {/* Left: Physics Water Tank (8 cols) */}
@@ -744,7 +1090,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                             className="text-xs font-mono font-bold px-2 py-1 bg-white dark:bg-slate-900 border border-purple-300 rounded-lg text-slate-800 dark:text-slate-200"
                           >
                             {items.map((i) => (
-                              <option key={i.id} value={i.id}>{i.icon} {i.name} ({i.floats ? 'Nổi' : 'Chìm'})</option>
+                              <option key={i.id} value={i.id}>{i.icon} {i.name} ({i.weightGrams / i.volumeMl < waterDensity ? 'Nổi' : 'Chìm'})</option>
                             ))}
                           </select>
                         </div>
@@ -759,7 +1105,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                             className="text-xs font-mono font-bold px-2 py-1 bg-white dark:bg-slate-900 border border-purple-300 rounded-lg text-slate-800 dark:text-slate-200"
                           >
                             {items.map((i) => (
-                              <option key={i.id} value={i.id}>{i.icon} {i.name} ({i.floats ? 'Nổi' : 'Chìm'})</option>
+                              <option key={i.id} value={i.id}>{i.icon} {i.name} ({i.weightGrams / i.volumeMl < waterDensity ? 'Nổi' : 'Chìm'})</option>
                             ))}
                           </select>
                         </div>
@@ -771,7 +1117,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                         className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-xs font-mono shadow-md transition"
                       >
                         <Play className="w-3.5 h-3.5 fill-current" />
-                        <span>Thả Cùng Lúc! 🚀</span>
+                        <span>Thả Rơi Cùng Lúc! 🚀</span>
                       </button>
                     </div>
                   )}
@@ -783,25 +1129,45 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                     onPointerUp={handlePointerUp}
                     className="relative w-full h-[380px] rounded-3xl border-4 border-sky-400/80 dark:border-sky-500/50 bg-gradient-to-b from-sky-100/40 via-sky-200/30 to-blue-300/40 dark:from-slate-950 dark:via-blue-950/40 dark:to-blue-900/40 overflow-hidden shadow-2xl flex flex-col justify-end touch-none cursor-default"
                   >
-                    {/* Top Air Atmosphere */}
-                    <div className="absolute top-2 left-4 text-[10px] font-mono font-bold text-sky-700/70 dark:text-sky-300/70 uppercase tracking-widest flex items-center gap-1.5 pointer-events-none">
-                      <span>☁️ Không khí (Bé có thể cầm vật thả từ đây)</span>
+                    {/* Feature 9: Underwater Caustics Light Simulation */}
+                    <div className="absolute inset-0 pointer-events-none opacity-25 dark:opacity-20 overflow-hidden z-10">
+                      <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                          <pattern id="caustics" width="120" height="80" patternUnits="userSpaceOnUse">
+                            <path d="M 0 40 Q 30 10, 60 40 T 120 40" fill="none" stroke="#fff" strokeWidth="2.5" opacity="0.6" />
+                            <path d="M 0 20 Q 30 50, 60 20 T 120 20" fill="none" stroke="#38bdf8" strokeWidth="1.8" opacity="0.5" />
+                            <path d="M 0 60 Q 40 30, 80 60 T 120 60" fill="none" stroke="#fef08a" strokeWidth="1.2" opacity="0.4" />
+                          </pattern>
+                        </defs>
+                        <rect width="100%" height="100%" fill="url(#caustics)" />
+                      </svg>
                     </div>
 
-                    {/* Archimedes Water Displacement Ruler (Thước đo mực nước bên thành bể) */}
-                    <div className="absolute top-10 right-3 flex flex-col items-end gap-1 pointer-events-none z-20">
-                      <div className="px-2 py-1 rounded-lg bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-sky-300 dark:border-sky-700 text-[10px] font-mono text-sky-900 dark:text-sky-200 shadow-xs">
-                        📏 Mực nước: <strong className="text-emerald-600">+{waterLevelRisePx}mm</strong> (Vật chiếm chỗ)
+                    {/* Top Air Atmosphere Label */}
+                    <div className="absolute top-2 left-4 text-[10px] font-mono font-bold text-sky-700/80 dark:text-sky-300/80 uppercase tracking-widest flex items-center gap-1.5 pointer-events-none z-10">
+                      <span>☁️ Không khí (Bé giơ cao thả rơi tự do hoặc vung tay ném tại đây)</span>
+                    </div>
+
+                    {/* Archimedes & Salinity Density Gauges */}
+                    <div className="absolute top-9 right-3 flex flex-col items-end gap-1 pointer-events-none z-20">
+                      <div className="px-2.5 py-1 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur border border-sky-300 dark:border-sky-700 text-[10px] font-mono text-sky-900 dark:text-sky-200 shadow-sm flex items-center gap-1.5">
+                        <span>📏 Mực nước dâng:</span>
+                        <strong className="text-emerald-600 font-bold">+{waterLevelRisePx}mm</strong>
+                      </div>
+                      <div className="px-2.5 py-1 rounded-xl bg-amber-50/90 dark:bg-amber-950/80 backdrop-blur border border-amber-300 dark:border-amber-700 text-[10px] font-mono text-amber-900 dark:text-amber-200 shadow-sm flex items-center gap-1.5">
+                        <Beaker className="w-3 h-3 text-amber-600" />
+                        <span>Tỷ trọng nước:</span>
+                        <strong className="text-amber-700 dark:text-amber-300 font-bold">{waterDensity.toFixed(3)} g/cm³</strong>
                       </div>
                     </div>
 
-                    {/* Dynamic Spring Wave Surface SVG */}
+                    {/* Feature 2: Dynamic Spring Wave Surface SVG */}
                     <div
                       style={{ top: `${currentWaterSurfaceY}px` }}
-                      className="absolute left-0 right-0 h-4 pointer-events-none z-10 transition-[top] duration-500"
+                      className="absolute left-0 right-0 h-4 pointer-events-none z-20 transition-[top] duration-500"
                     >
                       <svg className="w-full h-12 overflow-visible" preserveAspectRatio="none" viewBox="0 0 400 40">
-                        {/* Wave curve path */}
+                        {/* Wave body path */}
                         <path
                           d={(() => {
                             let p = `M 0 ${20 + (waveSprings[0] || 0)}`;
@@ -813,7 +1179,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                             p += ` L 400 60 L 0 60 Z`;
                             return p;
                           })()}
-                          fill="rgba(56, 189, 248, 0.45)"
+                          fill={saltSpoons > 2 ? 'rgba(45, 212, 191, 0.45)' : 'rgba(56, 189, 248, 0.45)'}
                         />
                         {/* Shimmering surface line */}
                         <path
@@ -827,29 +1193,34 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                             return p;
                           })()}
                           fill="none"
-                          stroke="rgba(255, 255, 255, 0.85)"
+                          stroke="rgba(255, 255, 255, 0.9)"
                           strokeWidth="2.5"
                         />
                       </svg>
                     </div>
 
-                    {/* Water Body (Chất lỏng trong suốt với ánh sáng tán xạ) */}
+                    {/* Water Body (Chất lỏng trong suốt với màu sắc biến thiên theo độ mặn) */}
                     <div
                       style={{ top: `${currentWaterSurfaceY + 16}px` }}
-                      className="absolute bottom-0 left-0 right-0 bg-gradient-to-b from-sky-400/30 via-sky-500/35 to-blue-600/40 pointer-events-none transition-[top] duration-500"
+                      className={`absolute bottom-0 left-0 right-0 pointer-events-none transition-all duration-700 ${
+                        saltSpoons > 2
+                          ? 'bg-gradient-to-b from-teal-400/35 via-cyan-500/40 to-blue-600/50'
+                          : 'bg-gradient-to-b from-sky-400/30 via-sky-500/35 to-blue-600/40'
+                      }`}
                     >
-                      {/* Ambient bubbles */}
+                      {/* Ambient micro-bubbles */}
                       <div className="absolute bottom-8 left-16 w-3 h-3 rounded-full bg-white/40 animate-ping" />
                       <div className="absolute bottom-16 right-24 w-2 h-2 rounded-full bg-white/50 animate-pulse" />
                       <div className="absolute bottom-28 left-48 w-4 h-4 rounded-full bg-white/20 animate-bounce" />
                     </div>
 
-                    {/* Underwater Sandy Bed (Đáy bể rải cát) */}
-                    <div className="absolute bottom-0 left-0 right-0 h-9 bg-gradient-to-t from-amber-200/90 via-amber-100/70 to-transparent dark:from-amber-950/80 dark:via-slate-900 border-t border-amber-300/40 flex items-center justify-center text-[10px] font-mono text-amber-900 dark:text-amber-200 pointer-events-none z-10">
-                      🏖️ Đáy bể cát mịn (Vật chìm nghỉm tại đây)
+                    {/* Feature 5: Underwater Sandy Bed (Đáy bể rải cát & bụi cát va chạm) */}
+                    <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-amber-300 via-amber-200/80 to-transparent dark:from-amber-950 dark:via-amber-900/60 border-t border-amber-300/40 flex items-center justify-between px-4 text-[10px] font-mono text-amber-950 dark:text-amber-200 pointer-events-none z-15">
+                      <span>🏖️ Đáy bể cát mịn (Vật chìm nghỉm tại đây)</span>
+                      <span className="text-[9px] opacity-75">Va chạm tạo bụi cát</span>
                     </div>
 
-                    {/* Splash Water Droplet Particles */}
+                    {/* Feature 2: Splash Water Droplet Particles */}
                     {splashParticles.map((sp) => (
                       <div
                         key={sp.id}
@@ -864,7 +1235,22 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                       />
                     ))}
 
-                    {/* Underwater Bubbles */}
+                    {/* Feature 5: Sand Bed Dust Particles */}
+                    {sandDust.map((sd) => (
+                      <div
+                        key={sd.id}
+                        style={{
+                          left: `${sd.x}px`,
+                          top: `${sd.y}px`,
+                          width: `${sd.size}px`,
+                          height: `${sd.size}px`,
+                          opacity: sd.alpha
+                        }}
+                        className="absolute rounded-full bg-amber-400/70 dark:bg-amber-300/60 filter blur-[0.5px] pointer-events-none z-25"
+                      />
+                    ))}
+
+                    {/* Feature 8: Underwater Cavitation Bubbles */}
                     {bubbles.map((b) => (
                       <div
                         key={b.id}
@@ -875,16 +1261,33 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                           height: `${b.size}px`,
                           opacity: b.alpha
                         }}
-                        className="absolute rounded-full border border-white/80 bg-white/40 shadow-xs pointer-events-none z-20"
+                        className="absolute rounded-full border border-white/80 bg-white/40 shadow-xs pointer-events-none z-25"
                       />
                     ))}
 
-                    {/* Render Objects Inside Tank */}
-                    <div className="relative w-full h-full z-20 pointer-events-auto">
+                    {/* Feature 10: Falling Salt Crystals */}
+                    {saltParticles.map((sp) => (
+                      <div
+                        key={sp.id}
+                        style={{
+                          left: `${sp.x}px`,
+                          top: `${sp.y}px`,
+                          width: `${sp.size}px`,
+                          height: `${sp.size}px`,
+                          opacity: sp.alpha
+                        }}
+                        className="absolute rounded-sm bg-white shadow-sm pointer-events-none z-30 rotate-45"
+                      />
+                    ))}
+
+                    {/* Feature 1, 3, 4: Render Physics Objects Inside Tank */}
+                    <div className="relative w-full h-full z-25 pointer-events-auto">
                       {items
                         .filter((i) => i.inTank && i.id !== holdingItemId)
                         .map((item) => {
                           const isSubmerged = item.status === 'pushed';
+                          const itemDensity = item.weightGrams / item.volumeMl;
+                          const currentFloats = itemDensity < waterDensity;
 
                           return (
                             <div
@@ -892,7 +1295,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                               onPointerDown={(e) => {
                                 if (activeTool === 'net') {
                                   handleScoopItem(item.id);
-                                } else if (item.floats) {
+                                } else if (currentFloats) {
                                   handlePushDownItem(item, e);
                                 } else {
                                   handleStartHold(item, e);
@@ -901,19 +1304,20 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                               onPointerUp={handleReleaseSubmergedItem}
                               style={{
                                 position: 'absolute',
-                                left: `${item.xPercent}%`,
-                                top: `${item.yPos}px`,
-                                transition: isSubmerged ? 'all 0.15s ease' : 'all 0.7s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                                left: `${item.x}px`,
+                                top: `${item.y}px`,
+                                transform: `translate(-50%, -50%) rotate(${item.angle}deg)`,
+                                transition: isSubmerged ? 'all 0.1s ease' : 'none'
                               }}
-                              className={`group cursor-grab active:cursor-grabbing flex flex-col items-center -translate-x-1/2 ${
+                              className={`group cursor-grab active:cursor-grabbing flex flex-col items-center select-none ${
                                 isSubmerged ? 'scale-125' : 'hover:scale-115'
                               }`}
                               title={
                                 activeTool === 'net'
                                   ? 'Bấm để vớt vào giỏ'
-                                  : item.floats
-                                  ? 'ẤN GIỮ ĐỂ DÌM XUỐNG ĐÁY & BUÔNG TAY ĐỂ BẮN LÊN!'
-                                  : 'Bấm để cầm lên thử nghiệm lại'
+                                  : currentFloats
+                                  ? 'ẤN GIỮ ĐỂ DÌM XUỐNG ĐÁY & BUÔNG TAY ĐỂ BẮN VỌT LÊN!'
+                                  : 'Bấm giữ để cầm lên ném thử nghiệm lại'
                               }
                             >
                               {/* Submerge indicator arrows when held underwater */}
@@ -924,7 +1328,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                                 </div>
                               )}
 
-                              {/* Object Icon */}
+                              {/* Object Icon with Hydrodynamic Tilt */}
                               <span className="text-4xl filter drop-shadow-md select-none transform transition-transform">
                                 {item.icon}
                               </span>
@@ -932,17 +1336,17 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                               {/* Object Tag */}
                               <span
                                 className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-full shadow-xs mt-1 whitespace-nowrap transition-colors ${
-                                  item.floats
+                                  currentFloats
                                     ? 'bg-sky-100 text-sky-900 border border-sky-300 dark:bg-sky-950 dark:text-sky-200'
                                     : 'bg-amber-100 text-amber-950 border border-amber-300 dark:bg-amber-950 dark:text-amber-200'
                                 }`}
                               >
-                                {item.name} ({item.floats ? 'NỔI' : 'CHÌM'})
+                                {item.name} ({currentFloats ? 'NỔI' : 'CHÌM'})
                               </span>
 
                               {/* Floating Push Hint */}
-                              {item.floats && !isSubmerged && (
-                                <div className="text-[8px] font-mono text-sky-700 dark:text-sky-300 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 dark:bg-slate-900/80 px-1.5 py-0.5 rounded shadow-2xs mt-0.5">
+                              {currentFloats && !isSubmerged && (
+                                <div className="text-[8px] font-mono text-sky-700 dark:text-sky-300 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 dark:bg-slate-900/80 px-1.5 py-0.5 rounded shadow-2xs mt-0.5 pointer-events-none">
                                   👇 Ấn dìm bóng
                                 </div>
                               )}
@@ -951,7 +1355,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                         })}
                     </div>
 
-                    {/* Dragged / Held Item Floating with Hand Cursor */}
+                    {/* Feature 6: Dragged / Held Item with Fling Trajectory Indicator */}
                     {holdingItemId && (
                       <div
                         style={{
@@ -966,25 +1370,38 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                           {items.find((i) => i.id === holdingItemId)?.icon}
                         </span>
                         <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-slate-900 text-white shadow-lg mt-1">
-                          🖐️ Thả tay để nhúng!
+                          🖐️ Thả rơi hoặc vung tay ném!
                         </span>
                       </div>
                     )}
                   </div>
 
-                  {/* Bottom Controls */}
-                  <div className="flex items-center justify-between gap-3 text-xs">
-                    <button
-                      onClick={() => setShowXRay(!showXRay)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-mono font-semibold transition ${
-                        showXRay
-                          ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
-                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
-                      }`}
-                    >
-                      <Search className="w-3.5 h-3.5" />
-                      <span>{showXRay ? 'Tắt Kính Lúp X-Ray' : 'Bật Kính Lúp X-Ray (Soi cấu trúc rỗng/đặc)'}</span>
-                    </button>
+                  {/* Bottom Controls Bar */}
+                  <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowXRay(!showXRay)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-mono font-semibold transition ${
+                          showXRay
+                            ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                        }`}
+                      >
+                        <Search className="w-3.5 h-3.5" />
+                        <span>{showXRay ? 'Tắt Kính Lúp X-Ray' : 'Bật Kính Lúp X-Ray (Soi túi khí)'}</span>
+                      </button>
+
+                      {saltSpoons > 0 && (
+                        <button
+                          onClick={handleResetSalt}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900 text-amber-900 dark:text-amber-200 font-mono font-semibold transition"
+                          title="Thay bằng nước ngọt tinh khiết"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Đổi Nước Ngọt (Xả muối)</span>
+                        </button>
+                      )}
+                    </div>
 
                     <button
                       onClick={handleResetAllTank}
@@ -998,6 +1415,52 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
 
                 {/* Right: The Preschool Toy Basket (4 cols) */}
                 <div className="lg:col-span-4 space-y-4">
+                  {/* Salt Shaker Card (Feature 10) */}
+                  <div className="p-4 rounded-3xl bg-gradient-to-br from-amber-50 to-orange-50/60 dark:from-slate-900 dark:to-amber-950/40 border-2 border-amber-300 dark:border-amber-700/80 space-y-3 shadow-md">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">🧂</span>
+                        <div>
+                          <h4 className="font-extrabold text-xs text-slate-900 dark:text-white">
+                            Hũ Muối Biển Tinh Khiết
+                          </h4>
+                          <span className="text-[10px] text-amber-700 dark:text-amber-300 font-mono">
+                            Đã thêm: {saltSpoons}/5 thìa muối
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={handleAddSalt}
+                          disabled={saltSpoons >= 5}
+                          className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-slate-950 font-bold text-xs font-mono shadow-xs flex items-center gap-1 transition"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Thêm</span>
+                        </button>
+                        {saltSpoons > 0 && (
+                          <button
+                            onClick={() => setSaltSpoons(Math.max(0, saltSpoons - 1))}
+                            className="p-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-2xl border border-amber-200 dark:border-amber-900/50 space-y-1">
+                      <div className="font-semibold text-amber-900 dark:text-amber-300 flex items-center gap-1">
+                        <span>💡 Hiện tượng Biển Chết:</span>
+                      </div>
+                      <p className="leading-relaxed">
+                        Thả <strong>Quả Trứng 🥚</strong> vào bể nước ngọt thì chìm. Thêm từ <strong>3 thìa muối</strong> trở lên, nước mặn đặc nâng quả trứng <strong>tự nổi bồng bềnh</strong>!
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Toy Basket Grid */}
                   <div className="p-4 rounded-3xl bg-amber-50/70 dark:bg-[#0f172a] border-2 border-amber-300 dark:border-amber-700 space-y-3 shadow-md">
                     <div className="flex items-center justify-between">
                       <h3 className="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
@@ -1011,10 +1474,11 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                       Bé hãy bấm giữ và kéo bất kỳ món đồ nào thả vào bể nước nhé!
                     </p>
 
-                    {/* Toy Basket Grid */}
-                    <div className="grid grid-cols-2 gap-2.5 max-h-[300px] overflow-y-auto pr-1">
+                    <div className="grid grid-cols-2 gap-2.5 max-h-[290px] overflow-y-auto pr-1">
                       {items.map((item) => {
                         const isInTank = item.inTank;
+                        const itemDensity = item.weightGrams / item.volumeMl;
+                        const willFloat = itemDensity < waterDensity;
 
                         return (
                           <div
@@ -1038,7 +1502,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
 
                             {showXRay && (
                               <div className="mt-1 text-[8px] font-mono font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/60 px-1 rounded">
-                                {item.floats ? '🔍 Có túi khí' : '🔍 Đặc ruột'}
+                                {willFloat ? '🔍 Có túi khí / Nhẹ' : '🔍 Đặc ruột / Nặng'}
                               </div>
                             )}
 
@@ -1057,12 +1521,12 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                   <div className="p-4 rounded-2xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 text-xs space-y-2">
                     <div className="font-bold text-sky-900 dark:text-sky-200 flex items-center gap-1.5">
                       <Lightbulb className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                      <span>Trải nghiệm xúc giác cho bé:</span>
+                      <span>Trải nghiệm tương tác chân thực cho bé:</span>
                     </div>
                     <ul className="text-slate-600 dark:text-slate-300 text-[11px] space-y-1.5 leading-relaxed">
-                      <li>• <strong>Thả từ trên cao:</strong> Nước bắn tung tóe và sóng dập dềnh!</li>
-                      <li>• <strong>Ấn dìm quả bóng bàn:</strong> Cảm nhận lực đẩy Archimedes; buông tay để bóng bắn vút lên!</li>
-                      <li>• <strong>Quan sát thước đo:</strong> Thả vật to (như quả táo) thì nước dâng cao hơn vật nhỏ.</li>
+                      <li>• <strong>Vung tay ném & thả cao:</strong> Nước bắn tung tóe, va vào cát đáy bể phát ra tiếng va chạm!</li>
+                      <li>• <strong>Ấn dìm quả bóng bàn:</strong> Cảm nhận sức nâng Ác-si-mét; buông tay để bóng bắn vọt lên!</li>
+                      <li>• <strong>Khuấy nước bằng tay:</strong> Kéo ngón tay qua mặt nước để tạo sóng dập dềnh xô đẩy các vật nổi!</li>
                     </ul>
                   </div>
                 </div>
