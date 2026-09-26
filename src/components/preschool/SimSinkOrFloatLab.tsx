@@ -58,15 +58,22 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
   { id: 'item-keys', name: 'Chùm chìa khóa', icon: '🔑', weightGrams: 42, volumeMl: 10, floatsDefault: false, desc: 'Kim loại nặng', densityNote: 'Kim loại đặc (d = 4.2 g/cm³), rơi thẳng tắp phát ra tiếng tõm và va cát', inTank: false, x: 570, y: 50, vx: 0, vy: 0, angle: 25, vRot: 0, settled: false, status: 'basket' }
 ];
 
-interface SplashParticle {
+interface SurfaceRipple {
+  id: number;
+  x: number;
+  y: number;
+  radius: number;
+  maxRadius: number;
+  alpha: number;
+}
+
+interface WaterDroplet {
   id: number;
   x: number;
   y: number;
   vx: number;
   vy: number;
-  size: number;
   alpha: number;
-  life: number;
 }
 
 interface BubbleParticle {
@@ -176,24 +183,25 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
   // Wave springs & Particle systems
   const [waveSprings, setWaveSprings] = useState<number[]>(() => Array(40).fill(0));
   const waveVelocities = useRef<number[]>(Array(40).fill(0));
-  const [splashParticles, setSplashParticles] = useState<SplashParticle[]>([]);
+  const [surfaceRipples, setSurfaceRipples] = useState<SurfaceRipple[]>([]);
+  const [waterDroplets, setWaterDroplets] = useState<WaterDroplet[]>([]);
   const [bubbles, setBubbles] = useState<BubbleParticle[]>([]);
   const [sandDust, setSandDust] = useState<SandDustParticle[]>([]);
   const [saltParticles, setSaltParticles] = useState<SaltParticle[]>([]);
 
   // =========================================================================
-  // WATER IMPACT SPLASH, CRATER & BUBBLES
+  // WATER IMPACT SURFACE RIPPLES & NATURAL WATER DROPLETS
   // =========================================================================
   const createWaterSplash = useCallback((xPx: number, isHeavy: boolean, impactSpeed: number = 100) => {
     if (soundEnabled) {
       soundEngine.playWaterSplash(isHeavy || impactSpeed > 250);
     }
 
-    // 1. Disturb wave springs near xPx (Impact crater)
+    // 1. Disturb wave springs near xPx (Impact crater on surface)
     if (tankRef.current) {
       const tankWidth = tankRef.current.clientWidth || 600;
       const nodeIndex = Math.min(39, Math.max(0, Math.floor((xPx / tankWidth) * 40)));
-      const baseForce = Math.min(42, Math.max(14, impactSpeed * 0.12));
+      const baseForce = Math.min(35, Math.max(10, impactSpeed * 0.1));
       waveVelocities.current[nodeIndex] = baseForce;
       if (nodeIndex > 0) waveVelocities.current[nodeIndex - 1] = baseForce * 0.7;
       if (nodeIndex < 39) waveVelocities.current[nodeIndex + 1] = baseForce * 0.7;
@@ -201,24 +209,34 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
       if (nodeIndex < 38) waveVelocities.current[nodeIndex + 2] = baseForce * 0.4;
     }
 
-    // 2. Spawn Splash Crown droplets
-    const count = Math.min(32, Math.max(10, Math.round((impactSpeed / 20) * (isHeavy ? 1.4 : 1.0))));
-    const newParticles: SplashParticle[] = [];
-    for (let i = 0; i < count; i++) {
-      const angle = (Math.random() * Math.PI) * 0.75 + Math.PI * 0.125;
-      const speed = Math.random() * (isHeavy ? 6.5 : 4.5) + 2.5;
-      newParticles.push({
+    // 2. Realistic Concentric Surface Ripples (Gợn sóng vòng tròn lan tỏa tự nhiên)
+    const newRipples: SurfaceRipple[] = [
+      {
         id: Date.now() + Math.random(),
-        x: xPx + (Math.random() * 24 - 12),
+        x: xPx,
         y: currentWaterSurfaceY,
-        vx: Math.cos(angle) * speed * (Math.random() > 0.5 ? 1 : -1),
-        vy: -Math.abs(Math.sin(angle) * speed),
-        size: Math.random() * (isHeavy ? 5.5 : 3.8) + 2.5,
-        alpha: 0.95,
-        life: 1
-      });
+        radius: 4,
+        maxRadius: isHeavy ? 45 : 28,
+        alpha: 0.85
+      }
+    ];
+    setSurfaceRipples((prev) => [...prev.slice(-8), ...newRipples]);
+
+    // 3. Only 2-3 gentle droplets for heavy drops (no chaotic fireworks)
+    if (isHeavy || impactSpeed > 200) {
+      const newDroplets: WaterDroplet[] = [];
+      for (let i = 0; i < 3; i++) {
+        newDroplets.push({
+          id: Date.now() + Math.random(),
+          x: xPx + (Math.random() * 12 - 6),
+          y: currentWaterSurfaceY - 2,
+          vx: (Math.random() - 0.5) * 2.0,
+          vy: -(Math.random() * 2.5 + 1.2),
+          alpha: 0.8
+        });
+      }
+      setWaterDroplets((prev) => [...prev.slice(-6), ...newDroplets]);
     }
-    setSplashParticles((prev) => [...prev.slice(-40), ...newParticles]);
 
     // 3. Spawn cavitation bubbles trailing underwater
     const bubbleCount = isHeavy ? 10 : 5;
@@ -303,18 +321,27 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
         return next;
       });
 
-      // 2. Splash droplets physics (gravity & velocity)
-      setSplashParticles((prev) =>
+      // 2. Surface Ripples & Gentle Droplets physics
+      setSurfaceRipples((prev) =>
         prev
-          .map((p) => ({
-            ...p,
-            x: p.x + p.vx,
-            y: p.y + p.vy,
-            vy: p.vy + 0.38, // Gravity
-            alpha: p.alpha - 0.032,
-            life: p.life - 0.032
+          .map((r) => ({
+            ...r,
+            radius: r.radius + 1.2,
+            alpha: r.alpha - 0.026
           }))
-          .filter((p) => p.life > 0)
+          .filter((r) => r.alpha > 0 && r.radius < r.maxRadius)
+      );
+
+      setWaterDroplets((prev) =>
+        prev
+          .map((d) => ({
+            ...d,
+            x: d.x + d.vx,
+            y: d.y + d.vy,
+            vy: d.vy + 0.35,
+            alpha: d.alpha - 0.04
+          }))
+          .filter((d) => d.y < currentWaterSurfaceY + 8 && d.alpha > 0)
       );
 
       // 3. Sand dust cloud physics (rising & slow fade)
@@ -364,10 +391,27 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
         // Skip items currently being pressed down by finger
         if (item.status === 'pushed') return item;
 
-        let { x, y, vx, vy, angle, vRot, status } = item;
         const currentDensity = item.weightGrams / item.volumeMl;
         const willFloatInCurrentLiquid = currentDensity < waterDensity;
 
+        // CRUCIAL: Once an item has sunk and settled on the bottom sand bed,
+        // it stays COMPLETELY STATIC and IMMOBILE unless buoyant force changes!
+        if (item.settled && item.status === 'sunk') {
+          if (willFloatInCurrentLiquid) {
+            hasChanges = true;
+            return {
+              ...item,
+              status: 'floating' as const,
+              settled: false,
+              vy: -150
+            };
+          }
+          return item; // Absolute zero motion!
+        }
+
+        let { x, y, vx, vy, angle, vRot } = item;
+        let status = item.status;
+        let settled = item.settled;
         const isSubmerged = y >= currentWaterSurfaceY - 10;
 
         if (!isSubmerged) {
@@ -381,23 +425,18 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
 
           // Check if hitting water surface this frame
           if (y >= currentWaterSurfaceY - 10) {
-            // Impact with water surface!
             createWaterSplash(x, !willFloatInCurrentLiquid, Math.abs(vy));
             status = willFloatInCurrentLiquid ? 'floating' : 'sunk';
           }
           hasChanges = true;
         } else {
           // ================= UNDERWATER / AT WATER SURFACE =================
-          // Hydrodynamic Fluid Drag: F_drag = - 0.5 * Cd * rho * v^2 - beta * v
           const fluidDragY = -5.8 * vy;
           const fluidDragX = -6.2 * vx;
 
-          // Buoyancy vs Gravity:
-          // Net buoyant acceleration: a_b = (rho_liquid * V - m) * g_scale / m
           const buoyancyFactor = (waterDensity * item.volumeMl - item.weightGrams);
           const archimedesAccel = (buoyancyFactor / item.weightGrams) * 360;
 
-          // Equilibrium waterline Y for floating items
           const equilibriumSubmergedFraction = Math.min(1, currentDensity / waterDensity);
           const equilibriumY = currentWaterSurfaceY + (equilibriumSubmergedFraction * 24 - 16);
 
@@ -431,34 +470,40 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
           } else {
             // Sinking item: descends with terminal velocity
             const gravityDown = 320;
-            const terminalDecel = archimedesAccel; // negative value opposing gravity
+            const terminalDecel = archimedesAccel;
             vy += (gravityDown + terminalDecel + fluidDragY) * dt;
             
-            // Hydrodynamic Fluttering Wobble (Especially Spoon and Flat Objects)
-            if (item.id === 'item-spoon') {
-              angle = Math.sin(currentTime * 0.007) * 20;
-              vx = Math.cos(currentTime * 0.007) * 14;
-            } else if (item.id === 'item-leaf') {
-              angle = Math.sin(currentTime * 0.004) * 15;
-              vx = Math.cos(currentTime * 0.004) * 8;
-            } else {
-              angle += (0 - angle) * 2 * dt;
-              vx += fluidDragX * dt;
+            // Hydrodynamic Fluttering Wobble ONLY while sinking through water column
+            if (y < TANK_BOTTOM_Y - 14) {
+              if (item.id === 'item-spoon') {
+                angle = Math.sin(currentTime * 0.007) * 20;
+                vx = Math.cos(currentTime * 0.007) * 14;
+              } else if (item.id === 'item-leaf') {
+                angle = Math.sin(currentTime * 0.004) * 15;
+                vx = Math.cos(currentTime * 0.004) * 8;
+              } else {
+                angle += (0 - angle) * 2 * dt;
+                vx += fluidDragX * dt;
+              }
+
+              y += vy * dt;
+              x += vx * dt;
             }
 
-            y += vy * dt;
-            x += vx * dt;
-
-            // Check Sand Bed Collision
+            // Sand Bed Collision & Settle Locking
             if (y >= TANK_BOTTOM_Y - 14) {
               if (vy > 35) {
-                // Soft rebound and sand dust puff!
+                // Soft rebound and sand dust puff
                 createSandBedDust(x);
-                vy = -vy * 0.18; // Inelastic sand bounce
+                vy = -vy * 0.15;
+                y = TANK_BOTTOM_Y - 14;
               } else {
+                // LOCK COMPLETELY IN PLACE ON SAND!
                 y = TANK_BOTTOM_Y - 14;
                 vy = 0;
                 vx = 0;
+                vRot = 0;
+                settled = true;
               }
             }
             status = 'sunk';
@@ -484,6 +529,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
           vy,
           angle,
           vRot,
+          settled,
           status
         };
       });
@@ -1129,19 +1175,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                     onPointerUp={handlePointerUp}
                     className="relative w-full h-[380px] rounded-3xl border-4 border-sky-400/80 dark:border-sky-500/50 bg-gradient-to-b from-sky-100/40 via-sky-200/30 to-blue-300/40 dark:from-slate-950 dark:via-blue-950/40 dark:to-blue-900/40 overflow-hidden shadow-2xl flex flex-col justify-end touch-none cursor-default"
                   >
-                    {/* Feature 9: Underwater Caustics Light Simulation */}
-                    <div className="absolute inset-0 pointer-events-none opacity-25 dark:opacity-20 overflow-hidden z-10">
-                      <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-                        <defs>
-                          <pattern id="caustics" width="120" height="80" patternUnits="userSpaceOnUse">
-                            <path d="M 0 40 Q 30 10, 60 40 T 120 40" fill="none" stroke="#fff" strokeWidth="2.5" opacity="0.6" />
-                            <path d="M 0 20 Q 30 50, 60 20 T 120 20" fill="none" stroke="#38bdf8" strokeWidth="1.8" opacity="0.5" />
-                            <path d="M 0 60 Q 40 30, 80 60 T 120 60" fill="none" stroke="#fef08a" strokeWidth="1.2" opacity="0.4" />
-                          </pattern>
-                        </defs>
-                        <rect width="100%" height="100%" fill="url(#caustics)" />
-                      </svg>
-                    </div>
+
 
                     {/* Top Air Atmosphere Label */}
                     <div className="absolute top-2 left-4 text-[10px] font-mono font-bold text-sky-700/80 dark:text-sky-300/80 uppercase tracking-widest flex items-center gap-1.5 pointer-events-none z-10">
@@ -1220,18 +1254,34 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                       <span className="text-[9px] opacity-75">Va chạm tạo bụi cát</span>
                     </div>
 
-                    {/* Feature 2: Splash Water Droplet Particles */}
-                    {splashParticles.map((sp) => (
+                    {/* Concentric Surface Ripple Rings (Vòng gợn sóng lan tỏa tự nhiên) */}
+                    {surfaceRipples.map((r) => (
                       <div
-                        key={sp.id}
+                        key={r.id}
                         style={{
-                          left: `${sp.x}px`,
-                          top: `${sp.y}px`,
-                          width: `${sp.size}px`,
-                          height: `${sp.size}px`,
-                          opacity: sp.alpha
+                          left: `${r.x}px`,
+                          top: `${r.y}px`,
+                          width: `${r.radius * 2}px`,
+                          height: `${r.radius * 0.65}px`,
+                          opacity: r.alpha,
+                          transform: 'translate(-50%, -50%)'
                         }}
-                        className="absolute rounded-full bg-sky-300 dark:bg-white shadow-xs pointer-events-none z-30"
+                        className="absolute rounded-full border border-white/80 pointer-events-none z-20 shadow-xs"
+                      />
+                    ))}
+
+                    {/* Subtle natural water droplets */}
+                    {waterDroplets.map((d) => (
+                      <div
+                        key={d.id}
+                        style={{
+                          left: `${d.x}px`,
+                          top: `${d.y}px`,
+                          width: '3.5px',
+                          height: '3.5px',
+                          opacity: d.alpha
+                        }}
+                        className="absolute rounded-full bg-sky-200 dark:bg-white pointer-events-none z-30 shadow-2xs"
                       />
                     ))}
 
@@ -1333,16 +1383,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                                 {item.icon}
                               </span>
 
-                              {/* Object Tag */}
-                              <span
-                                className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-full shadow-xs mt-1 whitespace-nowrap transition-colors ${
-                                  currentFloats
-                                    ? 'bg-sky-100 text-sky-900 border border-sky-300 dark:bg-sky-950 dark:text-sky-200'
-                                    : 'bg-amber-100 text-amber-950 border border-amber-300 dark:bg-amber-950 dark:text-amber-200'
-                                }`}
-                              >
-                                {item.name} ({currentFloats ? 'NỔI' : 'CHÌM'})
-                              </span>
+
 
                               {/* Floating Push Hint */}
                               {currentFloats && !isSubmerged && (
