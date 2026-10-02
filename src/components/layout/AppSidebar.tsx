@@ -169,17 +169,17 @@ export const AppSidebar: React.FC<Props> = ({
                     <button
                       onClick={() => {
                         setActiveView('preschool-products');
-                        if (setActivePreschoolLabId) setActivePreschoolLabId('exp-sink-tank');
+                        if (setActivePreschoolLabId) setActivePreschoolLabId('overview');
                         if (isOpenMobile) onCloseMobile();
                       }}
                       className={`w-full flex items-start gap-2.5 p-2.5 rounded-xl border text-left transition-all ${
-                        activeView === 'preschool-products'
-                          ? 'bg-amber-500/10 border-amber-500 text-amber-950 dark:text-amber-200 font-semibold shadow-xs ring-1 ring-amber-500/30'
+                        activeView === 'preschool-products' && (activePreschoolLabId === 'overview' || !activePreschoolLabId)
+                          ? 'bg-amber-500/15 border-amber-500 text-amber-950 dark:text-amber-200 font-semibold shadow-xs ring-1 ring-amber-500/30'
                           : 'bg-white/60 dark:bg-slate-900/40 border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60'
                       }`}
                     >
                       <div className={`p-1.5 rounded-lg mt-0.5 ${
-                        activeView === 'preschool-products'
+                        activeView === 'preschool-products' && (activePreschoolLabId === 'overview' || !activePreschoolLabId)
                           ? 'bg-amber-500 text-slate-950 shadow-xs'
                           : 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300'
                       }`}>

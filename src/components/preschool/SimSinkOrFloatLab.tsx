@@ -90,6 +90,126 @@ interface SaltParticle {
   alpha: number;
 }
 
+// Dedicated Aquarium Scoop Net Icon
+const AquariumNetIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className} stroke="currentColor">
+    {/* Angled Handle */}
+    <path d="M 21 3 L 14 10" strokeWidth="2.5" strokeLinecap="round" className="stroke-amber-500" />
+    {/* Metal Hoop Ring */}
+    <circle cx="9.5" cy="14.5" r="5" strokeWidth="1.8" className="stroke-sky-500" />
+    {/* Net Mesh Pouch */}
+    <path d="M 6 12 Q 9.5 17 13 12" strokeWidth="1" strokeDasharray="1.5 1.5" className="stroke-emerald-500" />
+    <path d="M 6 17 Q 9.5 12 13 17" strokeWidth="1" strokeDasharray="1.5 1.5" className="stroke-emerald-500" />
+    <path d="M 9.5 9.5 Q 14 14.5 9.5 19.5" strokeWidth="1" strokeDasharray="1.5 1.5" className="stroke-emerald-500" />
+  </svg>
+);
+
+// Realistic Hand Holding Stainless Steel Spoon Component
+const RealisticHandSpoon: React.FC<{
+  x: number;
+  y: number;
+  rotation: number;
+  isPouring: boolean;
+}> = ({ x, y, rotation, isPouring }) => (
+  <div
+    style={{
+      left: `${x}px`,
+      top: `${y}px`,
+      transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+      transition: 'all 0.45s cubic-bezier(0.25, 1, 0.5, 1)'
+    }}
+    className="absolute pointer-events-none z-45 filter drop-shadow-2xl select-none"
+  >
+    <svg width="150" height="95" viewBox="0 0 150 95" fill="none">
+      {/* Spoon Handle (Stainless steel polished chrome) */}
+      <path
+        d="M 140 55 L 56 38 Q 48 36 42 35"
+        stroke="url(#metalShineGrad)"
+        strokeWidth="7"
+        strokeLinecap="round"
+      />
+      {/* Spoon Bowl (deep concave oval) */}
+      <ellipse cx="32" cy="35" rx="24" ry="15" fill="url(#metalBowlGrad)" stroke="#94a3b8" strokeWidth="2" />
+      
+      {/* Salt Pile mound inside spoon */}
+      {!isPouring ? (
+        <ellipse cx="32" cy="32" rx="18" ry="10" fill="#ffffff" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.25))" />
+      ) : (
+        /* Emptying tilted bowl with salt grains tumbling out */
+        <g>
+          <ellipse cx="26" cy="35" rx="12" ry="7" fill="#f8fafc" />
+          <circle cx="16" cy="46" r="3" fill="#ffffff" />
+          <circle cx="20" cy="54" r="2.5" fill="#ffffff" />
+          <circle cx="14" cy="62" r="3" fill="#ffffff" />
+        </g>
+      )}
+
+      {/* Hand Fingers Gripping Handle */}
+      <path d="M 145 68 Q 120 54 105 50 Q 95 48 88 46" stroke="#f59e0b" strokeWidth="13" strokeLinecap="round" />
+      <path d="M 145 68 Q 120 54 105 50 Q 95 48 88 46" stroke="#fcd34d" strokeWidth="11" strokeLinecap="round" />
+      {/* Thumb pressing on top */}
+      <ellipse cx="96" cy="42" rx="10" ry="6" fill="#fde68a" stroke="#d97706" strokeWidth="1.5" transform="rotate(-15 96 42)" />
+      {/* Index Finger curled around handle */}
+      <ellipse cx="84" cy="45" rx="7" ry="5.5" fill="#fcd34d" stroke="#d97706" strokeWidth="1.5" transform="rotate(10 84 45)" />
+      <ellipse cx="74" cy="48" rx="6.5" ry="5" fill="#fcd34d" stroke="#d97706" strokeWidth="1.5" transform="rotate(15 74 48)" />
+
+      <defs>
+        <linearGradient id="metalShineGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#94a3b8" />
+          <stop offset="50%" stopColor="#f8fafc" />
+          <stop offset="100%" stopColor="#64748b" />
+        </linearGradient>
+        <linearGradient id="metalBowlGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#e2e8f0" />
+          <stop offset="70%" stopColor="#cbd5e1" />
+          <stop offset="100%" stopColor="#64748b" />
+        </linearGradient>
+      </defs>
+    </svg>
+  </div>
+);
+
+// Realistic Hand Holding Glass Stirring Rod Component
+const RealisticStirringHand: React.FC<{
+  x: number;
+  y: number;
+  angle: number;
+}> = ({ x, y, angle }) => (
+  <div
+    style={{
+      left: `${x}px`,
+      top: `${y}px`,
+      transform: `translate(-50%, -45%) rotate(${Math.sin((angle * Math.PI) / 180) * 16}deg)`,
+      transition: 'transform 0.08s linear'
+    }}
+    className="absolute pointer-events-none z-45 filter drop-shadow-2xl select-none flex flex-col items-center"
+  >
+    <svg width="100" height="190" viewBox="0 0 100 190" fill="none">
+      {/* Laboratory glass stirring rod */}
+      <rect x="47" y="32" width="7" height="150" rx="3.5" fill="url(#glassRodGrad)" stroke="rgba(255,255,255,0.9)" strokeWidth="1.2" />
+      <circle cx="50.5" cy="30" r="5" fill="#38bdf8" opacity="0.85" />
+      <circle cx="50.5" cy="180" r="4.5" fill="#38bdf8" opacity="0.85" />
+
+      {/* Hand holding top of rod */}
+      <path d="M 92 50 Q 72 35 56 32" stroke="#f59e0b" strokeWidth="13" strokeLinecap="round" />
+      <path d="M 92 50 Q 72 35 56 32" stroke="#fcd34d" strokeWidth="11" strokeLinecap="round" />
+      <ellipse cx="50" cy="34" rx="8" ry="6" fill="#fde68a" stroke="#d97706" strokeWidth="1.5" />
+      <ellipse cx="52" cy="44" rx="7" ry="5.5" fill="#fcd34d" stroke="#d97706" strokeWidth="1.5" />
+
+      <defs>
+        <linearGradient id="glassRodGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.85)" />
+          <stop offset="50%" stopColor="rgba(56,189,248,0.55)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0.9)" />
+        </linearGradient>
+      </defs>
+    </svg>
+
+    {/* Effervescent vortex rings and micro-bubbles in water */}
+    <div className="w-14 h-7 rounded-full border-2 border-white/80 animate-ping opacity-60 -mt-6 pointer-events-none" />
+  </div>
+);
+
 export const SimSinkOrFloatLab: React.FC<Props> = () => {
   // Fullscreen state
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -117,6 +237,19 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
   const [holdingItemId, setHoldingItemId] = useState<string | null>(null);
   const [holdingPos, setHoldingPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [submergingItemId, setSubmergingItemId] = useState<string | null>(null);
+
+  // Aquarium Net Scooping Animation State & Pointer Tracking
+  interface NetScoopAnim {
+    itemId: string;
+    itemIcon: string;
+    itemName: string;
+    x: number;
+    y: number;
+    phase: 'dipping' | 'lifting' | 'returning';
+  }
+  const [netScoopAnim, setNetScoopAnim] = useState<NetScoopAnim | null>(null);
+  const [netCursorPos, setNetCursorPos] = useState<{ x: number; y: number }>({ x: 400, y: 250 });
+  const [isHoveringTank, setIsHoveringTank] = useState<boolean>(false);
 
   // Pointer fling tracking
   const pointerHistory = useRef<{ x: number; y: number; time: number }[]>([]);
@@ -537,6 +670,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
     const currY = Math.max(20, Math.min(rect.height - 20, e.clientY - rect.top));
 
     const now = performance.now();
+    setNetCursorPos({ x: currX, y: currY });
     pointerHistory.current.push({ x: currX, y: currY, time: now });
     if (pointerHistory.current.length > 5) {
       pointerHistory.current.shift();
@@ -705,12 +839,12 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
     // Step 2: Spoon moves to center above tank and pours salt crystals
     setTimeout(() => {
       setSaltAnimation('pouring');
-      setSpoonPos({ x: pourTargetX, y: 65, rotation: 45 });
+      setSpoonPos({ x: pourTargetX, y: 65, rotation: 50 });
       if (soundEnabled) soundEngine.playSaltPour();
 
       // Spawn falling salt crystals into water
       const newSalt: SaltParticle[] = [];
-      for (let i = 0; i < 28; i++) {
+      for (let i = 0; i < 35; i++) {
         newSalt.push({
           id: Date.now() + Math.random(),
           x: pourTargetX + (Math.random() * 36 - 18),
@@ -721,23 +855,27 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
         });
       }
       setSaltParticles((prev) => [...prev, ...newSalt]);
-    }, 700);
+
+      // Disturbed ripples at pouring spot
+      const nodeCenter = Math.floor(40 * 0.5);
+      waveVelocities.current[nodeCenter] = 12;
+    }, 750);
 
     // Step 3: Stirring rod dips into water and stirs in circular loop
     setTimeout(() => {
       setSaltAnimation('stirring');
-      setMessage('Đũa khuấy đang xoay tròn trong nước để hòa tan các hạt muối...');
+      setMessage('Bàn tay cầm đũa khuấy đang xoay tròn để hòa tan muối biển trong nước...');
       if (soundEnabled) soundEngine.playWaterStir();
 
-      // Create gentle swirling ripples at surface
-      const nodeCenter = Math.floor(40 * 0.5);
-      waveVelocities.current[nodeCenter] = 12;
-
-      let angle = 0;
+      let startTime = performance.now();
       const stirInterval = setInterval(() => {
-        angle += 45;
-        setStirringRodAngle(angle);
-      }, 90);
+        const elapsed = performance.now() - startTime;
+        const currentAngle = (elapsed / 1800) * 360 * 3;
+        setStirringRodAngle(currentAngle);
+        if (Math.random() < 0.25) {
+          waveVelocities.current[Math.floor(40 * 0.5)] = (Math.random() - 0.5) * 8;
+        }
+      }, 30);
 
       // Step 4: Finish dissolving, update salinity and check egg
       setTimeout(() => {
@@ -759,7 +897,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
             `🧂 Bé vừa hòa tan thêm 1 thìa muối! Nước đặc hơn một chút (tỷ trọng ${newDensity.toFixed(2)} g/cm³). Nước càng mặn thì sức nâng càng lớn!`
           );
         }
-      }, 1600);
+      }, 1800);
     }, 1800);
   };
 
@@ -770,8 +908,9 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
     setMessage('Đã thay bằng nước ngọt tinh khiết mới! Quả trứng lại chìm nghỉm xuống đáy cát.');
   };
 
-  // Scoop item out with net tool
+  // Scoop item out with net tool - Smooth, tactile multi-phase animation
   const handleScoopItem = (itemId: string) => {
+    if (netScoopAnim) return;
     const item = items.find((i) => i.id === itemId);
     if (!item) return;
 
@@ -779,10 +918,39 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
       soundEngine.playNetScoop();
     }
 
-    setItems((prev) =>
-      prev.map((i) => (i.id === itemId ? { ...i, inTank: false, status: 'basket', y: 60, vy: 0, vx: 0 } : i))
-    );
-    setMessage(`Bé đã dùng vợt vớt ${item.name} cất lại vào khay đồ chơi!`);
+    // Phase 1: Net swoops down under the item
+    setNetScoopAnim({
+      itemId: item.id,
+      itemIcon: item.icon,
+      itemName: item.name,
+      x: item.x,
+      y: item.y + 10,
+      phase: 'dipping'
+    });
+
+    setMessage(`🧺 Đang luồn vợt xuống dưới vớt ${item.name} lên...`);
+
+    // Phase 2: Net scoops up item out of the water with splash
+    setTimeout(() => {
+      setNetScoopAnim((prev) => (prev ? { ...prev, y: currentWaterSurfaceY - 40, phase: 'lifting' } : null));
+      if (soundEnabled) soundEngine.playWaterSplash(false);
+      createWaterSplash(item.x, false, 80);
+
+      // Phase 3: Net glides towards top-right / Toy Shelf
+      setTimeout(() => {
+        const tankW = tankDimensions.width || 800;
+        setNetScoopAnim((prev) => (prev ? { ...prev, x: tankW - 40, y: 35, phase: 'returning' } : null));
+
+        // Phase 4: Drop item safely back into Toy Shelf
+        setTimeout(() => {
+          setItems((prev) =>
+            prev.map((i) => (i.id === itemId ? { ...i, inTank: false, status: 'basket', y: 60, vy: 0, vx: 0 } : i))
+          );
+          setNetScoopAnim(null);
+          setMessage(`Bé đã dùng vợt vớt ${item.name} cất lại gọn gàng vào khay đồ chơi!`);
+        }, 450);
+      }, 550);
+    }, 350);
   };
 
   const handleResetAllTank = () => {
@@ -931,31 +1099,42 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
           {/* The Physics Glass Aquarium Tank */}
           <div
             ref={tankRef}
+            onPointerEnter={() => setIsHoveringTank(true)}
+            onPointerLeave={() => setIsHoveringTank(false)}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
-            className={`relative w-full rounded-3xl border-4 border-sky-400/90 dark:border-sky-500/70 bg-gradient-to-b from-sky-50 via-sky-100/50 to-blue-200/40 dark:from-slate-950 dark:via-blue-950/40 dark:to-blue-900/40 overflow-hidden shadow-2xl flex flex-col justify-end touch-none cursor-default ${
-              isFullscreen ? 'flex-1 min-h-[540px]' : 'h-[500px] sm:h-[530px]'
-            }`}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (saltAnimation === 'idle' && saltSpoons < 5) {
+                handleTriggerAddSalt();
+              }
+            }}
+            className={`relative w-full rounded-3xl border-4 border-sky-400/90 dark:border-sky-500/70 bg-gradient-to-b from-sky-50/60 via-cyan-50/40 to-blue-100/30 dark:from-[#0a101d] dark:via-[#0c1626] dark:to-[#0e1d33] overflow-hidden shadow-2xl flex flex-col justify-end touch-none select-none ${
+              activeTool === 'net' ? 'cursor-none' : 'cursor-default'
+            } ${isFullscreen ? 'flex-1 min-h-[540px]' : 'h-[500px] sm:h-[530px]'}`}
           >
             {/* UNIFIED SOLID WATER BODY: SVG SPANNING EXACTLY FROM WAVE LINE TO BOTTOM */}
-            {/* THIS MATHEMATICALLY GUARANTEES ZERO GAP, ZERO WHITE SPACE BETWEEN SURFACE & WATER */}
+            {/* CRYSTAL-CLEAR TRANSPARENT WATER: VIVIDLY REVEALS ALL OBJECTS AND SANDY BED */}
             <svg 
               className="absolute inset-0 w-full h-full pointer-events-none z-10" 
               viewBox={`0 0 ${tankW} ${tankH}`}
               preserveAspectRatio="none"
             >
               <defs>
+                {/* Crystal clear transparent freshwater gradient */}
                 <linearGradient id="solidWaterGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.88" />
-                  <stop offset="25%" stopColor="#0ea5e9" stopOpacity="0.9" />
-                  <stop offset="75%" stopColor="#0284c7" stopOpacity="0.94" />
-                  <stop offset="100%" stopColor="#0369a1" stopOpacity="0.98" />
+                  <stop offset="0%" stopColor="#bae6fd" stopOpacity="0.25" />
+                  <stop offset="25%" stopColor="#7dd3fc" stopOpacity="0.32" />
+                  <stop offset="65%" stopColor="#38bdf8" stopOpacity="0.42" />
+                  <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.52" />
                 </linearGradient>
+                {/* Crystal clear emerald saltwater gradient */}
                 <linearGradient id="solidSaltWaterGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2dd4bf" stopOpacity="0.88" />
-                  <stop offset="25%" stopColor="#0d9488" stopOpacity="0.9" />
-                  <stop offset="75%" stopColor="#0f766e" stopOpacity="0.94" />
-                  <stop offset="100%" stopColor="#115e59" stopOpacity="0.98" />
+                  <stop offset="0%" stopColor="#99f6e4" stopOpacity="0.28" />
+                  <stop offset="25%" stopColor="#5eead4" stopOpacity="0.36" />
+                  <stop offset="65%" stopColor="#2dd4bf" stopOpacity="0.46" />
+                  <stop offset="100%" stopColor="#0d9488" stopOpacity="0.56" />
                 </linearGradient>
               </defs>
 
@@ -986,8 +1165,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                   return p;
                 })()}
                 fill="none"
-                stroke="rgba(255, 255, 255, 0.95)"
-                strokeWidth="3.5"
+                stroke="rgba(255, 255, 255, 0.92)"
+                strokeWidth="2.5"
               />
             </svg>
 
@@ -1055,37 +1234,87 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
               />
             ))}
 
-            {/* HAND-HELD SPOON SCOOP & STIRRING ANIMATION OVERLAY */}
+            {/* Interactive Net Cursor following pointer */}
+            {activeTool === 'net' && isHoveringTank && !holdingItemId && !netScoopAnim && (
+              <div
+                style={{
+                  left: `${netCursorPos.x}px`,
+                  top: `${netCursorPos.y}px`,
+                  transform: 'translate(-30%, -70%)'
+                }}
+                className="absolute pointer-events-none z-35 filter drop-shadow-md select-none transition-none"
+              >
+                <svg width="70" height="70" viewBox="0 0 64 64" fill="none">
+                  {/* Handle */}
+                  <line x1="62" y1="2" x2="36" y2="28" stroke="#f59e0b" strokeWidth="5.5" strokeLinecap="round" />
+                  <line x1="62" y1="2" x2="36" y2="28" stroke="#d97706" strokeWidth="2" strokeLinecap="round" />
+                  {/* Metal Hoop Ring */}
+                  <ellipse cx="24" cy="40" rx="17" ry="13" fill="rgba(14, 165, 233, 0.12)" stroke="#0ea5e9" strokeWidth="3" />
+                  {/* Net Grid Mesh */}
+                  <path d="M 10 38 Q 24 54 38 38" stroke="#10b981" strokeWidth="1.5" strokeDasharray="3 2" />
+                  <path d="M 10 44 Q 24 58 38 44" stroke="#10b981" strokeWidth="1.5" strokeDasharray="3 2" />
+                  <path d="M 24 28 Q 14 42 24 54" stroke="#10b981" strokeWidth="1.5" strokeDasharray="3 2" />
+                </svg>
+              </div>
+            )}
+
+            {/* Dynamic Scooping Net Animation */}
+            {netScoopAnim && (
+              <div
+                style={{
+                  left: `${netScoopAnim.x}px`,
+                  top: `${netScoopAnim.y}px`,
+                  transform: 'translate(-40%, -75%)',
+                  transition: netScoopAnim.phase === 'dipping' ? 'all 0.35s cubic-bezier(0.2, 0.8, 0.4, 1)' : 'all 0.5s ease-out'
+                }}
+                className="absolute pointer-events-none z-45 filter drop-shadow-xl select-none"
+              >
+                <div className="relative">
+                  {/* Scoop Net SVG */}
+                  <svg width="88" height="88" viewBox="0 0 64 64" fill="none">
+                    <line x1="62" y1="2" x2="36" y2="28" stroke="#f59e0b" strokeWidth="6" strokeLinecap="round" />
+                    <line x1="62" y1="2" x2="36" y2="28" stroke="#b45309" strokeWidth="2" strokeLinecap="round" />
+                    <ellipse cx="24" cy="40" rx="18" ry="14" fill="rgba(14, 165, 233, 0.2)" stroke="#0ea5e9" strokeWidth="3.5" />
+                    <path d="M 8 40 Q 24 64 40 40" fill="rgba(16, 185, 129, 0.25)" stroke="#10b981" strokeWidth="2" strokeDasharray="3 2" />
+                    <path d="M 12 36 Q 24 50 36 36" stroke="#10b981" strokeWidth="1.5" strokeDasharray="3 2" />
+                    <path d="M 12 44 Q 24 56 36 44" stroke="#10b981" strokeWidth="1.5" strokeDasharray="3 2" />
+                    <path d="M 24 28 Q 14 44 24 58" stroke="#10b981" strokeWidth="1.5" strokeDasharray="3 2" />
+                  </svg>
+
+                  {/* Item nested inside the net bag */}
+                  <div className="absolute top-[32px] left-[14px] text-3xl transform rotate-6 animate-pulse">
+                    {netScoopAnim.itemIcon}
+                  </div>
+
+                  {/* Water splash droplets falling off net when lifted */}
+                  {netScoopAnim.phase === 'lifting' && (
+                    <div className="absolute -bottom-2 left-6 flex gap-1 text-sm animate-bounce">
+                      <span>💧</span>
+                      <span>💦</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* REALISTIC HAND-HELD SPOON SCOOP & STIRRING ANIMATION OVERLAY */}
             {saltAnimation !== 'idle' && (
               <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden">
                 {(saltAnimation === 'scooping' || saltAnimation === 'pouring') && (
-                  <div
-                    style={{
-                      left: `${spoonPos.x}px`,
-                      top: `${spoonPos.y}px`,
-                      transform: `translate(-50%, -50%) rotate(${spoonPos.rotation}deg)`,
-                      transition: 'all 0.5s cubic-bezier(0.25, 1, 0.5, 1)'
-                    }}
-                    className="absolute flex items-center filter drop-shadow-2xl"
-                  >
-                    <span className="text-6xl">🥄</span>
-                    <span className="text-4xl -ml-3 -mt-5">🖐️</span>
-                  </div>
+                  <RealisticHandSpoon
+                    x={spoonPos.x}
+                    y={spoonPos.y}
+                    rotation={spoonPos.rotation}
+                    isPouring={saltAnimation === 'pouring'}
+                  />
                 )}
 
                 {saltAnimation === 'stirring' && (
-                  <div
-                    style={{
-                      left: '50%',
-                      top: `${currentWaterSurfaceY + 25}px`,
-                      transform: `translate(-50%, -50%) rotate(${stirringRodAngle}deg)`,
-                      transition: 'transform 0.08s linear'
-                    }}
-                    className="absolute flex flex-col items-center"
-                  >
-                    <div className="w-3 h-36 bg-gradient-to-b from-sky-100 via-white to-slate-300 rounded-full border-2 border-sky-400 shadow-xl" />
-                    <div className="w-10 h-10 rounded-full border-2 border-white/80 animate-ping opacity-60 -mt-5" />
-                  </div>
+                  <RealisticStirringHand
+                    x={(tankDimensions.width || 800) * 0.5 + Math.cos((stirringRodAngle * Math.PI) / 180) * 35}
+                    y={currentWaterSurfaceY + 15 + Math.sin((stirringRodAngle * Math.PI) / 180) * 12}
+                    angle={stirringRodAngle}
+                  />
                 )}
               </div>
             )}
@@ -1093,7 +1322,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
             {/* Render Physics Objects Inside Tank */}
             <div className="relative w-full h-full z-25 pointer-events-auto">
               {items
-                .filter((i) => i.inTank && i.id !== holdingItemId)
+                .filter((i) => i.inTank && i.id !== holdingItemId && (!netScoopAnim || netScoopAnim.itemId !== i.id))
                 .map((item) => {
                   const isSubmerged = item.status === 'pushed';
                   const itemDensity = item.weightGrams / item.volumeMl;
@@ -1238,6 +1467,34 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
               )}
             </div>
 
+            {/* Interactive Drag & Click Spoon Handle - Synchronized with Tay Ném */}
+            <div
+              draggable={saltAnimation === 'idle' && saltSpoons < 5}
+              onDragStart={(e) => {
+                e.dataTransfer.setData('text/plain', 'salt-spoon');
+              }}
+              onClick={handleTriggerAddSalt}
+              className={`p-2.5 rounded-xl border-2 border-dashed border-amber-400 bg-amber-100/70 dark:bg-amber-950/40 flex items-center justify-between cursor-pointer hover:bg-amber-200/70 transition select-none ${
+                saltAnimation !== 'idle' || saltSpoons >= 5 ? 'opacity-50 pointer-events-none' : 'hover:scale-[1.02]'
+              }`}
+              title="Bấm hoặc kéo thìa xúc muối thả vào bể nước"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-2xl animate-bounce">🥄</span>
+                <div>
+                  <span className="text-xs font-mono font-bold text-amber-950 dark:text-amber-200 block">
+                    Thìa Xúc Muối (Bấm / Kéo)
+                  </span>
+                  <span className="text-[10px] text-amber-800 dark:text-amber-300 font-sans block">
+                    Kéo thả vào bể hoặc bấm nút
+                  </span>
+                </div>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-mono font-bold">
+                {saltSpoons}/5
+              </span>
+            </div>
+
             <button
               onClick={handleTriggerAddSalt}
               disabled={saltAnimation !== 'idle' || saltSpoons >= 5}
@@ -1252,9 +1509,9 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setActiveTool('hand')}
-                className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-mono font-bold transition flex items-center justify-center gap-1 ${
+                className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-mono font-bold transition flex items-center justify-center gap-1.5 ${
                   activeTool === 'hand'
-                    ? 'bg-sky-600 text-white shadow-xs'
+                    ? 'bg-sky-600 text-white shadow-xs ring-2 ring-sky-400/40'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                 }`}
               >
@@ -1263,13 +1520,14 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
 
               <button
                 onClick={() => setActiveTool('net')}
-                className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-mono font-bold transition flex items-center justify-center gap-1 ${
+                className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-mono font-bold transition flex items-center justify-center gap-1.5 ${
                   activeTool === 'net'
-                    ? 'bg-emerald-600 text-white shadow-xs'
+                    ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400/40'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                 }`}
               >
-                <span>🧺 Vợt vớt</span>
+                <AquariumNetIcon className="w-4 h-4" />
+                <span>Vợt vớt đồ</span>
               </button>
             </div>
 
