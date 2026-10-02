@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, FlaskConical, X, Sparkles, ChevronDown } from 'lucide-react';
+import { BookOpen, FlaskConical, X, Sparkles, ChevronDown, Waves, Ship, Flame, Palette, Ruler } from 'lucide-react';
 
 export type ActiveViewType = 'curriculum' | 'simulations' | 'preschool-products';
 
@@ -8,13 +8,25 @@ interface Props {
   setActiveView: (view: ActiveViewType) => void;
   isOpenMobile: boolean;
   onCloseMobile: () => void;
+  activePreschoolLabId?: string;
+  setActivePreschoolLabId?: (id: string) => void;
 }
+
+export const PRESCHOOL_SIDEBAR_LABS = [
+  { id: 'exp-sink-tank', title: 'Bể Thử Nghiệm Chìm Nổi', icon: Waves },
+  { id: 'exp-rescue-raft', title: 'Xưởng Chế Tạo Bè Cứu Hộ', icon: Ship },
+  { id: 'exp-lava-lamp', title: 'Chế Tạo Đèn Dung Nham', icon: Flame },
+  { id: 'exp-color-mixer', title: 'Hòa Trộn Màu Sắc', icon: Palette },
+  { id: 'exp-measurement', title: 'Đo Lường & So Sánh', icon: Ruler },
+];
 
 export const AppSidebar: React.FC<Props> = ({
   activeView,
   setActiveView,
   isOpenMobile,
   onCloseMobile,
+  activePreschoolLabId = 'exp-sink-tank',
+  setActivePreschoolLabId,
 }) => {
   const [isSimExpanded, setIsSimExpanded] = useState<boolean>(true);
   const isSimSectionActive = activeView === 'simulations' || activeView === 'preschool-products';
@@ -113,9 +125,7 @@ export const AppSidebar: React.FC<Props> = ({
             <div className="space-y-1">
               <button
                 onClick={() => {
-                  setIsSimExpanded(true);
-                  setActiveView('preschool-products');
-                  if (isOpenMobile) onCloseMobile();
+                  setIsSimExpanded(!isSimExpanded);
                 }}
                 className={`w-full flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all ${
                   isSimSectionActive
@@ -155,38 +165,71 @@ export const AppSidebar: React.FC<Props> = ({
               {isSimExpanded && (
                 <div className="ml-4 pl-3 border-l-2 border-emerald-400/50 dark:border-emerald-500/30 space-y-1.5 pt-1 animate-fadeIn">
                   {/* Tab nhỏ: Sản phẩm Mầm non */}
-                  <button
-                    onClick={() => {
-                      setActiveView('preschool-products');
-                      if (isOpenMobile) onCloseMobile();
-                    }}
-                    className={`w-full flex items-start gap-2.5 p-2.5 rounded-xl border text-left transition-all ${
-                      activeView === 'preschool-products'
-                        ? 'bg-amber-500/10 border-amber-500 text-amber-950 dark:text-amber-200 font-semibold shadow-xs ring-1 ring-amber-500/30'
-                        : 'bg-white/60 dark:bg-slate-900/40 border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                    }`}
-                  >
-                    <div className={`p-1.5 rounded-lg mt-0.5 ${
-                      activeView === 'preschool-products'
-                        ? 'bg-amber-500 text-slate-950 shadow-xs'
-                        : 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300'
-                    }`}>
-                      <Sparkles className="w-3.5 h-3.5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-slate-900 dark:text-slate-100">
-                          Sản phẩm Mầm non
-                        </span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 font-mono font-bold border border-amber-300 dark:border-amber-700">
-                          3 Lab
-                        </span>
+                  <div className="space-y-1">
+                    <button
+                      onClick={() => {
+                        setActiveView('preschool-products');
+                        if (setActivePreschoolLabId) setActivePreschoolLabId('exp-sink-tank');
+                        if (isOpenMobile) onCloseMobile();
+                      }}
+                      className={`w-full flex items-start gap-2.5 p-2.5 rounded-xl border text-left transition-all ${
+                        activeView === 'preschool-products'
+                          ? 'bg-amber-500/10 border-amber-500 text-amber-950 dark:text-amber-200 font-semibold shadow-xs ring-1 ring-amber-500/30'
+                          : 'bg-white/60 dark:bg-slate-900/40 border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <div className={`p-1.5 rounded-lg mt-0.5 ${
+                        activeView === 'preschool-products'
+                          ? 'bg-amber-500 text-slate-950 shadow-xs'
+                          : 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300'
+                      }`}>
+                        <Sparkles className="w-3.5 h-3.5" />
                       </div>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
-                        Cải tiến online & Khám phá tư duy
-                      </p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-slate-900 dark:text-slate-100">
+                            Sản phẩm Mầm non
+                          </span>
+                          <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 font-mono font-bold border border-amber-300 dark:border-amber-700">
+                            5 Thí nghiệm
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                          Cải tiến online & Khám phá tư duy
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* Danh sách các thí nghiệm mầm non hiển thị DƯỚI DẠNG CỘT DỌC */}
+                    <div className="ml-3 pl-2.5 border-l-2 border-amber-400/70 dark:border-amber-500/50 space-y-1 pt-1 animate-fadeIn">
+                      {PRESCHOOL_SIDEBAR_LABS.map((lab, idx) => {
+                        const isLabActive = activeView === 'preschool-products' && activePreschoolLabId === lab.id;
+                        const Icon = lab.icon;
+
+                        return (
+                          <button
+                            key={lab.id}
+                            onClick={() => {
+                              setActiveView('preschool-products');
+                              if (setActivePreschoolLabId) setActivePreschoolLabId(lab.id);
+                              if (isOpenMobile) onCloseMobile();
+                            }}
+                            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-left text-xs font-mono transition-all ${
+                              isLabActive
+                                ? 'bg-amber-500 text-slate-950 font-bold shadow-xs'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                            }`}
+                          >
+                            <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${isLabActive ? 'text-slate-950' : 'text-amber-600 dark:text-amber-400'}`} />
+                            <span className="truncate text-[11px] flex-1">{idx + 1}. {lab.title}</span>
+                            {isLabActive && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-950 animate-ping flex-shrink-0" />
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
-                  </button>
+                  </div>
 
                   {/* Tab nhỏ 2: Kho 70 mô phỏng K-12 */}
                   <button

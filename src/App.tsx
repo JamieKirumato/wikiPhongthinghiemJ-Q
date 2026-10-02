@@ -45,6 +45,9 @@ export const App: React.FC = () => {
   // Focus Simulation ID (for when clicking "Mở trong Thư viện mô phỏng")
   const [focusSimId, setFocusSimId] = useState<string | undefined>(undefined);
 
+  // Active Preschool Mini Lab ID (for switching from sidebar vertical column)
+  const [activePreschoolLabId, setActivePreschoolLabId] = useState<string>('exp-sink-tank');
+
   // Search Modal state
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
 
@@ -154,6 +157,8 @@ export const App: React.FC = () => {
         setActiveView={setActiveView}
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        activePreschoolLabId={activePreschoolLabId}
+        setActivePreschoolLabId={setActivePreschoolLabId}
       />
 
       {/* 2. Right Main Work Area */}
@@ -223,7 +228,10 @@ export const App: React.FC = () => {
         ) : activeView === 'preschool-products' ? (
           /* TAB CON: Sản phẩm Mầm non (Bảng mô tả các thí nghiệm đang làm + Phòng lab tương tác) */
           <div className="flex-1">
-            <PreschoolProductsView />
+            <PreschoolProductsView 
+              activeLabId={activePreschoolLabId}
+              onSelectLabId={setActivePreschoolLabId}
+            />
           </div>
         ) : (
           /* TAB 2: Thư viện mô phỏng (Đề xuất Dạng tương tác 2 cột + Bảng danh mục 170 thí nghiệm + Live Lab) */
