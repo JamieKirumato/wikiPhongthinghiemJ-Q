@@ -49,70 +49,56 @@ export const PreschoolProductsView: React.FC<Props> = ({ initialExperimentId }) 
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-8 animate-fadeIn">
+    <div className="w-full max-w-[1600px] mx-auto px-2 sm:px-6 py-4 space-y-6 animate-fadeIn">
       {/* 1. Header Banner */}
-      <div className="relative p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-700 text-white shadow-xl overflow-hidden">
+      <div className="relative p-5 sm:p-7 rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-700 text-white shadow-xl overflow-hidden">
         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-        <div className="relative z-10 max-w-3xl space-y-3">
+        <div className="relative z-10 max-w-3xl space-y-2">
           <div className="flex items-center gap-2">
             <span className="px-3 py-1 rounded-full bg-white/20 text-xs font-mono font-bold tracking-wide uppercase flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>Chuyên Đề Nghiên Cứu & Phát Triển Sản Phẩm Mầm Non</span>
-            </span>
-            <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 font-bold font-mono text-xs">
-              3 Thí nghiệm chọn lọc
+              <span>Chuyên Đề Thí Nghiệm Khoa Học Mầm Non (3 - 6 Tuổi)</span>
             </span>
           </div>
 
-          <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
-            Sản Phẩm Thí Nghiệm & Mô Phỏng Mầm Non
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+            Kho Mô Phỏng Thí Nghiệm Mầm Non Trực Quan
           </h1>
-
           <p className="text-xs sm:text-sm text-emerald-50 leading-relaxed font-sans">
-            Tổ chức theo 2 hướng tiếp cận sư phạm đột phá:{' '}
-            <strong className="text-amber-300">Phần 1 - Sản phẩm cải tiến</strong> (tái hiện hoạt động trực tiếp của giáo viên lên môi trường online tương tác thời gian thực) và{' '}
-            <strong className="text-amber-300">Phần 2 - Sản phẩm khám phá</strong> (nâng cao năng lực tư duy, yêu cầu trẻ vận dụng kiến thức chế tạo và giải quyết vấn đề).
+            Mỗi tab bên dưới là một thí nghiệm tương tác riêng biệt. Bé và giáo viên có thể chuyển đổi linh hoạt để trải nghiệm mô phỏng toàn màn hình.
           </p>
         </div>
       </div>
 
-      {/* 2. Interactive Live Lab Workspace (If Running) */}
+      {/* 2. Primary Experiment Tabs System */}
+      <div className="flex items-center gap-2.5 p-2 bg-slate-100 dark:bg-[#0c121e] rounded-2xl border border-slate-200 dark:border-slate-800 overflow-x-auto shadow-sm">
+        {PRESCHOOL_PRODUCT_EXPERIMENTS.map((exp, index) => {
+          const isSelected = activeSimId === exp.id;
+          return (
+            <button
+              key={exp.id}
+              onClick={() => setActiveSimId(exp.id)}
+              className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl font-bold font-mono text-xs sm:text-sm transition-all whitespace-nowrap shadow-xs ${
+                isSelected
+                  ? 'bg-emerald-600 text-white shadow-md scale-102 ring-2 ring-emerald-400/40'
+                  : 'bg-white dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              {exp.id === 'mn-prod-01' && <Waves className="w-4 h-4 text-amber-300" />}
+              {exp.id === 'mn-prod-02' && <Palette className="w-4 h-4 text-pink-300" />}
+              {exp.id === 'mn-prod-03' && <Ruler className="w-4 h-4 text-sky-300" />}
+              <span>{index + 1}. {exp.title}</span>
+              {isSelected && (
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping ml-1" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 3. Interactive Live Lab Workspace (Full Screen / Canvas Focus) */}
       {activeSimId && (
         <section className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white dark:bg-[#0c121e] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-mono font-bold text-slate-500 uppercase px-2">
-                Đang chạy phòng Lab:
-              </span>
-
-              {PRESCHOOL_PRODUCT_EXPERIMENTS.map((exp) => (
-                <button
-                  key={exp.id}
-                  onClick={() => setActiveSimId(exp.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition ${
-                    activeSimId === exp.id
-                      ? 'bg-emerald-600 text-white shadow-sm'
-                      : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  {exp.id === 'mn-prod-01' && <Waves className="w-3.5 h-3.5" />}
-                  {exp.id === 'mn-prod-02' && <Palette className="w-3.5 h-3.5" />}
-                  {exp.id === 'mn-prod-03' && <Ruler className="w-3.5 h-3.5" />}
-                  <span>{exp.title}</span>
-                </button>
-              ))}
-            </div>
-
-            <button
-              onClick={() => setActiveSimId(null)}
-              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 transition font-mono self-start sm:self-auto"
-            >
-              <X className="w-3.5 h-3.5" />
-              <span>Thu nhỏ phòng Lab</span>
-            </button>
-          </div>
-
-          {/* Render Active Simulation Component */}
           {renderSimComponent(activeSimId)}
         </section>
       )}
