@@ -10,9 +10,11 @@ import {
   Maximize2,
   Minimize2,
   Sparkles,
-  Beaker
+  Beaker,
+  GraduationCap
 } from 'lucide-react';
 import { soundEngine } from '../../utils/audioEffects';
+import { speechEngine } from '../../utils/speechUtils';
 
 interface Props {
   onBackToTable?: () => void;
@@ -218,10 +220,39 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
   // Sound toggle
   const [soundEnabled, setSoundEnabled] = useState(true);
 
+  // Speech synthesis state (Giọng nói tiếng Việt Cô Mimi)
+  const [voiceEnabled, setVoiceEnabled] = useState<boolean>(() => speechEngine.isVoiceEnabled());
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+
+  // Classroom / Presentation mode (Tối ưu cho Smart TV & Bảng tương tác)
+  const [isClassroomMode, setIsClassroomMode] = useState<boolean>(false);
+
   // Mascot guidance message
   const [message, setMessage] = useState<string>(
-    'Chào các bạn nhỏ! Bé hãy chọn một đồ vật ở Khay bên phải để thả vào bể nước, hoặc ấn dìm quả bóng xuống đáy xem nhé!'
+    'Chào các bạn nhỏ! Bé hãy chọn một đồ vật ở Khay đồ chơi để thả vào bể nước, hoặc ấn dìm quả bóng xuống đáy xem nhé!'
   );
+
+  // Subscribe to speaking state
+  useEffect(() => {
+    const unsub = speechEngine.subscribeSpeakingState(setIsSpeaking);
+    return () => unsub();
+  }, []);
+
+  // Voice narration whenever message changes
+  useEffect(() => {
+    if (voiceEnabled && message) {
+      speechEngine.speak(message);
+    }
+  }, [message, voiceEnabled]);
+
+  const handleToggleVoice = () => {
+    const next = speechEngine.toggleVoice();
+    setVoiceEnabled(next);
+  };
+
+  const handleReplayVoice = () => {
+    speechEngine.speak(message);
+  };
 
   // Tools & modes
   const [activeTool, setActiveTool] = useState<'hand' | 'net'>('hand');
@@ -268,6 +299,20 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
   const [raceSlotA, setRaceSlotA] = useState<string>('item-pebble');
   const [raceSlotB, setRaceSlotB] = useState<string>('item-pingpong');
   const [raceRunning, setRaceRunning] = useState<boolean>(false);
+
+  // Gamification Challenge / Mission State
+  const [showMissions, setShowMissions] = useState<boolean>(false);
+  const [poppedCount, setPoppedCount] = useState<number>(0);
+  const [scoopedCount, setScoopedCount] = useState<number>(0);
+
+  // Compute missions progress
+  const floatingInTankCount = items.filter((i) => i.inTank && (i.weightGrams / i.volumeMl) < waterDensity).length;
+  const eggFloating = Boolean(items.find((i) => i.id === 'item-egg' && i.inTank && (i.weightGrams / i.volumeMl) < waterDensity));
+  const m1Done = floatingInTankCount >= 3;
+  const m2Done = eggFloating;
+  const m3Done = poppedCount >= 1;
+  const m4Done = scoopedCount >= 3;
+  const totalMissionsCompleted = [m1Done, m2Done, m3Done, m4Done].filter(Boolean).length;
 
   // Tank DOM measurement & water geometry constants
   const tankRef = useRef<HTMLDivElement | null>(null);
@@ -817,6 +862,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
 
     setMessage(`🚀 VÈO... BẬT LÊN RỒI! ${item.name} bị dìm xuống đáy đã phóng vút lên mặt nước! Lực đẩy của nước quá mạnh mẽ!`);
     setSubmergingItemId(null);
+    setPoppedCount((prev) => prev + 1);
   };
 
   // REALISTIC HAND-HELD SPOON SCOOP & STIRRING ANIMATION
@@ -947,6 +993,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
             prev.map((i) => (i.id === itemId ? { ...i, inTank: false, status: 'basket', y: 60, vy: 0, vx: 0 } : i))
           );
           setNetScoopAnim(null);
+          setScoopedCount((prev) => prev + 1);
           setMessage(`Bé đã dùng vợt vớt ${item.name} cất lại gọn gàng vào khay đồ chơi!`);
         }, 450);
       }, 550);
@@ -957,6 +1004,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
     setItems(PLAY_ITEMS_PRESETS);
     setHoldingItemId(null);
     setSubmergingItemId(null);
+    setScoopedCount((prev) => prev + 3);
     if (soundEnabled) soundEngine.playNetScoop();
     setMessage('Đã vớt sạch bể nước! Khay đồ chơi đã đầy đủ để bé thử nghiệm lại.');
   };
@@ -966,6 +1014,9 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
     if (item.inTank) return;
     const tankWidth = tankDimensions.width || 800;
     const dropX = Math.random() * (tankWidth * 0.6) + tankWidth * 0.2;
+
+    const currentDensity = item.weightGrams / item.volumeMl;
+    const willFloat = currentDensity < waterDensity;
 
     setItems((prev) =>
       prev.map((i) =>
@@ -982,7 +1033,18 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
           : i
       )
     );
-    setMessage(`Bé vừa thả ${item.name} ${item.icon} từ trên cao rơi vào bể nước!`);
+
+    if (item.id === 'item-egg') {
+      if (willFloat) {
+        setMessage(`Kỳ diệu quá! Quả trứng ${item.icon} đang nổi bồng bềnh vì nước muối rất mặn và có sức nâng lớn!`);
+      } else {
+        setMessage(`Quả trứng ${item.icon} chìm xuống đáy vì nặng hơn nước ngọt. Bé thử thêm 3 thìa muối vào bể xem điều kỳ diệu nhé!`);
+      }
+    } else if (willFloat) {
+      setMessage(`Bé thả ${item.name} ${item.icon}: Vật này nhẹ và chứa nhiều không khí nên nổi bập bềnh trên mặt nước!`);
+    } else {
+      setMessage(`Bé thả ${item.name} ${item.icon}: Vật này đặc ruột và nặng hơn nước nên chìm nghỉm xuống đáy cát!`);
+    }
   };
 
   // Drop race: 2 items dropped simultaneously
@@ -1057,25 +1119,70 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
         {/* ========================================================================= */}
         {/* LEFT COLUMN: THE CLEAN, FULL-CANVAS PHYSICAL WATER TANK (8 / 12 cols)     */}
         {/* ========================================================================= */}
-        <div className="xl:col-span-8 flex flex-col space-y-3">
-          {/* Header Bar above tank: Minimalist title + Fullscreen toggle */}
-          <div className="flex items-center justify-between px-2 py-1">
+        <div className={`${isClassroomMode ? 'xl:col-span-12' : 'xl:col-span-8'} flex flex-col space-y-3 transition-all duration-300`}>
+          {/* Header Bar above tank: Title + Voice + Classroom Mode + Fullscreen toggle */}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1.5 bg-white/70 dark:bg-slate-900/60 backdrop-blur rounded-2xl border border-slate-200/80 dark:border-slate-800">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
               <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white font-mono flex items-center gap-2">
                 <span>Bể Thử Nghiệm Chìm Nổi Trực Quan</span>
+                {isClassroomMode && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-bold font-mono shadow-xs">
+                    Lớp Học 🎓
+                  </span>
+                )}
               </h3>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              {/* Voice Narration Toggle Button */}
+              <button
+                onClick={handleToggleVoice}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold transition ${
+                  voiceEnabled
+                    ? 'bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shadow-2xs'
+                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-500'
+                }`}
+                title={voiceEnabled ? 'Giọng đọc Cô Mimi đang BẬT. Bấm để Tắt' : 'Giọng đọc Cô Mimi đang TẮT. Bấm để Bật'}
+              >
+                {voiceEnabled ? (
+                  <>
+                    <Volume2 className="w-4 h-4 text-amber-600 animate-pulse" />
+                    <span className="hidden sm:inline">Giọng Cô Mimi</span>
+                    {isSpeaking && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />}
+                  </>
+                ) : (
+                  <>
+                    <VolumeX className="w-4 h-4 text-slate-400" />
+                    <span className="hidden sm:inline">Tắt giọng</span>
+                  </>
+                )}
+              </button>
+
+              {/* Sound FX Toggle Button */}
               <button
                 onClick={() => setSoundEnabled(!soundEnabled)}
                 className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs transition"
-                title={soundEnabled ? 'Tắt âm thanh' : 'Bật âm thanh'}
+                title={soundEnabled ? 'Hiệu ứng âm thanh: Đang BẬT' : 'Hiệu ứng âm thanh: Đang TẮT'}
               >
                 {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-600" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
               </button>
 
+              {/* Classroom / Presentation Mode Toggle Button */}
+              <button
+                onClick={() => setIsClassroomMode(!isClassroomMode)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition shadow-xs ${
+                  isClassroomMode
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 ring-2 ring-amber-400/50'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                }`}
+                title="Bật/Tắt chế độ Lớp Học (Presentation Mode cho Smart TV & Máy chiếu)"
+              >
+                <GraduationCap className="w-4 h-4" />
+                <span>{isClassroomMode ? 'Thoát Lớp Học' : 'Chế độ Lớp Học 🎓'}</span>
+              </button>
+
+              {/* Fullscreen Toggle Button */}
               <button
                 onClick={handleToggleFullscreen}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-mono font-bold shadow-xs transition"
@@ -1084,12 +1191,12 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                 {isFullscreen ? (
                   <>
                     <Minimize2 className="w-3.5 h-3.5" />
-                    <span>Thu nhỏ</span>
+                    <span className="hidden sm:inline">Thu nhỏ</span>
                   </>
                 ) : (
                   <>
                     <Maximize2 className="w-3.5 h-3.5" />
-                    <span>Toàn màn hình</span>
+                    <span className="hidden sm:inline">Toàn màn hình</span>
                   </>
                 )}
               </button>
@@ -1403,12 +1510,194 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
               </div>
             )}
           </div>
+
+          {/* ========================================================================= */}
+          {/* CLASSROOM MODE INTERACTIVE TOOLBAR & LARGE TOY SHELF RIBBON             */}
+          {/* ========================================================================= */}
+          {isClassroomMode && (
+            <div className="space-y-3 p-4 rounded-3xl bg-white/95 dark:bg-[#0c121e]/95 border-2 border-amber-400 dark:border-amber-600 shadow-xl animate-fadeIn">
+              {/* Row 1: Water Status + Interactive Salt & Utility Tools */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                    <Beaker className="w-4 h-4 text-sky-500" />
+                    <span>Trạng thái nước:</span>
+                  </span>
+                  <span className={`px-3 py-1 rounded-full text-xs font-mono font-bold flex items-center gap-1.5 shadow-2xs ${
+                    saltSpoons >= 3
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white animate-pulse'
+                      : saltSpoons > 0
+                      ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 border border-amber-300'
+                      : 'bg-sky-100 dark:bg-sky-950 text-sky-900 dark:text-sky-200 border border-sky-300'
+                  }`}>
+                    {saltSpoons === 0 && '💧 Nước ngọt trong lành'}
+                    {saltSpoons > 0 && saltSpoons < 3 && `🧂 Nước muối nhẹ (${saltSpoons} thìa)`}
+                    {saltSpoons >= 3 && `🌟 Nước Biển Chết siêu mặn (${saltSpoons} thìa - Trứng nổi!)`}
+                  </span>
+
+                  {/* Quick Salt Button */}
+                  <button
+                    onClick={handleTriggerAddSalt}
+                    disabled={saltAnimation !== 'idle' || saltSpoons >= 5}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs font-mono shadow-xs transition"
+                    title="Xúc thêm 1 thìa muối vào bể"
+                  >
+                    <span>🥄 Thêm muối ({saltSpoons}/5)</span>
+                  </button>
+
+                  {saltSpoons > 0 && (
+                    <button
+                      onClick={handleResetSalt}
+                      disabled={saltAnimation !== 'idle'}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-mono font-semibold transition"
+                      title="Đổi lại nước ngọt"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Xả muối</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => setActiveTool(activeTool === 'hand' ? 'net' : 'hand')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition shadow-xs ${
+                      activeTool === 'net'
+                        ? 'bg-emerald-600 text-white ring-2 ring-emerald-400/50'
+                        : 'bg-sky-600 text-white'
+                    }`}
+                  >
+                    {activeTool === 'hand' ? <span>🖐️ Đang dùng Tay Ném</span> : <span>🧺 Đang dùng Vợt Vớt</span>}
+                  </button>
+
+                  <button
+                    onClick={() => setShowXRay(!showXRay)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold border transition ${
+                      showXRay
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    <span>{showXRay ? 'Tắt X-Ray' : 'Soi Túi Khí (X-Ray)'}</span>
+                  </button>
+
+                  <button
+                    onClick={handleResetAllTank}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-xs font-mono font-bold hover:bg-rose-100 transition"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Vớt sạch bể</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Row 2: Large Touch-friendly Toy Shelf Carousel */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide flex items-center gap-1.5">
+                    <span>🧺 Khay Đồ Chơi Cho Bé (Bấm vào để thả vào bể):</span>
+                  </span>
+                  <span className="text-[11px] font-mono text-amber-800 dark:text-amber-300 font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950">
+                    Còn {items.filter(i => !i.inTank).length}/10 món trong khay
+                  </span>
+                </div>
+
+                <div className="flex gap-2.5 overflow-x-auto pb-2 pt-1 scrollbar-thin">
+                  {items.map((item) => {
+                    const isInTank = item.inTank;
+                    const willFloat = (item.weightGrams / item.volumeMl) < waterDensity;
+
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          if (!isInTank) handleDropItemFromShelf(item);
+                        }}
+                        className={`flex-shrink-0 w-28 sm:w-32 p-3 rounded-2xl border-2 text-center transition flex flex-col items-center justify-between select-none ${
+                          isInTank
+                            ? 'opacity-40 bg-slate-100 dark:bg-slate-900 border-dashed border-slate-300 cursor-default'
+                            : 'bg-white dark:bg-slate-900 border-amber-300 dark:border-amber-700 hover:border-emerald-500 hover:scale-105 shadow-md cursor-pointer active:scale-95'
+                        }`}
+                      >
+                        <span className="text-4xl sm:text-5xl mb-1 transform group-hover:scale-110 transition-transform">
+                          {item.icon}
+                        </span>
+                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate w-full">
+                          {item.name}
+                        </span>
+
+                        {showXRay && (
+                          <span className={`text-[10px] font-mono font-bold mt-1 px-1.5 py-0.5 rounded-full ${
+                            willFloat ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300' : 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300'
+                          }`}>
+                            {willFloat ? 'Có túi khí' : 'Đặc ruột'}
+                          </span>
+                        )}
+
+                        <span className={`text-[10px] font-mono font-bold mt-1.5 px-2 py-0.5 rounded-lg w-full ${
+                          isInTank
+                            ? 'bg-slate-200 dark:bg-slate-800 text-slate-500'
+                            : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300'
+                        }`}>
+                          {isInTank ? '✓ Đang trong bể' : 'Thả ngay ⬇️'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile / Tablet Horizontal Toy Ribbon (Directly below tank to avoid vertical scrolling) */}
+          {!isClassroomMode && (
+            <div className="xl:hidden p-3 rounded-2xl bg-amber-50/80 dark:bg-[#0c121e] border border-amber-300 dark:border-amber-700/80 shadow-sm space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold font-mono text-slate-800 dark:text-slate-200 uppercase tracking-wide flex items-center gap-1.5">
+                  <span>🧺 Chạm nhanh thả đồ vào bể:</span>
+                </span>
+                <span className="text-[10px] font-mono text-amber-800 dark:text-amber-300 font-bold px-1.5 py-0.5 rounded bg-amber-200/60 dark:bg-amber-950">
+                  {items.filter(i => !i.inTank).length}/10 món
+                </span>
+              </div>
+
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                {items.map((item) => {
+                  const isInTank = item.inTank;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        if (!isInTank) handleDropItemFromShelf(item);
+                      }}
+                      disabled={isInTank}
+                      className={`flex-shrink-0 w-20 p-2 rounded-xl border text-center transition flex flex-col items-center justify-between select-none ${
+                        isInTank
+                          ? 'opacity-40 bg-slate-100 dark:bg-slate-900 border-dashed border-slate-300'
+                          : 'bg-white dark:bg-slate-900 border-amber-200 dark:border-slate-800 shadow-2xs active:scale-95'
+                      }`}
+                    >
+                      <span className="text-2xl mb-0.5">{item.icon}</span>
+                      <span className="text-[10px] font-bold text-slate-800 dark:text-slate-200 truncate w-full">
+                        {item.name}
+                      </span>
+                      <span className="text-[9px] font-mono text-slate-400 mt-0.5">
+                        {isInTank ? 'Trong bể' : 'Thả ⬇️'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ========================================================================= */}
         {/* RIGHT COLUMN: DEDICATED SIDE TOOLBAR (THANH TOOLBAR BÊN CẠNH)             */}
         {/* ========================================================================= */}
-        <div className="xl:col-span-4 flex flex-col space-y-3">
+        {!isClassroomMode && (
+          <div className="xl:col-span-4 flex flex-col space-y-3">
           
           {/* Card 1: Water Indicators & Explanations (Tách riêng từ màn hình chính) */}
           <div className="p-3.5 rounded-2xl bg-white dark:bg-[#0c121e] border-2 border-sky-400/80 dark:border-sky-700 shadow-md space-y-2.5">
@@ -1591,6 +1880,63 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
                 </button>
               </div>
             )}
+
+            {/* Gamification Mission button */}
+            <button
+              onClick={() => setShowMissions(!showMissions)}
+              className={`w-full py-1.5 px-2 rounded-xl text-xs font-mono font-bold border transition flex items-center justify-center gap-1.5 ${
+                showMissions
+                  ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
+                  : 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 border-amber-300 dark:border-amber-700'
+              }`}
+            >
+              <Trophy className="w-3.5 h-3.5 text-amber-600" />
+              <span>{showMissions ? 'Đóng Thử Thách' : `Thử Thách Đố Vui (${totalMissionsCompleted}/4 🌟)`}</span>
+            </button>
+
+            {/* Mission Drawer List */}
+            {showMissions && (
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-slate-900 dark:to-amber-950/40 border border-amber-300 dark:border-amber-700 space-y-1.5 animate-fadeIn">
+                <div className="flex items-center justify-between text-xs pb-1 border-b border-amber-200 dark:border-amber-800">
+                  <span className="font-bold font-mono text-[11px] text-amber-950 dark:text-amber-200">
+                    Nhiệm Vụ Khám Phá:
+                  </span>
+                  <span className="text-[10px] font-mono font-bold text-amber-700 dark:text-amber-400">
+                    {totalMissionsCompleted}/4 🏆
+                  </span>
+                </div>
+
+                <div className="space-y-1 text-[11px]">
+                  <div className={`p-1.5 rounded-lg border flex items-center justify-between ${
+                    m1Done ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-400 text-emerald-900 dark:text-emerald-200 font-bold' : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}>
+                    <span>🌟 1. Thả 3 vật nổi</span>
+                    <span className="font-mono">{m1Done ? '✓ Xong' : `${floatingInTankCount}/3`}</span>
+                  </div>
+
+                  <div className={`p-1.5 rounded-lg border flex items-center justify-between ${
+                    m2Done ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-400 text-emerald-900 dark:text-emerald-200 font-bold' : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}>
+                    <span>🥚 2. Làm trứng tự nổi</span>
+                    <span className="font-mono">{m2Done ? '✓ Xong' : `${saltSpoons}/3 muối`}</span>
+                  </div>
+
+                  <div className={`p-1.5 rounded-lg border flex items-center justify-between ${
+                    m3Done ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-400 text-emerald-900 dark:text-emerald-200 font-bold' : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}>
+                    <span>🚀 3. Dìm bóng bắn vọt</span>
+                    <span className="font-mono">{m3Done ? '✓ Xong' : 'Chưa thử'}</span>
+                  </div>
+
+                  <div className={`p-1.5 rounded-lg border flex items-center justify-between ${
+                    m4Done ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-400 text-emerald-900 dark:text-emerald-200 font-bold' : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}>
+                    <span>🧺 4. Vớt 3 món về khay</span>
+                    <span className="font-mono">{m4Done ? '✓ Xong' : `${scoopedCount}/3`}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Card 4: Toy Shelf (Khay Đồ Chơi 10 Món) */}
@@ -1662,24 +2008,57 @@ export const SimSinkOrFloatLab: React.FC<Props> = () => {
               })}
             </div>
           </div>
-
         </div>
+      )}
 
-      </div>
+    </div>
 
       {/* ========================================================================= */}
       {/* BOTTOM FULL-WIDTH: Ô GIẢI THÍCH SƯ PHẠM CỦA CÔ MIMI                       */}
       {/* ========================================================================= */}
-      <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-sky-50 dark:from-slate-900 dark:via-emerald-950/30 dark:to-slate-900 border border-emerald-200 dark:border-emerald-800 shadow-sm flex items-center gap-3">
-        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 text-white flex items-center justify-center font-bold text-2xl shadow-md flex-shrink-0">
-          👩‍🏫
+      <div className={`p-4 rounded-3xl border shadow-md flex items-center gap-3.5 transition-all ${
+        isClassroomMode
+          ? 'bg-gradient-to-r from-amber-100/90 via-emerald-100/80 to-sky-100/90 dark:from-slate-900 dark:via-emerald-950/40 dark:to-slate-900 border-2 border-amber-400 dark:border-amber-600'
+          : 'bg-gradient-to-r from-emerald-50 via-teal-50 to-sky-50 dark:from-slate-900 dark:via-emerald-950/30 dark:to-slate-900 border-emerald-200 dark:border-emerald-800'
+      }`}>
+        <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 text-white flex items-center justify-center font-bold text-2xl shadow-md flex-shrink-0 relative ${
+          isSpeaking ? 'animate-bounce ring-4 ring-emerald-400/40' : ''
+        }`}>
+          <span>👩‍🏫</span>
+          {isSpeaking && (
+            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-amber-400 border-2 border-white dark:border-slate-900 animate-ping" />
+          )}
         </div>
-        <div className="space-y-0.5 flex-1">
-          <h4 className="text-xs font-bold font-mono text-emerald-800 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>Cô Mimi Dẫn Dắt &amp; Giải Thích:</span>
-          </h4>
-          <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 font-medium leading-relaxed">
+
+        <div className="space-y-1 flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <h4 className="text-xs font-bold font-mono text-emerald-800 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Cô Mimi Dẫn Dắt &amp; Giải Thích:</span>
+              {isSpeaking && (
+                <span className="flex items-center gap-0.5 ml-2 text-[10px] text-emerald-600 font-mono">
+                  <span className="w-1 h-3 bg-emerald-500 rounded-full animate-pulse" />
+                  <span className="w-1 h-4 bg-emerald-500 rounded-full animate-pulse delay-75" />
+                  <span className="w-1 h-2 bg-emerald-500 rounded-full animate-pulse delay-150" />
+                  <span className="ml-1">Đang nói...</span>
+                </span>
+              )}
+            </h4>
+
+            {/* Replay Voice button */}
+            <button
+              onClick={handleReplayVoice}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-slate-700 text-xs font-mono font-bold transition shadow-2xs hover:scale-105 active:scale-95"
+              title="Bấm để nghe Cô Mimi đọc lại lời giải thích"
+            >
+              <Volume2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Nghe cô nói lại 🔊</span>
+            </button>
+          </div>
+
+          <p className={`text-slate-800 dark:text-slate-200 font-medium leading-relaxed ${
+            isClassroomMode ? 'text-sm sm:text-base font-semibold' : 'text-xs sm:text-sm'
+          }`}>
             {message}
           </p>
         </div>

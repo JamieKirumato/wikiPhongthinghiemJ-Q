@@ -17,6 +17,9 @@ export const App: React.FC = () => {
   // Navigation view state: 'curriculum' vs 'simulations' vs 'preschool-products'
   const [activeView, setActiveView] = useState<'curriculum' | 'simulations' | 'preschool-products'>('curriculum');
 
+  // Teacher vs Student / Exploration mode state (false = clean direct student view, true = teacher pedagogy view)
+  const [isTeacherMode, setIsTeacherMode] = useState<boolean>(false);
+
   // Theme state: Default is 'light' as requested
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('wiki_theme');
@@ -159,6 +162,8 @@ export const App: React.FC = () => {
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
         activePreschoolLabId={activePreschoolLabId}
         setActivePreschoolLabId={setActivePreschoolLabId}
+        isTeacherMode={isTeacherMode}
+        onToggleTeacherMode={() => setIsTeacherMode((prev) => !prev)}
       />
 
       {/* 2. Right Main Work Area */}
@@ -171,6 +176,8 @@ export const App: React.FC = () => {
           onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
           theme={theme}
           onToggleTheme={toggleTheme}
+          isTeacherMode={isTeacherMode}
+          onToggleTeacherMode={() => setIsTeacherMode((prev) => !prev)}
         />
 
         {/* Content View Switcher */}
@@ -196,28 +203,77 @@ export const App: React.FC = () => {
 
             {/* Main Curriculum Content Area */}
             <div className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
-              {/* 1. Khung Triết lý giáo dục 4 trụ cột của khối đang chọn */}
-              <GradePhilosophyCard gradeId={selectedGradeId} />
+              {/* Teacher Pedagogy Framework: Only shown in Teacher Mode */}
+              {isTeacherMode ? (
+                <div className="space-y-6 animate-fadeIn">
+                  {/* Banner indicating Teacher Mode */}
+                  <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🎓</span>
+                      <div>
+                        <span className="font-bold text-amber-950 dark:text-amber-200 block">
+                          Chế độ Giáo viên: Khung Triết lý 4 Trụ Cột &amp; Chuẩn Hóa GDPT 2018
+                        </span>
+                        <span className="text-slate-600 dark:text-slate-400 text-[11px]">
+                          Hiển thị đầy đủ căn cứ sư phạm, ma trận phẩm chất năng lực và bảng danh mục chuẩn hóa.
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setIsTeacherMode(false)}
+                      className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-xs font-mono font-semibold hover:bg-amber-100 transition whitespace-nowrap"
+                    >
+                      Thu gọn về Chế độ Học tập 🎒
+                    </button>
+                  </div>
 
-              {/* Nếu đang chọn cấp Mầm non, hiển thị ngay bảng 30 thí nghiệm tương tác */}
-              {selectedLevelId === 'mam-non' && (
-                <div className="space-y-3 pt-2">
-                  <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-sky-500/10 to-transparent border border-emerald-500/30 flex items-center justify-between">
+                  {/* 1. Khung Triết lý giáo dục 4 trụ cột của khối đang chọn */}
+                  <GradePhilosophyCard gradeId={selectedGradeId} />
+
+                  {/* Nếu đang chọn cấp Mầm non, hiển thị ngay bảng 30 thí nghiệm tương tác */}
+                  {selectedLevelId === 'mam-non' && (
+                    <div className="space-y-3 pt-2">
+                      <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-sky-500/10 to-transparent border border-emerald-500/30 flex items-center justify-between">
+                        <div>
+                          <h3 className="font-bold text-base sm:text-lg text-slate-900 dark:text-white font-mono flex items-center gap-2">
+                            <span>🌟 Kho 30 Hoạt Động Thí Nghiệm & Khám Phá Mầm Non</span>
+                          </h3>
+                          <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                            Tổ chức chuẩn hóa theo 5 Lĩnh vực GDMN với 2 hướng tiếp cận: <strong>Cơ bản</strong> (kịch bản chuẩn) &amp; <strong>Khám phá</strong> (Sandbox What-If) cùng 100% Chạy Lab.
+                          </p>
+                        </div>
+                      </div>
+                      <SimulationCatalogTable
+                        onRunLiveSimulation={(simId) => {
+                          setFocusSimId(simId);
+                          setActiveView('simulations');
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Compact Invitation Bar when in Student / Exploration Mode */
+                <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-sky-100 dark:bg-sky-950 flex items-center justify-center text-base flex-shrink-0">
+                      🎒
+                    </div>
                     <div>
-                      <h3 className="font-bold text-base sm:text-lg text-slate-900 dark:text-white font-mono flex items-center gap-2">
-                        <span>🌟 Kho 30 Hoạt Động Thí Nghiệm & Khám Phá Mầm Non</span>
-                      </h3>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                        Tổ chức chuẩn hóa theo 5 Lĩnh vực GDMN với 2 hướng tiếp cận: <strong>Cơ bản</strong> (kịch bản chuẩn) &amp; <strong>Khám phá</strong> (Sandbox What-If) cùng 100% Chạy Lab.
-                      </p>
+                      <span className="font-bold text-slate-900 dark:text-slate-100 block">
+                        Giao diện Khám phá &amp; Học tập Trực tiếp
+                      </span>
+                      <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+                        Danh mục Sách giáo khoa &amp; Bài học hiển thị ngay bên dưới. Giáo viên cần xem Khung triết lý và Bảng chuẩn hóa?
+                      </span>
                     </div>
                   </div>
-                  <SimulationCatalogTable
-                    onRunLiveSimulation={(simId) => {
-                      setFocusSimId(simId);
-                      setActiveView('simulations');
-                    }}
-                  />
+                  <button
+                    onClick={() => setIsTeacherMode(true)}
+                    className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold font-mono text-xs transition shadow-2xs whitespace-nowrap self-start sm:self-auto"
+                  >
+                    Xem Khung Giáo Viên 🎓
+                  </button>
                 </div>
               )}
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Palette, 
   Sparkles, 
@@ -10,6 +10,7 @@ import {
   Droplet
 } from 'lucide-react';
 import { soundEngine } from '../../utils/audioEffects';
+import { speechEngine } from '../../utils/speechUtils';
 
 interface Props {
   onBackToTable?: () => void;
@@ -94,9 +95,37 @@ export const SimColorMixerLab: React.FC<Props> = () => {
   // Main Tab: 'part1-improved' vs 'part2-discovery'
   const [activeTab, setActiveTab] = useState<'part1-improved' | 'part2-discovery'>('part1-improved');
   const [soundEnabled, setSoundEnabled] = useState(true);
+
+  // Speech synthesis state (Cô Họa Sĩ)
+  const [voiceEnabled, setVoiceEnabled] = useState<boolean>(() => speechEngine.isVoiceEnabled());
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+
   const [mascotMessage, setMascotMessage] = useState<string>(
     'Chào mừng bé đến với Thế giới Màu sắc! Bé hãy nhỏ các giọt màu vào cốc nước thần kỳ nhé!'
   );
+
+  // Subscribe to speaking state
+  useEffect(() => {
+    const unsub = speechEngine.subscribeSpeakingState(setIsSpeaking);
+    return () => unsub();
+  }, []);
+
+  // Voice narration whenever mascotMessage changes
+  useEffect(() => {
+    if (voiceEnabled && mascotMessage) {
+      speechEngine.speak(mascotMessage);
+    }
+  }, [mascotMessage, voiceEnabled]);
+
+  const handleToggleVoice = () => {
+    const next = speechEngine.toggleVoice();
+    setVoiceEnabled(next);
+  };
+
+  const handleReplayVoice = () => {
+    const textToSpeak = activeTab === 'part2-discovery' && fashionFeedback ? fashionFeedback : mascotMessage;
+    speechEngine.speak(textToSpeak);
+  };
 
   // =========================================================================
   // PART 1: MAGIC COLOR FLASK STATE
@@ -238,15 +267,15 @@ export const SimColorMixerLab: React.FC<Props> = () => {
 
     if (matchCount >= 3) {
       setFashionAward(true);
-      setFashionFeedback(
-        `🏆 XUẤT SẮC! Bộ trang phục phối màu hoàn hảo theo chủ đề "${currentTheme.title}" với tông màu ${currentTheme.requiredGroup}! Bé xứng đáng là Nhà Thiết Kế Thời Trang Mầm Non Tài Ba!`
-      );
+      const fb = `🏆 XUẤT SẮC! Bộ trang phục phối màu hoàn hảo theo chủ đề "${currentTheme.title}" với tông màu ${currentTheme.requiredGroup}! Bé xứng đáng là Nhà Thiết Kế Thời Trang Mầm Non Tài Ba!`;
+      setFashionFeedback(fb);
+      setMascotMessage(fb);
       if (soundEnabled) soundEngine.playMagicChime();
     } else {
       setFashionAward(false);
-      setFashionFeedback(
-        `Bộ trang phục rất dễ thương! Nhưng để đạt giải Nhất chủ đề "${currentTheme.title}", bé hãy dùng thêm các màu trong bảng yêu cầu (${currentTheme.requiredColors.map((c) => c.name).join(', ')}) nhé!`
-      );
+      const fb = `Bộ trang phục rất dễ thương! Nhưng để đạt giải Nhất chủ đề "${currentTheme.title}", bé hãy dùng thêm các màu trong bảng yêu cầu (${currentTheme.requiredColors.map((c) => c.name).join(', ')}) nhé!`;
+      setFashionFeedback(fb);
+      setMascotMessage(fb);
     }
   };
 
@@ -298,23 +327,62 @@ export const SimColorMixerLab: React.FC<Props> = () => {
       </div>
 
       {/* 2. Mascot Guidance Bar */}
-      <div className="px-4 py-2.5 bg-rose-50 dark:bg-rose-950/40 border-b border-rose-200 dark:border-rose-800/60 flex items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-rose-500 text-white flex items-center justify-center font-bold text-sm shadow-xs flex-shrink-0">
-            👩‍🎨
+      <div className="px-4 py-2.5 bg-rose-50 dark:bg-rose-950/40 border-b border-rose-200 dark:border-rose-800/60 flex items-center justify-between gap-3 text-xs flex-wrap">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <div className={`w-8 h-8 rounded-full bg-rose-500 text-white flex items-center justify-center font-bold text-sm shadow-xs flex-shrink-0 relative ${
+            isSpeaking ? 'animate-bounce ring-4 ring-rose-400/50' : ''
+          }`}>
+            <span>👩‍🎨</span>
+            {isSpeaking && (
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 border border-white dark:border-slate-900 animate-ping" />
+            )}
           </div>
-          <p className="text-rose-950 dark:text-rose-200 font-medium">
-            <strong>Cô Họa Sĩ hướng dẫn:</strong> {mascotMessage}
-          </p>
+          <div className="min-w-0 flex-1">
+            <p className="text-rose-950 dark:text-rose-200 font-medium leading-relaxed">
+              <strong>Cô Họa Sĩ hướng dẫn:</strong> {mascotMessage}
+            </p>
+          </div>
         </div>
 
-        <button
-          onClick={() => setSoundEnabled(!soundEnabled)}
-          className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900"
-          title={soundEnabled ? 'Tắt âm thanh' : 'Bật âm thanh'}
-        >
-          {soundEnabled ? <Volume2 className="w-4 h-4 text-rose-600" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
-        </button>
+        <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
+          {isSpeaking && (
+            <span className="hidden sm:flex items-center gap-0.5 text-[10px] text-rose-700 dark:text-rose-300 font-mono">
+              <span className="w-1 h-3 bg-rose-500 rounded-full animate-pulse" />
+              <span className="w-1 h-4 bg-rose-500 rounded-full animate-pulse delay-75" />
+              <span className="w-1 h-2 bg-rose-500 rounded-full animate-pulse delay-150" />
+              <span className="ml-1">Đang nói...</span>
+            </span>
+          )}
+
+          <button
+            onClick={handleReplayVoice}
+            className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-slate-700 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-slate-700 font-mono font-bold transition shadow-2xs hover:scale-105 active:scale-95 cursor-pointer"
+            title="Nghe Cô Họa Sĩ đọc lại"
+          >
+            <Volume2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+            <span>Nghe lại 🔊</span>
+          </button>
+
+          <button
+            onClick={handleToggleVoice}
+            className={`px-2.5 py-1 rounded-xl border text-[11px] font-mono font-bold transition cursor-pointer ${
+              voiceEnabled
+                ? 'bg-rose-100 dark:bg-rose-950/60 border-rose-400 text-rose-800 dark:text-rose-200'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400'
+            }`}
+            title={voiceEnabled ? 'Đang bật giọng Cô Họa Sĩ' : 'Đang tắt giọng Cô Họa Sĩ'}
+          >
+            {voiceEnabled ? '🔊 Giọng nói' : '🔇 Tắt giọng'}
+          </button>
+
+          <button
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className="p-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 cursor-pointer"
+            title={soundEnabled ? 'Tắt hiệu ứng âm thanh' : 'Bật hiệu ứng âm thanh'}
+          >
+            {soundEnabled ? <Volume2 className="w-4 h-4 text-rose-600" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
+          </button>
+        </div>
       </div>
 
       {/* 3. Main Interactive Body */}

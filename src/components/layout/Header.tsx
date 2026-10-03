@@ -8,6 +8,8 @@ interface Props {
   onOpenMobileSidebar: () => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  isTeacherMode?: boolean;
+  onToggleTeacherMode?: () => void;
 }
 
 export const Header: React.FC<Props> = ({
@@ -17,6 +19,8 @@ export const Header: React.FC<Props> = ({
   onOpenMobileSidebar,
   theme,
   onToggleTheme,
+  isTeacherMode = false,
+  onToggleTeacherMode,
 }) => {
   return (
     <header className="sticky top-0 z-30 bg-white/90 dark:bg-[#0b0f17]/90 backdrop-blur border-b border-slate-200 dark:border-slate-800/90 h-14 transition-colors">
@@ -63,8 +67,37 @@ export const Header: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Right: Exactly 1 search bar, next to "Bộ sách giáo khoa" & Theme Toggle */}
+        {/* Right: Mode Switcher + Exactly 1 search bar + SGK link + Theme Toggle */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Mode Switch: Khám phá (Học sinh) vs Giáo viên (Chuyên môn) */}
+          <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono">
+            <button
+              onClick={() => onToggleTeacherMode && onToggleTeacherMode()}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition font-medium ${
+                !isTeacherMode
+                  ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 font-bold shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+              title="Chế độ Khám phá: Giao diện trực quan, vào thẳng SGK & Phòng Lab mô phỏng"
+            >
+              <span>🎒</span>
+              <span className="hidden sm:inline">Khám phá</span>
+            </button>
+
+            <button
+              onClick={() => onToggleTeacherMode && onToggleTeacherMode()}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition font-medium ${
+                isTeacherMode
+                  ? 'bg-amber-400 text-slate-950 font-bold shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+              title="Chế độ Giáo viên: Mở khung Triết lý 4 trụ cột và Bảng danh mục chuẩn hóa"
+            >
+              <span>🎓</span>
+              <span className="hidden md:inline">Giáo viên</span>
+            </button>
+          </div>
+
           {/* The Single Search Button */}
           <button
             onClick={onOpenSearch}

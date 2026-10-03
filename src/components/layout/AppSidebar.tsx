@@ -10,6 +10,8 @@ interface Props {
   onCloseMobile: () => void;
   activePreschoolLabId?: string;
   setActivePreschoolLabId?: (id: string) => void;
+  isTeacherMode?: boolean;
+  onToggleTeacherMode?: () => void;
 }
 
 export const PRESCHOOL_SIDEBAR_LABS = [
@@ -27,6 +29,8 @@ export const AppSidebar: React.FC<Props> = ({
   onCloseMobile,
   activePreschoolLabId = 'exp-sink-tank',
   setActivePreschoolLabId,
+  isTeacherMode = false,
+  onToggleTeacherMode,
 }) => {
   const [isSimExpanded, setIsSimExpanded] = useState<boolean>(true);
   const isSimSectionActive = activeView === 'simulations' || activeView === 'preschool-products';
@@ -249,6 +253,26 @@ export const AppSidebar: React.FC<Props> = ({
                 </div>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* Bottom Area: Mode Switcher */}
+        <div className="p-3 border-t border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/30">
+          <div className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-mono text-[11px] text-slate-500 font-semibold">Chế độ hiển thị:</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${
+                isTeacherMode ? 'bg-amber-400 text-slate-950' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+              }`}>
+                {isTeacherMode ? 'Giáo viên 🎓' : 'Khám phá 🎒'}
+              </span>
+            </div>
+            <button
+              onClick={() => onToggleTeacherMode && onToggleTeacherMode()}
+              className="w-full py-1.5 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-mono font-medium transition flex items-center justify-center gap-1.5"
+            >
+              <span>{isTeacherMode ? 'Chuyển về Học sinh 🎒' : 'Mở Khung Giáo viên 🎓'}</span>
+            </button>
           </div>
         </div>
       </aside>
