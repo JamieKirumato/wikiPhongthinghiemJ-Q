@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { resolve } from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -8,5 +9,18 @@ export default defineConfig({
   server: {
     port: 3000,
     open: false
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        chimNoi: resolve(__dirname, 'chim-noi.html'),
+        phaMau: resolve(__dirname, 'pha-mau.html'),
+        denDungNham: resolve(__dirname, 'den-dung-nham.html'),
+        beCuuSinh: resolve(__dirname, 'be-cuu-sinh.html'),
+        doLuong: resolve(__dirname, 'do-luong.html'),
+      }
+    }
   }
 })
+

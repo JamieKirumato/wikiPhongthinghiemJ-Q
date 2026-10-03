@@ -271,6 +271,30 @@ export const PreschoolProductsView: React.FC<Props> = ({
           </button>
 
           <div className="flex items-center gap-2">
+            {/* Dedicated HTML File Link for Independent Testing / Sharing */}
+            <a
+              href={
+                currentLabId === 'exp-sink-tank' || currentLabId === 'mn-prod-01'
+                  ? '/chim-noi.html'
+                  : currentLabId === 'exp-color-mixer' || currentLabId === 'mn-prod-02'
+                  ? '/pha-mau.html'
+                  : currentLabId === 'exp-lava-lamp'
+                  ? '/den-dung-nham.html'
+                  : currentLabId === 'exp-rescue-raft'
+                  ? '/be-cuu-sinh.html'
+                  : currentLabId === 'exp-measurement' || currentLabId === 'mn-prod-03'
+                  ? '/do-luong.html'
+                  : '/chim-noi.html'
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs font-mono shadow-xs transition"
+              title="Mở thí nghiệm này trong một file HTML độc lập hoàn toàn để gỡ lỗi và chia sẻ"
+            >
+              <span>Mở File HTML Độc Lập</span>
+              <span>↗</span>
+            </a>
+
             <span className="text-xs text-slate-500 font-mono hidden sm:inline">Phòng thí nghiệm:</span>
             <span className="px-3 py-1 rounded-xl bg-amber-500 text-slate-950 font-bold font-mono text-xs flex items-center gap-1.5 shadow-xs">
               <CurrentIcon className="w-3.5 h-3.5" />
