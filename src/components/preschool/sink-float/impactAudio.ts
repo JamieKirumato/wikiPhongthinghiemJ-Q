@@ -7,6 +7,11 @@ import { impactVolume } from './playPhysics';
 export type ImpactKind = "water" | "tile" | "egg" | "apple" | "glass" | "sand";
 
 let cachedAudioCtx: AudioContext | null = null;
+let effectsVolume=1;
+export function setImpactEffectsVolume(volume:number){
+  effectsVolume=Number.isFinite(volume)?Math.max(0,Math.min(1,volume)):1;
+  activeImpactMedia.forEach(audio=>{audio.volume=effectsVolume;});
+}
 
 function getAudioContext(): AudioContext | null {
   if (typeof window === "undefined") {
@@ -46,6 +51,7 @@ export function unlockImpactAudio(): void {
 let lastWaterSwish = -Infinity;
 /** Brief filtered water movement, rate limited so gestures cannot flood audio. */
 export function playWaterSwish(strength = 1): void {
+  if(effectsVolume===0)return;
   const stamp = performance.now();
   if (stamp - lastWaterSwish < 180) return;
   const ctx = getAudioContext();
@@ -60,7 +66,7 @@ export function playWaterSwish(strength = 1): void {
   const gain = ctx.createGain();
   const now = ctx.currentTime;
   gain.gain.setValueAtTime(0, now);
-  gain.gain.linearRampToValueAtTime(.07 + Math.min(3, Math.max(0, strength)) * .035, now + .04);
+  gain.gain.linearRampToValueAtTime((.35 + Math.min(3, Math.max(0, strength)) * .13)*effectsVolume, now + .04);
   gain.gain.exponentialRampToValueAtTime(.001, now + .3);
   source.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
   source.onended = () => { source.disconnect(); filter.disconnect(); gain.disconnect(); };
@@ -81,6 +87,7 @@ function synthesizeImpact(
   kind: ImpactKind,
   strength: number = 0.5
 ): void {
+  if(effectsVolume===0)return;
   const ctx = getAudioContext();
   if (!ctx) return;
 
@@ -89,8 +96,9 @@ function synthesizeImpact(
   const now = ctx.currentTime;
 
   const masterGain = ctx.createGain();
-  masterGain.connect(ctx.destination);
-  window.setTimeout(() => masterGain.disconnect(), 600);
+  const outputGain=ctx.createGain();outputGain.gain.setValueAtTime(effectsVolume,now);
+  masterGain.connect(outputGain);outputGain.connect(ctx.destination);
+  window.setTimeout(() => {masterGain.disconnect();outputGain.disconnect();}, 600);
 
   switch (kind) {
     case 'sand': {
@@ -322,11 +330,12 @@ const activeImpactMedia = new Set<HTMLAudioElement>();
 
 /** Native media playback remains independent of narration and Web Audio device state. */
 export function playImpact(kind: ImpactKind, strength: number = 2): void {
+  if(effectsVolume===0)return;
   if (typeof Audio === 'undefined') { synthesizeImpact(kind, strength); return; }
   const clipNames:Partial<Record<ImpactKind,string>>={tile:'impactMining',glass:'impactGlass_light',egg:'impactPlate_light',apple:'impactSoft_medium',sand:'impactSoft_medium'};
   const variant=Math.floor(Math.random()*3).toString().padStart(3,'0');
   const audio = new Audio(`/audio/impacts/${clipNames[kind] ? `${clipNames[kind]}_${variant}.ogg` : `${kind}.wav`}`);
-  audio.volume = Math.min(1, 0.85 * impactVolume(strength));
+  audio.volume = effectsVolume;
   audio.preload = 'auto';
   audio.dataset.impact = kind;
   audio.hidden = true;

@@ -1,11 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
+import narrationHandler from './api/narration.js'
 
 // https://vitejs.dev/config/
 export default defineConfig({
   base: './',
-  plugins: [react()],
+  plugins: [react(),{name:'teacher-narration',configureServer(server){server.middlewares.use('/api/narration',(req,res)=>{void narrationHandler(req,res);});}}],
   server: {
     port: 3000,
     open: false
@@ -23,4 +24,3 @@ export default defineConfig({
     }
   }
 })
-

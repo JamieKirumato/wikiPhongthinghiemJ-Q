@@ -4,6 +4,7 @@ import {INTRO_GUIDE,IntroAction,introProgress} from './introGuide';
 import {PitcherIcon} from './WaterPitcher';
 import {LadleIcon} from './WaterLadle';
 import {RealisticHandSpoon,RealisticStirringHand} from './SaltWorkflow';
+import {introAudioSources} from './teacherExperience';
 export type IntroFrame={x:number;y:number;carrying:boolean;fromTray:number;tool:string;toolFill:number;item:string|null};
 
 export function ChildIntro({onComplete,onFrame,onCleanup}:{onComplete:()=>void;onFrame:(action:IntroAction,p:number)=>IntroFrame|null;onCleanup:()=>void}) {
@@ -12,28 +13,34 @@ export function ChildIntro({onComplete,onFrame,onCleanup}:{onComplete:()=>void;o
   const [frame,setFrame]=useState<IntroFrame|null>(null);
   const callbacks=useRef({onComplete,onFrame,onCleanup});callbacks.current={onComplete,onFrame,onCleanup};
   useEffect(()=>{
-    const audio=new Audio(`/audio/vi/${INTRO_GUIDE[0].audio}.mp3`);audio.preload='auto';audioRef.current=audio;
     let active=true,raf=0,lastUpdate=0;
-    const play=()=>{setWaiting(false);void audio.play().catch(()=>{if(active)setWaiting(true);});};
-    audio.onended=()=>{
+    let audio:HTMLAudioElement|null=null,release=()=>{};
+    const start=(bundle:{sources:string[];release:()=>void})=>{
+    if(!active){bundle.release();return;}
+    release=bundle.release;
+    const media=new Audio(bundle.sources[0]);media.preload='auto';audio=media;audioRef.current=media;
+    const play=()=>{setWaiting(false);void media.play().catch(()=>{if(active)setWaiting(true);});};
+    media.onended=()=>{
       if(!active)return;
       const next=++indexRef.current;
       if(next===INTRO_GUIDE.length){callbacks.current.onCleanup();callbacks.current.onComplete();return;}
-      setStep(next);setFrame(null);audio.src=`/audio/vi/${INTRO_GUIDE[next].audio}.mp3`;play();
+      setStep(next);setFrame(null);media.src=bundle.sources[next];play();
     };
     // One clock drives speech, hand position and all demonstration effects.
     const tick=(time:number)=>{
       if(!active)return;
-      if(!audio.paused&&audio.readyState>=3&&indexRef.current<INTRO_GUIDE.length&&time-lastUpdate>=32){
+      if(!media.paused&&media.readyState>=3&&indexRef.current<INTRO_GUIDE.length&&time-lastUpdate>=32){
         lastUpdate=time;
-        const p=introProgress(audio.currentTime,audio.duration);
+        const p=introProgress(media.currentTime,media.duration);
         setProgress((indexRef.current+p)/INTRO_GUIDE.length*100);
         setFrame(callbacks.current.onFrame(INTRO_GUIDE[indexRef.current].action,p));
       }
       raf=requestAnimationFrame(tick);
     };
-    audio.onerror=()=>{if(active)setWaiting(true);};play();raf=requestAnimationFrame(tick);
-    return ()=>{active=false;cancelAnimationFrame(raf);audio.pause();audio.onended=null;audio.onerror=null;audioRef.current=null;indexRef.current=0;callbacks.current.onCleanup();};
+    media.onerror=()=>{if(active)setWaiting(true);};play();raf=requestAnimationFrame(tick);
+    };
+    void introAudioSources().then(start,()=>start({sources:INTRO_GUIDE.map(s=>`/audio/vi/${s.audio}.mp3`),release:()=>{}}));
+    return ()=>{active=false;cancelAnimationFrame(raf);if(audio){audio.pause();audio.onended=null;audio.onerror=null;}release();audioRef.current=null;indexRef.current=0;callbacks.current.onCleanup();};
   },[]);
   const action=INTRO_GUIDE[step].action;
   const phaseProgress=progress/100*INTRO_GUIDE.length-step;
