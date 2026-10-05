@@ -1,6 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import { playWaterSwish, unlockImpactAudio } from './impactAudio';
-function PitcherIcon(){return <svg viewBox="0 0 100 100" width="70" height="70" aria-hidden="true"><path d="M68 30 C98 25 98 72 68 72" fill="none" stroke="#7bc6e0" strokeWidth="8"/><path d="M22 18 L73 18 L73 80 Q48 95 23 80 L23 37 L10 23 Z" fill="#d8f5fa" stroke="#72bcd5" strokeWidth="3"/><path d="M25 47 L69 47 L69 78 Q47 89 26 78 Z" fill="#92dce9"/><path d="M31 30 L31 70" stroke="white" strokeWidth="5" opacity=".8"/></svg>;}
+export function PitcherIcon(){return <svg viewBox="0 0 100 100" width="70" height="70" aria-hidden="true"><path d="M68 30 C98 25 98 72 68 72" fill="none" stroke="#7bc6e0" strokeWidth="8"/><path d="M22 18 L73 18 L73 80 Q48 95 23 80 L23 37 L10 23 Z" fill="#d8f5fa" stroke="#72bcd5" strokeWidth="3"/><path d="M25 47 L69 47 L69 78 Q47 89 26 78 Z" fill="#92dce9"/><path d="M31 30 L31 70" stroke="white" strokeWidth="5" opacity=".8"/></svg>;}
 export function WaterPitcher({disabled,onActive,onAdd,checkMouth,teacher,onFlow,flowRate}:{disabled:boolean;onActive:(active:boolean)=>void;onAdd:(ml:number)=>number;checkMouth:(x:number,y:number)=>boolean;teacher:boolean;onFlow:(x:number,y:number)=>void;flowRate:number}) {
   const [hand,setHand]=useState<{x:number;y:number;pouring:boolean}|null>(null);
   const cleanupRef=useRef<(()=>void)|null>(null);

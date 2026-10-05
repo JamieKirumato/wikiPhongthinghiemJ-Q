@@ -3,7 +3,7 @@ import {playWaterSwish,unlockImpactAudio} from './impactAudio';
 
 type Water={ml:number;grams:number};
 type Props={disabled:boolean;teacher:boolean;capacity:number;onActive:(active:boolean)=>void;checkWater:(x:number,y:number)=>boolean;checkMouth:(x:number,y:number)=>boolean;onTake:(ml:number)=>Water;onReturn:(water:Water)=>void;onFlow:(x:number,y:number)=>void};
-function LadleIcon({fill=0}:{fill?:number}) {
+export function LadleIcon({fill=0}:{fill?:number}) {
   return <svg viewBox="0 0 100 100" width="70" height="70" aria-hidden="true">
     <path d="M53 58 L77 14 Q82 5 88 12 L65 65" fill="#f9b56d" stroke="#ba713a" strokeWidth="3"/>
     <path d="M12 57 Q41 40 68 57 L65 76 Q40 97 15 76 Z" fill="#ffe1a5" stroke="#c58b47" strokeWidth="3"/>

@@ -10,8 +10,10 @@ import { waterDisplacement, waterEdgeFade, WaterImpulse } from './waterMotion';
 import { advanceAirFall, itemKind } from './playPhysics';
 import { SceneBackdrop, SceneSetting } from './SceneBackdrop';
 import { advanceSinking, displacedWaterLevel, sandHeight } from './waterPhysics';
+import {IntroAction,introPose} from './introGuide';
 
 export interface ThreeTankCanvasHandle {
+  showIntroFrame: (action:IntroAction|null,progress:number)=>{x:number;y:number;carrying:boolean;fromTray:number;tool:string;toolFill:number;item:string|null}|null;
   checkPointInWater: (screenX: number, screenY: number) => boolean;
   checkPointOverTankMouth: (screenX: number, screenY: number) => { isOver: boolean; point?: THREE.Vector3 };
   spawnSaltGrains: (count: number, center?: THREE.Vector3) => void;
@@ -157,6 +159,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     });
 
     const zoomRef = useRef(1);
+    const introGroupRef=useRef<{action:IntroAction;group:THREE.Group;actor?:THREE.Group}|null>(null);
+    const introWaterRef=useRef<number|null>(null);
     const heldIdRef = useRef<string | null>(null);
     const dragSamplesRef = useRef<Array<{x:number;y:number;t:number}>>([]);
     const dragPlaneRef = useRef<THREE.Plane>(new THREE.Plane());
@@ -247,6 +251,53 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
     // IMPERATIVE API EXPOSED TO PARENT
     useImperativeHandle(ref, () => ({
+      showIntroFrame:(action,progress)=>{
+        const scene=sceneRef.current,camera=cameraRef.current,mount=mountRef.current;
+        if(!scene||!camera||!mount)return null;
+        if(!action){
+          if(introGroupRef.current){scene.remove(introGroupRef.current.group);disposeItemModel(introGroupRef.current.group);introGroupRef.current=null;}
+          introWaterRef.current=null;displayedWaterLevelRef.current=baseWaterLevelRef.current;
+          orbitRef.current.targetYaw=DEFAULT_YAW;orbitRef.current.targetPitch=DEFAULT_PITCH;zoomRef.current=1;
+          waterImpulsesRef.current=[];
+          rippleEffectsRef.current.forEach(effect=>{scene.remove(effect.mesh);disposeItemModel(effect.mesh);});rippleEffectsRef.current=[];
+          return null;
+        }
+        const d=dimsRef.current,pose=introPose(action,progress,d,baseWaterLevelRef.current);
+        introWaterRef.current=baseWaterLevelRef.current+pose.waterOffset;
+        if(introGroupRef.current?.action!==action){
+          if(introGroupRef.current){scene.remove(introGroupRef.current.group);disposeItemModel(introGroupRef.current.group);}
+          const group=new THREE.Group();group.userData.demoOnly=true;
+          const actor=pose.item?createItemModel(pose.item,pose.item==='item-egg'?.72:.9):undefined;
+          if(actor)group.add(actor);
+          if(action==='salt'||action==='stir')for(let i=0;i<24;i++){
+            const grain=new THREE.Mesh(new THREE.SphereGeometry(.035,6,6),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true}));
+            group.add(grain);
+          }
+          scene.add(group);introGroupRef.current={action,group,actor};
+        }
+        const demo=introGroupRef.current;
+        if(demo?.actor){
+          demo.actor.visible=pose.fromTray===0;demo.actor.position.set(pose.x,pose.y,pose.z);
+          if(action==='outside'&&progress>.79)applyItemDamage(demo.actor,'item-egg','broken');
+        }
+        if(demo&&(action==='salt'||action==='stir'))demo.group.children.forEach((grain,i)=>{
+          if(!(grain instanceof THREE.Mesh))return;
+          const t=action==='salt'?Math.max(0,(progress-.68)/.22):progress;
+          grain.visible=action==='salt'?progress>.68:progress<.8;
+          grain.position.set(Math.sin(i*2.4)*.6,action==='salt'?d.height+.4-(d.height+.4-baseWaterLevelRef.current)*Math.min(1,t+i*.01):baseWaterLevelRef.current-.3-Math.min(1.4,t*2),Math.cos(i*2.4)*.5);
+          (grain.material as THREE.MeshBasicMaterial).opacity=action==='stir'?Math.max(0,1-progress/.8):1;
+        });
+        if(action==='rotate'){
+          orbitRef.current.targetYaw=DEFAULT_YAW+Math.sin(progress*Math.PI*2)*.7;
+          zoomRef.current=1.12+Math.sin(Math.max(0,progress-.55)*Math.PI*4)*.2;
+        }else{orbitRef.current.targetYaw=DEFAULT_YAW;zoomRef.current=action==='outside'?1.32:1.12;}
+        if(action==='stir'&&progress>.08&&progress<.82&&performance.now()-lastWaterGestureRef.current.time>180){
+          lastWaterGestureRef.current.time=performance.now();spawnWaterReaction(pose.x,pose.z,.5,false);
+        }
+        const handY=(action==='pick'||action==='outside')&&progress>.56&&!pose.carrying?d.height+.9:pose.y;
+        const point=new THREE.Vector3(pose.x,handY,pose.z).project(camera),rect=mount.getBoundingClientRect();
+        return {x:rect.left+(point.x+1)*rect.width/2,y:rect.top+(1-point.y)*rect.height/2,carrying:pose.carrying,fromTray:pose.fromTray,tool:pose.tool,toolFill:pose.toolFill,item:pose.item};
+      },
       checkPointInWater: (screenX: number, screenY: number): boolean => {
         if (!mountRef.current || !cameraRef.current || !waterMeshRef.current) return false;
         const rect = mountRef.current.getBoundingClientRect();
@@ -613,6 +664,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         splashEffectsRef.current.forEach(effect => disposeItemModel(effect.mesh));
         rippleEffectsRef.current = []; splashEffectsRef.current = [];
         itemMeshesRef.current.forEach(disposeItemModel);
+        if(introGroupRef.current){disposeItemModel(introGroupRef.current.group);introGroupRef.current=null;}
         sandTextureRef.current?.dispose();
         saltGeom.dispose(); saltMat.dispose();
         floor.geometry.dispose(); floor.material.dispose(); grid.dispose();
@@ -1037,7 +1089,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         // TÍNH THỂ TÍCH PHẦN CHÌM THỰC TẾ (SUBMERGED VOLUME)
         const currentTankItems = itemsRef.current;
         const displacedObjects=currentTankItems.filter(item=>item.inTank&&!item.outsideTank).map(item=>({y:item.y,radius:(ITEM_WORLD_SCALES[itemKind(item.id)]||{radius:.4}).radius,volume:item.volumeMl}));
-        const desiredLevel=displacedWaterLevel(baseWaterLevelRef.current,s,d,displacedObjects);
+        const desiredLevel=displacedWaterLevel(introWaterRef.current??baseWaterLevelRef.current,s,d,displacedObjects);
         displayedWaterLevelRef.current+=(desiredLevel-displayedWaterLevelRef.current)*(1-Math.exp(-dt*6));
         const effectiveWaterHeight=displayedWaterLevelRef.current;
         const hasWater=baseWaterLevelRef.current>sandHeight(d)+.001;
