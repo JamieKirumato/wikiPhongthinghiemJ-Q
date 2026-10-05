@@ -18,6 +18,19 @@ const geometry = source('src/components/preschool/sink-float/tankGeometry.ts');
 const salt = source('src/components/preschool/sink-float/salinity.ts');
 const buoyancy = source('src/components/preschool/sink-float/buoyancy.ts');
 const impact = source('src/components/preschool/sink-float/impactPhysics.ts');
+const waterMotion = source('src/components/preschool/sink-float/waterMotion.ts');
+const impulse = {x:0,z:0,time:1,strength:3};
+assert.notEqual(waterMotion.waterDisplacement(.4,0,1.2,[impulse]),waterMotion.waterDisplacement(.4,0,1.2,[]));
+assert.equal(waterMotion.waterDisplacement(.4,0,4,[impulse]),waterMotion.waterDisplacement(.4,0,4,[]));
+for(const shape of ['rectangle','square','cylinder','triangle']) {
+  assert.equal(waterMotion.waterEdgeFade(0,0,shape,8,4),1);
+  assert.equal(waterMotion.waterEdgeFade(20,20,shape,8,4),0);
+}
+for(let t=0;t<4;t+=.1) assert.ok(Math.abs(waterMotion.waterDisplacement(.4,0,t,Array(24).fill(impulse)))<=.12);
+assert.equal(waterMotion.waterEdgeFade(4,0,'rectangle',8,4),0);
+assert.equal(waterMotion.waterEdgeFade(4,0,'cylinder',8,4),0);
+assert.equal(waterMotion.waterEdgeFade(0,-2,'triangle',8,4),0);
+console.log('Passed: bounded travelling water waves, natural decay and all tank boundaries.');
 assert.equal(impact.damageFromImpact('item-egg',1),undefined);
 assert.equal(impact.damageFromImpact('item-egg',3),'cracked');
 assert.equal(impact.damageFromImpact('item-egg',6),'broken');
@@ -120,6 +133,16 @@ class ContextMock {
 const impactSounds=source('src/components/preschool/sink-float/impactAudio.ts',{window:{AudioContext:ContextMock,setTimeout:()=>0}});
 for(const kind of ['water','tile','egg','apple','glass']) impactSounds.playImpact(kind,5);
 assert.ok(audioStarts>=10 && audioOutputs>=20);
+let waterClock=1000;
+const waterSounds=source('src/components/preschool/sink-float/impactAudio.ts',{performance:{now:()=>waterClock},window:{AudioContext:ContextMock,setTimeout:()=>0}});
+const beforeWater=audioStarts;
+waterSounds.playWaterSwish(1);
+waterSounds.playWaterSwish(3);
+assert.equal(audioStarts,beforeWater+1);
+waterClock+=200;
+waterSounds.playWaterSwish(2);
+assert.equal(audioStarts,beforeWater+2);
+console.log('Passed: water swish produces audio and throttles repeated pointer events.');
 console.log('Passed: frame-rate independent gravity, audible impact graphs, unique repeated basket supplies and cloned object identities.');
 
 let nativePlayed=0,nativeAppended=0;

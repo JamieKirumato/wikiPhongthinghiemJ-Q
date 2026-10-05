@@ -43,6 +43,30 @@ export function unlockImpactAudio(): void {
   }
 }
 
+let lastWaterSwish = -Infinity;
+/** Brief filtered water movement, rate limited so gestures cannot flood audio. */
+export function playWaterSwish(strength = 1): void {
+  const stamp = performance.now();
+  if (stamp - lastWaterSwish < 180) return;
+  const ctx = getAudioContext();
+  if (!ctx) return;
+  lastWaterSwish = stamp;
+  const source = ctx.createBufferSource();
+  source.buffer = createNoiseBuffer(ctx, .32);
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 450 + Math.min(3, Math.max(0, strength)) * 220;
+  filter.Q.value = .6;
+  const gain = ctx.createGain();
+  const now = ctx.currentTime;
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(.07 + Math.min(3, Math.max(0, strength)) * .035, now + .04);
+  gain.gain.exponentialRampToValueAtTime(.001, now + .3);
+  source.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+  source.onended = () => { source.disconnect(); filter.disconnect(); gain.disconnect(); };
+  source.start(now); source.stop(now + .32);
+}
+
 function createNoiseBuffer(ctx: AudioContext, durationSec: number): AudioBuffer {
   const sampleCount = Math.max(1, Math.floor(ctx.sampleRate * durationSec));
   const buffer = ctx.createBuffer(1, sampleCount, ctx.sampleRate);

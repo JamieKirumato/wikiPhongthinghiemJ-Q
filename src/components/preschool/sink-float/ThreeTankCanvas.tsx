@@ -5,7 +5,8 @@ import { clampToTankBoundary, calculateWaterRise, isPointInsideFootprint, getTan
 import { floatingCenterY, submergedFraction } from './buoyancy';
 import { createItemModel, disposeItemModel, applyItemDamage } from './itemModels';
 import { damageFromImpact, gestureVelocity } from './impactPhysics';
-import { playImpact, unlockImpactAudio } from './impactAudio';
+import { playImpact, playWaterSwish, unlockImpactAudio } from './impactAudio';
+import { waterDisplacement, waterEdgeFade, WaterImpulse } from './waterMotion';
 import { advanceAirFall, DISPLAY_GRAVITY, itemKind } from './playPhysics';
 import { SceneBackdrop, SceneSetting } from './SceneBackdrop';
 
@@ -91,6 +92,10 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     ref
   ) => {
     const [hoveredItemId,setHoveredItemId] = useState<string | null>(null);
+    const [waterHand, setWaterHand] = useState<{x:number;y:number} | null>(null);
+    const waterImpulsesRef = useRef<WaterImpulse[]>([]);
+    const lastWaterGestureRef = useRef({time:0,x:0,y:0});
+    const activePointerRef = useRef<number | null>(null);
     const mountRef = useRef<HTMLDivElement | null>(null);
     const observedCallbackRef = useRef(onItemObserved);
     observedCallbackRef.current = onItemObserved;
@@ -217,6 +222,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     const spawnWaterReaction = useCallback((x: number, z: number, strength: number, splash = true) => {
       const scene = sceneRef.current;
       if (!scene) return;
+      waterImpulsesRef.current.push({x,z,time:performance.now()/1000,strength});
+      waterImpulsesRef.current = waterImpulsesRef.current.slice(-24);
       const ripple = new THREE.Mesh(new THREE.RingGeometry(0.12, 0.17, 40),
         new THREE.MeshBasicMaterial({ color: 0x43cddd, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }));
       ripple.rotation.x = -Math.PI / 2;
@@ -412,6 +419,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       },
 
       cancelActiveGesture: () => {
+        activePointerRef.current = null;
+        setWaterHand(null);
         heldIdRef.current = null;
         orbitRef.current.isDragging = 0;
         orbitRef.current.isAutoRotating = false;
@@ -435,7 +444,11 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       stirAtScreenPoint: (x: number, y: number, strength = 1) => {
         const point = projectScreenToWorldInternal(x, y, 0);
         if (!point) return;
+        if (!isPointInsideFootprint(point.x, point.z, shapeRef.current, dimsRef.current)) return;
+        if (performance.now() - lastWaterGestureRef.current.time < 90) return;
+        lastWaterGestureRef.current.time = performance.now();
         spawnWaterReaction(point.x, point.z, strength, false);
+        if (soundEnabled) playWaterSwish(strength);
         const data = saltDataRef.current;
         if (data) for (let i = 0; i < 200; i++) {
           const index = i * 3;
@@ -674,8 +687,10 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       });
 
       // Mặt trên nước trong suốt nhấp nhô nhẹ
-      const waterSurfaceMat = new THREE.MeshBasicMaterial({
+      const waterSurfaceMat = new THREE.MeshPhongMaterial({
         color: 0x9de5f0,
+        specular: 0xe9ffff,
+        shininess: 100,
         transparent: true,
         opacity: 0.32,
         toneMapped: false,
@@ -752,9 +767,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         waterMeshRef.current = waterMesh;
 
         // Mặt nước: renderOrder = 3
-        const surfaceGeom = new THREE.PlaneGeometry(W - 0.05, D - 0.05);
+        const surfaceGeom = new THREE.PlaneGeometry(W - 0.05, D - 0.05, 32, 24);
+        surfaceGeom.rotateX(-Math.PI / 2);
         const surfaceMesh = new THREE.Mesh(surfaceGeom, waterSurfaceMat);
-        surfaceMesh.rotation.x = -Math.PI / 2;
         surfaceMesh.position.set(0, dims.waterHeight, 0);
         surfaceMesh.renderOrder = 3;
         tankGroup.add(surfaceMesh);
@@ -797,8 +812,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         tankGroup.add(waterMesh);
         waterMeshRef.current = waterMesh;
 
-        const surfaceMesh = new THREE.Mesh(new THREE.CircleGeometry(radius - 0.04, 48), waterSurfaceMat);
-        surfaceMesh.rotation.x = -Math.PI / 2;
+        const roundSurface = new THREE.RingGeometry(0, radius - 0.04, 64, 20);
+        roundSurface.rotateX(-Math.PI / 2);
+        const surfaceMesh = new THREE.Mesh(roundSurface, waterSurfaceMat);
         surfaceMesh.position.set(0, dims.waterHeight, 0);
         surfaceMesh.renderOrder = 3;
         tankGroup.add(surfaceMesh);
@@ -875,11 +891,14 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         waterMeshRef.current = waterMesh;
 
         const surfaceGeom = new THREE.BufferGeometry();
-        const surfVertices = new Float32Array([
-          A.x, 0, A.z,
-          C.x, 0, C.z,
-          B.x, 0, B.z
-        ]);
+        const triangleVertices: number[] = [];
+        const subdivisions = 32;
+        const vertex = (i:number,j:number) => [A.x+(B.x-A.x)*i/subdivisions+(C.x-A.x)*j/subdivisions,0,A.z+(B.z-A.z)*i/subdivisions+(C.z-A.z)*j/subdivisions];
+        for(let i=0;i<subdivisions;i++) for(let j=0;j<subdivisions-i;j++) {
+          triangleVertices.push(...vertex(i,j),...vertex(i,j+1),...vertex(i+1,j));
+          if(i+j<subdivisions-1) triangleVertices.push(...vertex(i+1,j),...vertex(i,j+1),...vertex(i+1,j+1));
+        }
+        const surfVertices = new Float32Array(triangleVertices);
         surfaceGeom.setAttribute('position', new THREE.BufferAttribute(surfVertices, 3));
         surfaceGeom.computeVertexNormals();
         const surfaceMesh = new THREE.Mesh(surfaceGeom, waterSurfaceMat);
@@ -1025,6 +1044,16 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           waterMeshRef.current.scale.y = effectiveWaterHeight / d.waterHeight;
         }
         if (waterSurfaceMeshRef.current) {
+          const surfaceGeometry = waterSurfaceMeshRef.current.geometry;
+          const positions = surfaceGeometry.getAttribute('position');
+          const seconds = currentTime / 1000;
+          waterImpulsesRef.current = waterImpulsesRef.current.filter(impulse => seconds - impulse.time < 2.4);
+          for(let i=0;i<positions.count;i++) {
+            const x=positions.getX(i), z=positions.getZ(i);
+            positions.setY(i, waterDisplacement(x,z,seconds,waterImpulsesRef.current)*waterEdgeFade(x,z,s,d.width,d.depth));
+          }
+          positions.needsUpdate = true;
+          surfaceGeometry.computeVertexNormals();
           waterSurfaceMeshRef.current.position.y =
             effectiveWaterHeight + Math.sin(currentTime * 0.003) * 0.015;
         }
@@ -1049,7 +1078,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           effect.age += dt;
           effect.mesh.scale.setScalar(1 + effect.age * (4 + effect.strength));
           effect.mesh.position.y = effectiveWaterHeight + 0.04;
-          (effect.mesh.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.8 * (1 - effect.age / 1.3));
+          const edgeRadius = 0.17 * effect.mesh.scale.x;
+          const fits = [0,1,2,3,4,5,6,7].every(i => isPointInsideFootprint(effect.mesh.position.x+Math.cos(i*Math.PI/4)*edgeRadius,effect.mesh.position.z+Math.sin(i*Math.PI/4)*edgeRadius,s,d));
+          (effect.mesh.material as THREE.MeshBasicMaterial).opacity = fits ? Math.max(0, 0.65 * (1 - effect.age / 1.3)) : 0;
           if (effect.age > 1.3) { scene?.remove(effect.mesh); disposeItemModel(effect.mesh); return false; }
           return true;
         });
@@ -1323,11 +1354,13 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     // 5. TƯƠNG TÁC CON TRỎ CHUỘT (STRICT MODES: INTERACT NEVER ROTATES, ORBIT NEVER PICKS/DROPS)
     const handlePointerDown = (e: React.PointerEvent) => {
       if (inputLockedRef.current) return;
+      if (activePointerRef.current !== null) return;
       const mount = mountRef.current;
       if (!mount || !cameraRef.current) return;
 
       unlockImpactAudio();
       if (carryingTrayItem || heldIdRef.current) return;
+      activePointerRef.current = e.pointerId;
       e.currentTarget.setPointerCapture(e.pointerId);
       const currentStep = workflowStepRef.current;
 
@@ -1375,6 +1408,18 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       }
 
       const glassHits = raycasterRef.current.intersectObjects(tankGroupRef.current?.children.filter(o => (o as THREE.Mesh).material instanceof THREE.MeshPhysicalMaterial || o.position.y >= dimsRef.current.height-0.1) || [], true);
+      const waterHit = waterSurfaceMeshRef.current ? raycasterRef.current.intersectObject(waterSurfaceMeshRef.current)[0] : undefined;
+      const rimHits = raycasterRef.current.intersectObjects(tankGroupRef.current?.children.filter(o => o.position.y >= dimsRef.current.height-.1 && !((o as THREE.Mesh).material instanceof THREE.MeshPhysicalMaterial)) || [],true);
+      // Looking through transparent walls must not block touching the visible water.
+      if (waterHit && (!rimHits.length || waterHit.distance < rimHits[0].distance - .03)) {
+        orbitRef.current.isDragging = 3;
+        orbitRef.current.isAutoRotating = false;
+        lastWaterGestureRef.current = {time:performance.now(),x:e.clientX,y:e.clientY};
+        setWaterHand({x:mouseX,y:mouseY});
+        spawnWaterReaction(waterHit.point.x,waterHit.point.z,.8,false);
+        if(soundEnabled) playWaterSwish(.8);
+        return;
+      }
       if (glassHits.length) {
         orbitRef.current.isDragging=1; orbitRef.current.startX=e.clientX; orbitRef.current.startY=e.clientY;
         orbitRef.current.isAutoRotating=false; onInteractionModeChange('orbit');
@@ -1385,11 +1430,31 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
     const handlePointerMove = (e: React.PointerEvent) => {
       if (inputLockedRef.current) return;
+      if (activePointerRef.current !== null && activePointerRef.current !== e.pointerId) return;
       const orbit = orbitRef.current;
       const mount = mountRef.current;
       if (!mount || !cameraRef.current) return;
 
       if (workflowStepRef.current !== 'idle') return;
+
+      if (orbit.isDragging === 3) {
+        const rect = mount.getBoundingClientRect();
+        raycasterRef.current.setFromCamera(new THREE.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1),cameraRef.current);
+        const point = new THREE.Vector3();
+        const waterPlane = new THREE.Plane(new THREE.Vector3(0,1,0),-(waterSurfaceMeshRef.current?.position.y ?? dimsRef.current.waterHeight));
+        const last = lastWaterGestureRef.current;
+        const now = performance.now();
+        const movement = Math.hypot(e.clientX-last.x,e.clientY-last.y);
+        setWaterHand({x:e.clientX-rect.left,y:e.clientY-rect.top});
+        if(now-last.time >= 90 && movement > 4 && raycasterRef.current.ray.intersectPlane(waterPlane,point)
+          && isPointInsideFootprint(point.x,point.z,shapeRef.current,dimsRef.current)) {
+          const strength = Math.min(3,movement/Math.max(.09,(now-last.time)/1000)/180);
+          spawnWaterReaction(point.x,point.z,strength,false);
+          if(soundEnabled) playWaterSwish(strength);
+          lastWaterGestureRef.current = {time:now,x:e.clientX,y:e.clientY};
+        }
+        return;
+      }
 
       if (orbit.isDragging === 0 && !carryingTrayItem) {
         const rect=mount.getBoundingClientRect();
@@ -1452,6 +1517,14 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           }
 
           const surfaceY = waterSurfaceMeshRef.current?.position.y ?? d.waterHeight;
+          const gestureNow = performance.now();
+          if(previous && nowInside && clampedY-itemR <= surfaceY
+            && Math.hypot(clampedPos.x-previous.x,clampedY-previous.y,clampedPos.z-previous.z) > .015
+            && gestureNow-lastWaterGestureRef.current.time >= 90) {
+            spawnWaterReaction(clampedPos.x,clampedPos.z,1.2,false);
+            if(soundEnabled) playWaterSwish(1.2);
+            lastWaterGestureRef.current.time = gestureNow;
+          }
           if (previous && wasInside && nowInside && previous.y-itemR > surfaceY && clampedY-itemR <= surfaceY) {
             playWaterContact(holdingItemId, 2);
             spawnWaterReaction(clampedPos.x, clampedPos.z, 1.5, true);
@@ -1484,6 +1557,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     };
 
     const handlePointerUp = (e: React.PointerEvent) => {
+      if (activePointerRef.current !== null && activePointerRef.current !== e.pointerId) return;
+      activePointerRef.current = null;
+      setWaterHand(null);
       const id=heldIdRef.current;
       if (orbitRef.current.isDragging===2 && id) {
         const samples=dragSamplesRef.current, first=samples[0], last=samples[samples.length-1];
@@ -1522,6 +1598,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
               : 'cursor-default'
           }`}
         />
+        {waterHand && <div aria-hidden="true" className="absolute z-20 pointer-events-none text-4xl" style={{left:waterHand.x-20,top:waterHand.y-20}}>🖐️</div>}
       </div>
     );
   }
