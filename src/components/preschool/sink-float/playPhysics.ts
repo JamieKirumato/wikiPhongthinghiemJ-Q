@@ -1,5 +1,5 @@
-// Four display units represent one metre for the animated trajectory.
-export const DISPLAY_GRAVITY = 9.81 * 4;
+// Two display units represent one metre for the animated trajectory.
+export const DISPLAY_GRAVITY = 9.81 * 2;
 
 export function advanceAirFall(y: number, vy: number, dt: number) {
   return { y: y + vy * dt - 0.5 * DISPLAY_GRAVITY * dt * dt, vy: vy - DISPLAY_GRAVITY * dt };

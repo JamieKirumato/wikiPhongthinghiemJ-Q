@@ -6,9 +6,8 @@ import { floatingCenterY, submergedFraction } from './buoyancy';
 import { createItemModel, disposeItemModel, applyItemDamage } from './itemModels';
 import { damageFromImpact, gestureVelocity } from './impactPhysics';
 import { playImpact, unlockImpactAudio } from './impactAudio';
-import { advanceAirFall, itemKind } from './playPhysics';
+import { advanceAirFall, DISPLAY_GRAVITY, itemKind } from './playPhysics';
 import { SceneBackdrop, SceneSetting } from './SceneBackdrop';
-import { soundEngine } from '../../../utils/audioEffects';
 
 export interface ThreeTankCanvasHandle {
   checkPointInWater: (screenX: number, screenY: number) => boolean;
@@ -34,6 +33,7 @@ export interface ThreeTankCanvasHandle {
 interface ThreeTankCanvasProps {
   shape: TankShape;
   sceneSetting?: SceneSetting;
+  inputLocked?: boolean;
   scale: TankScale;
   dims: TankDimensions;
   items: TankObject[];
@@ -71,6 +71,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     {
       shape,
       sceneSetting = 'laboratory',
+      inputLocked = false,
       scale,
       dims,
       items,
@@ -339,7 +340,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         screenY: number,
         screenVelocity?: { vx: number; vy: number }
       ) => {
-        if (interactionModeRef.current !== 'interact' || workflowStepRef.current !== 'idle') return;
+        if (inputLockedRef.current || interactionModeRef.current !== 'interact' || workflowStepRef.current !== 'idle') return;
         const d = dimsRef.current;
         const s = shapeRef.current;
         const scaleCfg = ITEM_WORLD_SCALES[itemKind(item.id)] || { size: 0.8, radius: 0.4 };
@@ -449,14 +450,15 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       }
     }));
 
-    const lastWaterImpactRef = useRef(new Map<string, number>());
-    const playWaterContact = (id: string, speed: number) => {
-      const now = performance.now();
-      if (!soundEnabled || now - (lastWaterImpactRef.current.get(id) ?? -1000) < 220) return;
-      lastWaterImpactRef.current.set(id, now);
+    const playWaterContact = (_id: string, speed: number) => {
+      if (!soundEnabled) return;
       playImpact('water', speed);
     };
 
+    const holdingItemRef = useRef(holdingItemId);
+    holdingItemRef.current = holdingItemId;
+    const inputLockedRef = useRef(inputLocked);
+    inputLockedRef.current = inputLocked;
     const floorRef = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial> | null>(null);
     const floorGridRef = useRef<THREE.GridHelper | null>(null);
 
@@ -921,7 +923,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       let lastTime = performance.now();
 
       const animate = (currentTime: number) => {
-        const dt = Math.min(0.04, (currentTime - lastTime) / 1000);
+        const dt = Math.min(0.08, (currentTime - lastTime) / 1000);
         lastTime = currentTime;
 
         const camera = cameraRef.current;
@@ -936,7 +938,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         if (
           orbit.isAutoRotating &&
           interactionModeRef.current === 'orbit' &&
-          !holdingItemId &&
+          !holdingItemRef.current &&
           workflowStepRef.current === 'idle'
         ) {
           orbit.targetYaw += 0.005;
@@ -1051,7 +1053,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         // PHYSICS CHÌM / NỔI TỨC THỜI CHO TỪNG VẬT
         let itemsChanged = false;
         const nextItems = currentTankItems.map((item) => {
-          if (!item.inTank || item.id === holdingItemId) return item;
+          if (!item.inTank || item.id === holdingItemRef.current) return item;
 
           const scaleCfg = ITEM_WORLD_SCALES[itemKind(item.id)] || { size: 0.8, radius: 0.4 };
           const itemR = scaleCfg.radius;
@@ -1134,7 +1136,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
               if (soundEnabled) {
                 playWaterContact(item.id, Math.abs(vy));
               }
-              vy *= 0.32; // Water dissipates entry speed instead of passing the full air velocity through.
+              vy *= 0.65; // Initial splash dissipates some speed; water drag slows the rest gradually.
               status = willFloat ? 'floating' : 'sunk';
             }
             itemsChanged = true;
@@ -1143,7 +1145,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             if (status === 'falling' && !settled) {
               spawnWaterReaction(x, z, Math.min(6, Math.abs(vy)), true);
               if (soundEnabled) playWaterContact(item.id, Math.abs(vy));
-              vy *= 0.32;
+              vy *= 0.65;
             }
             // Nằm trong nước
             if (willFloat) {
@@ -1177,8 +1179,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
               itemsChanged = true;
             } else {
               // Vật nặng chìm xuống đáy cát
-              const sinkAccel = 9.8 * Math.max(0.015, 1 - currentWaterDensity / itemDensity);
-              const dragCoeff = itemDensity >= 2.0 ? 1.8 : 0.9;
+              const sinkAccel = DISPLAY_GRAVITY * Math.max(0.015, 1 - currentWaterDensity / itemDensity);
+              const dragCoeff = itemDensity >= 2.0 ? 2.8 : 1.6;
               const forceY = -sinkAccel - dragCoeff * vy;
 
               vy += forceY * dt;
@@ -1192,8 +1194,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
               const bottomLimit = itemR + 0.08;
               if (y <= bottomLimit) {
                 y = bottomLimit;
-                if (Math.abs(vy) > 0.8 && soundEnabled) {
-                  soundEngine.playSandThump();
+                if (!settled && Math.abs(vy) > 0.15 && soundEnabled) {
+                  playImpact('tile', Math.abs(vy));
                 }
                 vy = 0;
                 vx = 0;
@@ -1254,9 +1256,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         }
 
         // Cập nhật vị trí mesh đang kéo
-        if (holdingItemId) {
-          const heldMesh = itemMeshesRef.current.get(holdingItemId);
-          const heldItem = currentTankItems.find((i) => i.id === holdingItemId);
+        if (holdingItemRef.current) {
+          const heldMesh = itemMeshesRef.current.get(holdingItemRef.current);
+          const heldItem = currentTankItems.find((i) => i.id === holdingItemRef.current);
           if (heldMesh && heldItem && camera) {
             heldMesh.position.set(heldItem.x, heldItem.y, heldItem.z);
             heldMesh.rotation.z = 0.08;
@@ -1276,10 +1278,11 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           cancelAnimationFrame(animFrameIdRef.current);
         }
       };
-    }, [dims, shape, holdingItemId, onUpdateItems, soundEnabled]);
+    }, [onUpdateItems, soundEnabled]);
 
     // 5. TƯƠNG TÁC CON TRỎ CHUỘT (STRICT MODES: INTERACT NEVER ROTATES, ORBIT NEVER PICKS/DROPS)
     const handlePointerDown = (e: React.PointerEvent) => {
+      if (inputLockedRef.current) return;
       const mount = mountRef.current;
       if (!mount || !cameraRef.current) return;
 
@@ -1341,6 +1344,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     };
 
     const handlePointerMove = (e: React.PointerEvent) => {
+      if (inputLockedRef.current) return;
       const orbit = orbitRef.current;
       const mount = mountRef.current;
       if (!mount || !cameraRef.current) return;
@@ -1454,7 +1458,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
     useEffect(() => {
       const mount=mountRef.current;if(!mount)return;
-      const wheel=(e:WheelEvent)=>{if(workflowStepRef.current!=='idle')return;e.preventDefault();zoomRef.current=Math.max(0.7,Math.min(1.8,zoomRef.current*Math.exp(e.deltaY*0.001)));};
+      const wheel=(e:WheelEvent)=>{if(inputLockedRef.current||workflowStepRef.current!=='idle')return;e.preventDefault();zoomRef.current=Math.max(0.7,Math.min(1.8,zoomRef.current*Math.exp(e.deltaY*0.001)));};
       mount.addEventListener('wheel',wheel,{passive:false});return()=>mount.removeEventListener('wheel',wheel);
     },[]);
 

@@ -30,5 +30,13 @@
   "hint": "Con có thể thử một cách khác. Mình chỉ thay đổi một điều mỗi lần nhé.",
   "correct": "Con đã tìm ra rồi! Con kể lại mình đã làm gì nhé.",
   "dose": "Con muốn xúc nửa thìa hay đầy thìa muối?",
-  "help": "Chọn vật, đưa vào bể, buông tay rồi quan sát. Con có thể thử bao nhiêu lần cũng được."
+  "help": "Chọn vật, đưa vào bể, buông tay rồi quan sát. Con có thể thử bao nhiêu lần cũng được.",
+  "intro-0": "Chào con! Mình cùng chơi với bể nước nhé. Con nghe cách chơi trước, rồi mình bắt đầu.",
+  "intro-1": "Con giữ chuột vào một đồ vật trong rổ để cầm. Kéo tay đến chỗ con muốn rồi buông chuột để thả. Muốn ném, con vung tay rồi buông nhé.",
+  "intro-2": "Con có thể thả vào nước hoặc ra sàn. Con nhìn xem vật đi đâu. Trứng có thể vỡ khi rơi xuống sàn. Mình quan sát nhẹ nhàng nhé.",
+  "intro-3": "Muốn cầm lại đồ vật trong bể, con giữ chuột vào vật. Kéo xuống để dìm, rồi buông tay và nhìn xem điều gì xảy ra.",
+  "intro-4": "Muốn xoay bể, con giữ chuột vào cạnh kính rồi kéo sang trái hoặc phải. Lăn bánh xe chuột để nhìn gần hơn hoặc xa hơn.",
+  "intro-5": "Muốn thử với muối, con mở hũ muối. Đưa thìa vào hũ để xúc. Đưa thìa đến miệng bể, giữ chuột rồi kéo để nghiêng thìa và đổ muối.",
+  "intro-6": "Sau khi đổ muối, con đưa đũa vào nước rồi di chuột để khuấy. Con quan sát muối tan và xem đồ vật có thay đổi không nhé.",
+  "intro-7": "Dùng hết bốn đồ vật thì rổ sẽ có bốn đồ vật mới. Con có thể thử lại nhiều lần. Bây giờ con tự khám phá nhé!"
 }

@@ -39,6 +39,7 @@ import { RealLifeActivityCards } from './sink-float/RealLifeActivityCards';
 import { basketSlots, replenishBasket } from './sink-float/basketInventory';
 import { itemKind } from './sink-float/playPhysics';
 import { SceneSetting } from './sink-float/SceneBackdrop';
+import { ChildIntro } from './sink-float/ChildIntro';
 import { ObjectBasket } from './sink-float/ObjectBasket';
 import { GuidedDemoHand } from './sink-float/GuidedDemoHand';
 import { TeacherObjectivesModal } from './sink-float/TeacherObjectivesModal';
@@ -462,8 +463,10 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const activeDragItemRef = useRef<TankObject | null>(null);
   const isDraggingRef = useRef<boolean>(false);
   const dragCleanupRef = useRef<(() => void) | null>(null);
+  const [introComplete, setIntroComplete] = useState(false);
+  const introLocked = !introComplete;
   const gestureAllowedRef = useRef(false);
-  gestureAllowedRef.current = interactionMode === 'interact' && workflowStep === 'idle';
+  gestureAllowedRef.current = !introLocked && interactionMode === 'interact' && workflowStep === 'idle';
 
   // 8. HƯỚNG DẪN INLINE & BÀN TAY LÀM MẪU (GUIDED DEMO HAND)
   const [onboardingStep, setOnboardingStep] = useState<number>(1); // 1, 2, 3 hoặc 0 (đã xong)
@@ -515,10 +518,12 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
 
   // Chỉ đọc lời dẫn sau cử chỉ tương tác đầu tiên của người dùng
   useEffect(() => {
-    if (hasUserInteracted && voiceEnabled && message) {
+    if (isTeacherMode && introComplete && hasUserInteracted && voiceEnabled && message) {
       speechEngine.speak(message);
+    } else if (!isTeacherMode) {
+      speechEngine.stop();
     }
-  }, [message, voiceEnabled, hasUserInteracted]);
+  }, [message, voiceEnabled, hasUserInteracted, isTeacherMode, introComplete]);
 
   // Đánh dấu người dùng đã tương tác để cho phép phát âm thanh lời dẫn
   const markUserInteracted = useCallback(() => {
@@ -709,6 +714,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   // BẮT ĐẦU CẦM VÀ KÉO ĐỒ VẬT TỪ KHAY (HAND-BASED THROWING FROM TRAY)
   const handleTrayItemPointerDown = (e: React.PointerEvent, item: TankObject) => {
     e.preventDefault();
+    if (introLocked) return;
     markUserInteracted();
     if (item.inTank) return;
     if (workflowStep !== 'idle') {
@@ -962,6 +968,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           : 'relative h-full min-h-0 rounded-3xl overflow-hidden border border-sky-200 dark:border-slate-800 shadow-xl'
       }`}
     >
+      {introLocked && <ChildIntro onComplete={() => {setIntroComplete(true);setHasUserInteracted(true);}}/>}
       {/* ======================================================== */}
       {/* 1. COMPACT TOP ROUTE & MASCOT BAR                        */}
       {/* ======================================================== */}
@@ -970,7 +977,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       {/* ======================================================== */}
       {/* 2. CHÍNH: 2 CỘT (TRÁI: BỂ 3D 75-80% | PHẢI: BẢNG ~240px) */}
       {/* ======================================================== */}
-      <div className="flex-1 min-h-0 flex flex-row items-stretch p-2 gap-2 overflow-hidden">
+      <div {...(introLocked ? {inert: ''} : {})} aria-hidden={introLocked || undefined} className="flex-1 min-h-0 flex flex-row items-stretch p-2 gap-2 overflow-hidden">
         {/* CỘT TRÁI: KHU VỰC CHƠI CHÍNH (75-80%) */}
         <main className="flex-1 min-w-0 flex flex-col h-full overflow-hidden space-y-1.5">
           {/* HIỂN THỊ THEO ACTIVITY MODE */}
@@ -1000,6 +1007,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                 ref={threeTankRef}
                 shape={tankShape}
                 sceneSetting={sceneSetting}
+                inputLocked={introLocked}
                 scale={tankScale}
                 dims={dimensions}
                 items={items}

@@ -53,7 +53,7 @@ function createNoiseBuffer(ctx: AudioContext, durationSec: number): AudioBuffer 
   return buffer;
 }
 
-export function playImpact(
+function synthesizeImpact(
   kind: "water" | "tile" | "egg" | "apple" | "glass",
   strength: number = 0.5
 ): void {
@@ -284,4 +284,30 @@ export function playImpact(
       break;
     }
   }
+}
+
+const activeImpactMedia = new Set<HTMLAudioElement>();
+
+/** Native media playback remains independent of narration and Web Audio device state. */
+export function playImpact(kind: ImpactKind, strength: number = 2): void {
+  if (typeof Audio === 'undefined') { synthesizeImpact(kind, strength); return; }
+  const audio = new Audio(`/audio/impacts/${kind}.wav`);
+  audio.volume = Math.min(1, 0.85 * impactVolume(strength));
+  audio.preload = 'auto';
+  audio.dataset.impact = kind;
+  audio.hidden = true;
+  audio.setAttribute('aria-hidden', 'true');
+  // Bound overlapping contacts and remove media even if an ended event is delayed.
+  if (activeImpactMedia.size >= 6) {
+    const oldest = activeImpactMedia.values().next().value;
+    oldest?.pause(); oldest?.remove();
+    if (oldest) activeImpactMedia.delete(oldest);
+  }
+  activeImpactMedia.add(audio);
+  document.body.append(audio);
+  const clean = () => { activeImpactMedia.delete(audio); audio.remove(); };
+  window.setTimeout(() => { audio.pause(); clean(); }, 1600);
+  audio.onended = clean;
+  audio.onerror = () => { clean(); synthesizeImpact(kind, strength); };
+  void audio.play().catch(() => { clean(); synthesizeImpact(kind, strength); });
 }

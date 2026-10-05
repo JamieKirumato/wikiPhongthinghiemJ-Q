@@ -121,3 +121,19 @@ const impactSounds=source('src/components/preschool/sink-float/impactAudio.ts',{
 for(const kind of ['water','tile','egg','apple','glass']) impactSounds.playImpact(kind,5);
 assert.ok(audioStarts>=10 && audioOutputs>=20);
 console.log('Passed: frame-rate independent gravity, audible impact graphs, unique repeated basket supplies and cloned object identities.');
+
+let nativePlayed=0,nativeAppended=0;
+class ImpactMediaMock {
+ constructor(src){this.src=src;this.dataset={};}
+ setAttribute(){} remove(){} play(){nativePlayed++;return Promise.resolve();}
+}
+const nativeImpact=source('src/components/preschool/sink-float/impactAudio.ts',{Audio:ImpactMediaMock,document:{body:{append(audio){nativeAppended++;assert.ok(audio.volume>=.34);assert.ok(audio.src.includes('/audio/impacts/'));}}},window:{AudioContext:ContextMock,setTimeout:()=>0}});
+for(const kind of ['water','tile','egg','apple','glass']) {
+ nativeImpact.playImpact(kind,0);
+ const data=fs.readFileSync(`public/audio/impacts/${kind}.wav`);
+ assert.equal(data.toString('ascii',0,4),'RIFF');
+ assert.ok(data.length>20000);
+}
+assert.equal(nativePlayed,5);assert.equal(nativeAppended,5);
+for(let i=0;i<8;i++) assert.ok(fs.statSync(`public/audio/vi/intro-${i}.mp3`).size>1000);
+console.log('Passed: independent native impact playback, packaged WAV clips and complete Vietnamese intro assets.');
