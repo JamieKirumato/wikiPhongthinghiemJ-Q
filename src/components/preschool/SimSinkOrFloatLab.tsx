@@ -14,7 +14,7 @@ import {
   Eye,
   Award
 } from 'lucide-react';
-import { unlockImpactAudio } from './sink-float/impactAudio';
+import { unlockImpactAudio,setImpactEffectsVolume } from './sink-float/impactAudio';
 import { gestureVelocity } from './sink-float/impactPhysics';
 import { soundEngine } from '../../utils/audioEffects';
 import { speechEngine } from '../../utils/speechUtils';
@@ -43,6 +43,8 @@ import { basketSlots, replenishBasket } from './sink-float/basketInventory';
 import { itemKind } from './sink-float/playPhysics';
 import { SceneSetting } from './sink-float/SceneBackdrop';
 import { ChildIntro } from './sink-float/ChildIntro';
+import {TeacherExperienceSettings} from './sink-float/TeacherExperienceSettings';
+import {readExperience} from './sink-float/teacherExperience';
 import { ObjectBasket } from './sink-float/ObjectBasket';
 import { GuidedDemoHand } from './sink-float/GuidedDemoHand';
 import { TeacherObjectivesModal } from './sink-float/TeacherObjectivesModal';
@@ -473,7 +475,13 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const activeDragItemRef = useRef<TankObject | null>(null);
   const isDraggingRef = useRef<boolean>(false);
   const dragCleanupRef = useRef<(() => void) | null>(null);
-  const [introComplete, setIntroComplete] = useState(false);
+  const [experience,setExperience]=useState(readExperience);
+  const [showExperienceSettings,setShowExperienceSettings]=useState(false);
+  const [introComplete, setIntroComplete] = useState(()=>!experience.introEnabled);
+  useEffect(()=>{
+    setImpactEffectsVolume(experience.effectsVolume/100);soundEngine.setVolume(experience.effectsVolume/100);
+    return ()=>{setImpactEffectsVolume(1);soundEngine.setVolume(1);};
+  },[experience.effectsVolume]);
   const introLocked = !introComplete;
   const gestureAllowedRef = useRef(false);
   gestureAllowedRef.current = !introLocked && !pouringWater && interactionMode === 'interact' && workflowStep === 'idle';
@@ -980,6 +988,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           : 'relative h-full min-h-0 rounded-3xl overflow-hidden border border-sky-200 dark:border-slate-800 shadow-xl'
       }`}
     >
+      {introLocked&&<button aria-label="Mở cài đặt hướng dẫn giáo viên" onClick={()=>{setIntroComplete(true);setIsTeacherMode(true);setShowAdultPanel(true);setShowExperienceSettings(true);}} className="absolute right-4 top-4 z-[110] min-w-[52px] min-h-[52px] rounded-2xl border border-amber-200 bg-white text-2xl">🧑‍🏫</button>}
+      {showExperienceSettings&&<TeacherExperienceSettings settings={experience} onChange={setExperience} onClose={()=>setShowExperienceSettings(false)} onPreview={()=>{setShowExperienceSettings(false);setIsTeacherMode(false);setIntroComplete(false);}}/>}
       {introLocked && <ChildIntro
         onCleanup={()=>threeTankRef.current?.showIntroFrame(null,0)}
         onFrame={(action,p)=>{
@@ -1003,7 +1013,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       {/* ======================================================== */}
       {/* 2. CHÍNH: 2 CỘT (TRÁI: BỂ 3D 75-80% | PHẢI: BẢNG ~240px) */}
       {/* ======================================================== */}
-      <div {...(introLocked ? {inert: ''} : {})} aria-hidden={introLocked || undefined} className="flex-1 min-h-0 flex flex-row items-stretch p-2 gap-2 overflow-hidden">
+      <div {...(introLocked||showExperienceSettings ? {inert: ''} : {})} aria-hidden={introLocked||showExperienceSettings || undefined} className="flex-1 min-h-0 flex flex-row items-stretch p-2 gap-2 overflow-hidden">
         {/* CỘT TRÁI: KHU VỰC CHƠI CHÍNH (75-80%) */}
         <main className="flex-1 min-w-0 flex flex-col h-full overflow-hidden space-y-1.5">
           {/* HIỂN THỊ THEO ACTIVITY MODE */}
@@ -1076,6 +1086,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               onKeyboardPick={item=>{if(!gestureAllowedRef.current)return;const fresh=item.damage?{...item,inTank:false,outsideTank:false,damage:undefined,status:'basket' as const}:item;if(item.damage)setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));setSelectedTrayItem(fresh);markUserInteracted();setMessage('Con đang cầm vật. Đưa tay đến chỗ muốn thả nhé.');}}
             />
           </div>}
+          {isTeacherMode&&<button onClick={()=>setShowExperienceSettings(true)} className="min-h-[48px] w-full rounded-2xl border border-sky-200 bg-white font-bold text-sm">Hướng dẫn và âm thanh</button>}
           {isTeacherMode && <div className="text-sm px-2 text-sky-800">Lượng nước trong bể: {Math.round(waterVolumeMl(tankShape,dimensions)+addedWaterMl)} ml</div>}
           {(activityMode==='discovery'||activityMode==='egg-challenge') && <WaterPitcher
             disabled={introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}

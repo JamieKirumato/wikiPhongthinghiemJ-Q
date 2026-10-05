@@ -9,7 +9,7 @@ function source(relative, context = {}) {
   if (cache.has(filename) && !Object.keys(context).length) return cache.get(filename);
   const module = {exports:{}};
   const output = ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
-  const requireSource = name => name.startsWith('.') ? source(path.join(path.dirname(filename),`${name}.ts`),context) : require(name);
+  const requireSource = name => name.startsWith('.') ? (name.endsWith('.json')?{default:JSON.parse(fs.readFileSync(path.resolve(path.dirname(filename),name),'utf8'))}:source(path.join(path.dirname(filename),`${name}.ts`),context)) : require(name);
   vm.runInNewContext(output,{module,exports:module.exports,require:requireSource,...context},{filename});
   if (!Object.keys(context).length) cache.set(filename,module.exports);
   return module.exports;
@@ -239,7 +239,7 @@ class IntroAudioMock{constructor(src){this.src=src;this.currentTime=0;this.durat
 const introReact={...fakeReact,useState:value=>[value,()=>{}],useEffect:fn=>{introEffect=fn;}};
 const introModule={exports:{}};
 const introCode=ts.transpileModule(fs.readFileSync('src/components/preschool/sink-float/ChildIntro.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.React}}).outputText;
-vm.runInNewContext(introCode,{module:introModule,exports:introModule.exports,React:introReact,require:name=>name==='react'?introReact:name==='./introGuide'?guide:{},Audio:IntroAudioMock,requestAnimationFrame:fn=>{introFrames.set(++introFrameId,fn);return introFrameId;},cancelAnimationFrame:id=>introFrames.delete(id)});
+vm.runInNewContext(introCode,{module:introModule,exports:introModule.exports,React:introReact,require:name=>name==='react'?introReact:name==='./introGuide'?guide:name==='./teacherExperience'?{introAudioSources:()=>({then:fn=>fn({sources:guide.INTRO_GUIDE.map(s=>`/audio/vi/${s.audio}.mp3`),release(){}})})}:{},Audio:IntroAudioMock,requestAnimationFrame:fn=>{introFrames.set(++introFrameId,fn);return introFrameId;},cancelAnimationFrame:id=>introFrames.delete(id)});
 introModule.exports.ChildIntro({onComplete:()=>introFinished++,onCleanup:()=>introCleanup++,onFrame:(action,p)=>{introCalls.push({action,p});return null;}});
 const disposeIntro=introEffect();
 function introTick(time){const [id,fn]=introFrames.entries().next().value;introFrames.delete(id);fn(time);}
@@ -254,3 +254,39 @@ for(let i=0;i<guide.INTRO_GUIDE.length;i++){
 assert.equal(introFinished,1);assert.equal(introCleanup,1);
 disposeIntro();assert.equal(introFrames.size,0);assert.equal(introAudio.paused,true);assert.equal(introAudio.onended,null);
 console.log('Passed: demo follows audio clock, freezes on pause/buffering, covers ten clips, unlocks only at end and cleans up on unmount.');
+
+nativeImpact.setImpactEffectsVolume(.5);nativeImpact.playImpact('water',4);
+assert.equal(nativePlayed,6);
+nativeImpact.setImpactEffectsVolume(0);nativeImpact.playImpact('tile',8);assert.equal(nativePlayed,6);
+const silentBefore=audioStarts;waterSounds.setImpactEffectsVolume(0);waterClock+=200;waterSounds.playWaterSwish(3);assert.equal(audioStarts,silentBefore);
+nativeImpact.setImpactEffectsVolume(1);waterSounds.setImpactEffectsVolume(1);
+const prefs=source('src/components/preschool/sink-float/teacherExperience.ts',{localStorage:{getItem:()=>'{"introEnabled":false,"effectsVolume":25}',setItem(){}}});
+assert.equal(prefs.readExperience().introEnabled,false);assert.equal(prefs.readExperience().effectsVolume,25);
+assert.equal(prefs.normalizeExperience(null).introEnabled,true);assert.equal(prefs.normalizeExperience(null).effectsVolume,100);
+assert.equal(prefs.normalizeExperience({effectsVolume:120}).effectsVolume,100);assert.equal(prefs.normalizeExperience({effectsVolume:-4}).effectsVolume,0);
+assert.ok(prefs.defaultIntroText('intro-0').startsWith('Chào'));
+console.log('Passed: teacher defaults, persistent disabled intro, bounded effect volume, and muted native/water playback.');
+
+(async()=>{
+  let record={},revoked=0,urlCount=0;
+  const db={createObjectStore(){},close(){},transaction(){const tx={objectStore:()=>({get(){const req={result:record};setImmediate(()=>req.onsuccess?.());return req;},put(value){record=value;setImmediate(()=>tx.oncomplete?.());}})};return tx;}};
+  const indexedDB={open(){const req={result:db};setImmediate(()=>req.onsuccess?.());return req;}};
+  const storage=source('src/components/preschool/sink-float/teacherExperience.ts',{indexedDB,Blob,URL:{createObjectURL:()=>`blob:teacher-${++urlCount}`,revokeObjectURL:()=>revoked++}});
+  const blob=new Blob([Buffer.alloc(2000)],{type:'audio/mpeg'});
+  await storage.writeNarration({'intro-0':{text:'Lời dẫn thử',audio:blob}});
+  assert.equal((await storage.readNarration())['intro-0'].text,'Lời dẫn thử');
+  let sources=await storage.introAudioSources();assert.equal(sources.sources.length,10);assert.ok(sources.sources[0].startsWith('blob:'));sources.release();assert.equal(revoked,1);
+  await storage.writeNarration({});sources=await storage.introAudioSources();assert.equal(sources.sources[0],'/audio/vi/intro-0.mp3');
+  const api=await import(require('node:url').pathToFileURL(path.resolve('api/narration.js')));
+  const sentence='Con cầm vật và thả vào nước. '.repeat(10);
+  assert.ok(api.splitNarration(sentence).length>1);assert.ok(api.splitNarration(sentence).every(s=>s.length<=180));
+  const fetchOriginal=global.fetch;let requests=0;
+  global.fetch=async url=>{requests++;assert.equal(new URL(url).hostname,'translate.google.com');assert.equal(new URL(url).searchParams.get('tl'),'vi');return {ok:true,headers:{get:()=> 'audio/mpeg'},arrayBuffer:async()=>Buffer.alloc(2000).buffer};};
+  try{
+    const res={headers:{},setHeader(key,value){this.headers[key]=value;},end(value){this.body=value;}};
+    await api.default({method:'POST',body:{text:sentence}},res);assert.equal(res.statusCode,200);assert.ok(Buffer.isBuffer(res.body));assert.equal(res.headers['Cache-Control'],'no-store');
+    const before=requests;await api.default({method:'POST',body:{text:'x'.repeat(601)}},res);assert.equal(res.statusCode,400);assert.equal(requests,before);
+    await api.default({method:'GET'},res);assert.equal(res.statusCode,405);
+  }finally{global.fetch=fetchOriginal;}
+  console.log('Passed: custom MP3 storage, source selection and cleanup, script reset, Vietnamese generation chunks and endpoint validation.');
+})().catch(error=>{console.error(error);process.exitCode=1;});
