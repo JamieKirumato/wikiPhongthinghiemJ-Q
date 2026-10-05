@@ -37,16 +37,16 @@ export function ChildIntro({ onComplete }: { onComplete: () => void }) {
     return () => { active = false; audio.pause(); audio.onended = null; audio.onerror = null; audio.ontimeupdate = null; audioRef.current = null; indexRef.current = 0; };
   }, []);
 
-  return <div data-child-intro role="dialog" aria-modal="true" aria-label="Nghe hướng dẫn cách chơi trước khi bắt đầu" className="absolute inset-0 z-[100] bg-sky-50/90 backdrop-blur-sm flex flex-col items-center justify-center gap-8 p-6">
-    <div aria-hidden="true" className="text-7xl sm:text-8xl select-none">{STEPS[step]}</div>
-    {waiting ? <button autoFocus aria-label="Bắt đầu nghe hướng dẫn" className="rounded-full w-28 h-28 bg-amber-400 border-4 border-white shadow-xl text-6xl" onClick={() => {
+  return <div data-child-intro role="region" aria-label="Hướng dẫn ngay trong màn chơi" className="absolute bottom-5 left-5 right-[168px] sm:right-[240px] lg:right-[272px] z-[100] rounded-3xl border-2 border-sky-200 bg-white/95 shadow-lg p-3 sm:p-4 flex flex-wrap items-center justify-center gap-3">
+    <div aria-hidden="true" className="text-3xl sm:text-4xl select-none">{STEPS[step]}</div>
+    {waiting ? <button autoFocus aria-label="Bắt đầu nghe hướng dẫn" className="rounded-full min-w-[64px] min-h-[64px] bg-amber-400 border-4 border-white shadow-md text-3xl" onClick={() => {
       unlockImpactAudio();
       const audio = audioRef.current;
       if (!audio) return;
       setWaiting(false);
       if (audio.error) audio.load();
       void audio.play().catch(() => setWaiting(true));
-    }}>▶</button> : <div aria-label="Đang đọc hướng dẫn" className="text-5xl animate-pulse">🔊</div>}
-    <div role="progressbar" aria-label="Tiến trình hướng dẫn" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)} className="w-64 max-w-full h-4 rounded-full bg-sky-200 overflow-hidden"><div className="h-full bg-sky-500 rounded-full transition-all" style={{width: `${progress}%`}}/></div>
+    }}>▶</button> : <div aria-label="Đang đọc hướng dẫn" className="text-3xl animate-pulse">🔊</div>}
+    <div role="progressbar" aria-label="Tiến trình hướng dẫn" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)} className="flex-1 min-w-[48px] max-w-64 h-3 rounded-full bg-sky-200 overflow-hidden"><div className="h-full bg-sky-500 rounded-full transition-all" style={{width: `${progress}%`}}/></div>
   </div>;
 }
