@@ -1,3 +1,4 @@
+import { narrationClipFor } from './preschoolNarration';
 // Web Speech API Voice Synthesizer for Vietnamese educational narration
 // Lightweight, zero-dependency, works directly in modern browsers (Chrome, Edge, Safari, Firefox)
 
@@ -9,6 +10,8 @@ export interface SpeechEngineOptions {
 
 class SpeechEngine {
   private isSupported: boolean = false;
+  private audio: HTMLAudioElement | null = null;
+  private playbackGeneration = 0;
   private isEnabled: boolean = true;
   private vietnameseVoice: SpeechSynthesisVoice | null = null;
   private isSpeakingState: boolean = false;
@@ -69,7 +72,7 @@ class SpeechEngine {
   }
 
   public isVoiceSupported(): boolean {
-    return this.isSupported;
+    return this.isSupported || typeof Audio !== 'undefined';
   }
 
   public isVoiceEnabled(): boolean {
@@ -88,6 +91,7 @@ class SpeechEngine {
   }
 
   public getVoiceStatusMessage(): string | null {
+    if (typeof Audio !== 'undefined') return null;
     if (!this.isSupported) {
       return 'Trình duyệt chưa hỗ trợ phát âm thanh lời thoại.';
     }
@@ -112,6 +116,11 @@ class SpeechEngine {
   }
 
   public stop() {
+    this.playbackGeneration++;
+    if (this.audio) {
+      this.audio.pause(); this.audio.onended = null; this.audio.onerror = null; this.audio = null;
+    }
+    this.notifyState(false);
     if (!this.isSupported) return;
     try {
       window.speechSynthesis.cancel();
@@ -130,7 +139,7 @@ class SpeechEngine {
     options: SpeechEngineOptions = {},
     onEnd?: () => void
   ): boolean {
-    if (!this.isSupported || !this.isEnabled || !text.trim()) {
+    if (!this.isEnabled || !text.trim()) {
       return false;
     }
 
@@ -140,11 +149,20 @@ class SpeechEngine {
 
     // NẾU KHÔNG CÓ GIỌNG TIẾNG VIỆT, KHÔNG ĐƯỢC ĐỌC BẰNG GIỌNG TIẾNG ANH!
     if (!this.vietnameseVoice) {
-      return false;
+      if (typeof Audio === 'undefined') return false;
+      this.stop();
+      const generation = this.playbackGeneration;
+      const audio = new Audio(narrationClipFor(text));
+      this.audio = audio;
+      audio.onended = () => { if (generation === this.playbackGeneration) { this.notifyState(false); onEnd?.(); } };
+      audio.onerror = () => { if (generation === this.playbackGeneration) this.notifyState(false); };
+      this.notifyState(true);
+      void audio.play().catch(() => { if (generation === this.playbackGeneration) this.notifyState(false); });
+      return true;
     }
 
     try {
-      window.speechSynthesis.cancel();
+      this.stop();
 
       // Làm sạch emoji và ký tự đặc biệt để phát âm mượt mà
       const cleanText = text

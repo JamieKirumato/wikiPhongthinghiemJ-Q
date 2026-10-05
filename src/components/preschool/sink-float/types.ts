@@ -21,6 +21,7 @@ export interface TankObject {
   desc: string;
   densityNote: string;
   inTank: boolean;
+  outsideTank?: boolean;
   x: number; // Tọa độ thế giới 3D X
   y: number; // Tọa độ thế giới 3D Y (trục đứng)
   z: number; // Tọa độ thế giới 3D Z (chiều sâu)
