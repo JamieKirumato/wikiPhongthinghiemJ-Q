@@ -6,6 +6,7 @@ import { RotateCcw, Sparkles } from 'lucide-react';
 
 interface SaltWorkflowProps {
   disabled?: boolean;
+  visualOnly?: boolean;
   spoonFraction?: number;
   onDoseChange?: (fraction: number) => void;
   onStirAtScreenPoint?: (x: number, y: number) => void;
@@ -150,6 +151,7 @@ export const RealisticStirringHand: React.FC<{
 
 export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   disabled = false,
+  visualOnly = false,
   spoonFraction = 1,
   onDoseChange,
   onStirAtScreenPoint,
@@ -331,6 +333,25 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   }, [onResetSalt]);
 
   const isMaxSpoons = saltSpoons >= MAX_SALT_SPOONS;
+
+  if (visualOnly) return <>
+    <div className="w-full rounded-3xl bg-white/70 p-2 flex flex-col items-center gap-2">
+      {!isJarOpen || disabled ? <button aria-label="Mở hũ muối" disabled={disabled} className="w-full min-h-[88px] text-6xl hover:scale-105 transition-transform" onClick={event=>{setIsJarOpen(true);setPointerPos({x:event.clientX,y:event.clientY});if(!isMaxSpoons)onStepChange('scoopMode');onMessageUpdate('Hũ muối đã mở. Con đưa thìa vào hũ rồi kéo để xúc muối nhé.');}}>🧂</button> : <>
+        <button aria-label="Đóng hũ muối" disabled={workflowStep==='pouring'||workflowStep==='stirring'} className="self-end min-h-[44px] min-w-[44px] rounded-full text-xl" onClick={()=>{setIsJarOpen(false);onStepChange('idle');}}>✕</button>
+        <div ref={jarMouthRef} role="button" aria-label="Xúc một thìa muối" tabIndex={0} onClick={handleScoopClick} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();handleScoopClick();}}} className="relative w-28 h-36 rounded-3xl border-4 border-sky-200 bg-sky-50/60 cursor-pointer flex items-end p-2 shadow-lg">
+          <div className="absolute -top-4 right-0 w-20 h-5 rounded-xl bg-amber-700 -rotate-12"/>
+          <div className="w-full h-24 rounded-t-2xl rounded-b-xl bg-gradient-to-b from-white to-slate-200 border-t-2 border-white shadow-inner"/>
+        </div>
+        {(workflowStep==='idle'||workflowStep==='scoopMode')&&onDoseChange&&<div className="flex gap-2 w-full">
+          {[0.5,1].map(amount=><button key={amount} aria-label={amount===0.5?'Nửa thìa muối':'Đầy thìa muối'} aria-pressed={spoonFraction===amount} onClick={()=>onDoseChange(amount)} className={`flex-1 min-h-[52px] rounded-2xl flex items-center justify-center gap-1 ${spoonFraction===amount?'bg-amber-100 ring-2 ring-amber-300':'bg-white'}`}><span className="text-2xl" aria-hidden="true">🥄</span><svg width="20" height="20" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="#e2e8f0"/>{amount===1?<circle cx="10" cy="10" r="8" fill="#ffffff" stroke="#94a3b8"/>:<path d="M10 2A8 8 0 0 0 10 18Z" fill="white" stroke="#94a3b8"/>}</svg></button>)}
+        </div>}
+        {workflowStep==='stirring'&&<div role="progressbar" aria-label="Muối đang tan" aria-valuenow={Math.round(activeStirProgress)} aria-valuemin={0} aria-valuemax={100} className="w-full h-3 rounded-full bg-sky-100 overflow-hidden"><div className="h-full rounded-full bg-cyan-400" style={{width:`${activeStirProgress}%`}}/></div>}
+        {isMaxSpoons&&<button aria-label="Thay nước ngọt" className="min-h-[52px] min-w-[52px] text-3xl" onClick={handleResetWithCleanup}>🚰</button>}
+      </>}
+    </div>
+    {(workflowStep==='scoopMode'||workflowStep==='holdingSpoon'||workflowStep==='pouring')&&<RealisticHandSpoon x={pointerPos.x} y={pointerPos.y} hasSalt={workflowStep==='holdingSpoon'||workflowStep==='pouring'} isPouring={workflowStep==='pouring'} amount={spoonFraction}/>}
+    {workflowStep==='stirring'&&<RealisticStirringHand x={pointerPos.x} y={pointerPos.y} angle={stirWobble} isInWater={isInWaterState}/>}
+  </>;
 
   if (!isJarOpen || disabled) {
     return (
