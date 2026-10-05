@@ -980,7 +980,21 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           : 'relative h-full min-h-0 rounded-3xl overflow-hidden border border-sky-200 dark:border-slate-800 shadow-xl'
       }`}
     >
-      {introLocked && <ChildIntro onComplete={() => {setIntroComplete(true);setHasUserInteracted(true);}}/>}
+      {introLocked && <ChildIntro
+        onCleanup={()=>threeTankRef.current?.showIntroFrame(null,0)}
+        onFrame={(action,p)=>{
+          const frame=threeTankRef.current?.showIntroFrame(action,p);if(!frame)return null;
+          const container=containerRef.current;
+          const label=action==='outside'?'Cầm Quả trứng':action==='pick'?'Cầm Quả táo đỏ':action==='pour'?'Cầm bình nước để rót vào bể':action==='scoop'?'Cầm gáo để múc nước ra khỏi bể':'Mở hũ muối';
+          const source=container?.querySelector(`[aria-label="${label}"]`)?.getBoundingClientRect();
+          const scene=playSceneRef.current?.getBoundingClientRect();
+          if((action==='welcome'||action==='ready')&&scene){frame.x=scene.left+scene.width*.48;frame.y=scene.top+scene.height*.3;}
+          if(source&&frame.fromTray>0){frame.x+=(source.left+source.width/2-frame.x)*frame.fromTray;frame.y+=(source.top+source.height/2-frame.y)*frame.fromTray;}
+          if((action==='pour'||action==='scoop'||action==='salt')&&p<.05&&source){container?.querySelector(`[aria-label="${label}"]`)?.scrollIntoView({block:'nearest'});}
+          if(scene){frame.x=Math.max(22,Math.min(window.innerWidth-22,frame.x));frame.y=Math.max(scene.top+22,Math.min(scene.bottom-28,frame.y));}
+          return frame;
+        }}
+        onComplete={()=>{const aside=containerRef.current?.querySelector('aside');if(aside)aside.scrollTop=0;setIntroComplete(true);setHasUserInteracted(true);}}/>}
       {/* ======================================================== */}
       {/* 1. COMPACT TOP ROUTE & MASCOT BAR                        */}
       {/* ======================================================== */}

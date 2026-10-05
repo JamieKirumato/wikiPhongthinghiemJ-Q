@@ -221,5 +221,36 @@ for(const kind of ['water','tile','egg','apple','glass']) {
  assert.ok(data.length>20000);
 }
 assert.equal(nativePlayed,5);assert.equal(nativeAppended,5);
-for(let i=0;i<8;i++) assert.ok(fs.statSync(`public/audio/vi/intro-${i}.mp3`).size>1000);
+for(let i=0;i<10;i++) assert.ok(fs.statSync(`public/audio/vi/intro-${i}.mp3`).size>1000);
 console.log('Passed: independent native impact playback, packaged WAV clips and complete Vietnamese intro assets.');
+
+const guide=source('src/components/preschool/sink-float/introGuide.ts');
+assert.equal(guide.INTRO_GUIDE.length,10);
+assert.equal(guide.INTRO_GUIDE.at(-1).action,'ready');
+assert.equal(guide.introProgress(5,10),.5);assert.equal(guide.introProgress(5,NaN),0);assert.equal(guide.introProgress(NaN,10),0);
+assert.equal(guide.introProgress(-2,10),0);assert.equal(guide.introProgress(12,10),1);
+assert.ok(guide.introPose('pick',.5,fillDims,3).y>guide.introPose('pick',.8,fillDims,3).y);
+assert.ok(guide.introPose('dip',.5,fillDims,3).y<guide.introPose('dip',.1,fillDims,3).y);
+assert.ok(guide.introPose('pour',.8,fillDims,3).waterOffset>guide.introPose('pour',.1,fillDims,3).waterOffset);
+assert.ok(guide.introPose('scoop',.6,fillDims,3).waterOffset<guide.introPose('scoop',.1,fillDims,3).waterOffset);
+let introEffect,introAudio,introFinished=0,introCleanup=0,introCalls=[];
+let introFrameId=0;const introFrames=new Map();
+class IntroAudioMock{constructor(src){this.src=src;this.currentTime=0;this.duration=10;this.readyState=4;this.paused=false;introAudio=this;}play(){this.paused=false;return Promise.resolve();}pause(){this.paused=true;}}
+const introReact={...fakeReact,useState:value=>[value,()=>{}],useEffect:fn=>{introEffect=fn;}};
+const introModule={exports:{}};
+const introCode=ts.transpileModule(fs.readFileSync('src/components/preschool/sink-float/ChildIntro.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.React}}).outputText;
+vm.runInNewContext(introCode,{module:introModule,exports:introModule.exports,React:introReact,require:name=>name==='react'?introReact:name==='./introGuide'?guide:{},Audio:IntroAudioMock,requestAnimationFrame:fn=>{introFrames.set(++introFrameId,fn);return introFrameId;},cancelAnimationFrame:id=>introFrames.delete(id)});
+introModule.exports.ChildIntro({onComplete:()=>introFinished++,onCleanup:()=>introCleanup++,onFrame:(action,p)=>{introCalls.push({action,p});return null;}});
+const disposeIntro=introEffect();
+function introTick(time){const [id,fn]=introFrames.entries().next().value;introFrames.delete(id);fn(time);}
+introAudio.currentTime=2;introTick(40);assert.equal(introCalls.at(-1).p,.2);
+introAudio.paused=true;introAudio.currentTime=5;introTick(80);assert.equal(introCalls.length,1);
+introAudio.paused=false;introAudio.readyState=2;introTick(120);assert.equal(introCalls.length,1);
+introAudio.readyState=4;introTick(160);assert.equal(introCalls.at(-1).p,.5);
+for(let i=0;i<guide.INTRO_GUIDE.length;i++){
+  assert.ok(introAudio.src.endsWith(guide.INTRO_GUIDE[i].audio+'.mp3'));
+  assert.equal(introFinished,0);introAudio.onended();
+}
+assert.equal(introFinished,1);assert.equal(introCleanup,1);
+disposeIntro();assert.equal(introFrames.size,0);assert.equal(introAudio.paused,true);assert.equal(introAudio.onended,null);
+console.log('Passed: demo follows audio clock, freezes on pause/buffering, covers ten clips, unlocks only at end and cleans up on unmount.');
