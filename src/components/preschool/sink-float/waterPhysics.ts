@@ -5,7 +5,13 @@ import { submergedFraction } from './buoyancy';
 
 export const sandHeight = (dims:TankDimensions) => dims.height * .085;
 export function addedWaterHeight(ml:number,shape:TankShape,dims:TankDimensions):number {
-  return Math.max(0,ml)/(getFootprintArea(shape,dims)*ML_PER_WORLD_VOLUME);
+  return ml/(getFootprintArea(shape,dims)*ML_PER_WORLD_VOLUME);
+}
+/** Remove the same fraction of dissolved salt as water: scooping cannot concentrate brine. */
+export function scoopWater(volumeMl:number,saltGrams:number,requestedMl:number) {
+  const ml=Math.min(Math.max(0,volumeMl),Math.max(0,requestedMl));
+  const grams=volumeMl>0 ? Math.max(0,saltGrams)*ml/volumeMl : 0;
+  return {ml,grams};
 }
 export function maximumAddedWater(occupiedMl:number,shape:TankShape,dims:TankDimensions):number {
   return Math.max(0,(dims.height-.18-dims.waterHeight)*getFootprintArea(shape,dims)*ML_PER_WORLD_VOLUME-occupiedMl);
