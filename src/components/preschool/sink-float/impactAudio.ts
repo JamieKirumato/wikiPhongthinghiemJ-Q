@@ -4,7 +4,7 @@ import { impactVolume } from './playPhysics';
  * SSR-safe, cached AudioContext, zero external audio asset dependencies.
  */
 
-export type ImpactKind = "water" | "tile" | "egg" | "apple" | "glass";
+export type ImpactKind = "water" | "tile" | "egg" | "apple" | "glass" | "sand";
 
 let cachedAudioCtx: AudioContext | null = null;
 
@@ -78,7 +78,7 @@ function createNoiseBuffer(ctx: AudioContext, durationSec: number): AudioBuffer 
 }
 
 function synthesizeImpact(
-  kind: "water" | "tile" | "egg" | "apple" | "glass",
+  kind: ImpactKind,
   strength: number = 0.5
 ): void {
   const ctx = getAudioContext();
@@ -93,6 +93,14 @@ function synthesizeImpact(
   window.setTimeout(() => masterGain.disconnect(), 600);
 
   switch (kind) {
+    case 'sand': {
+      masterGain.gain.setValueAtTime(.2*safeStrength,now);
+      const noise=ctx.createBufferSource();noise.buffer=createNoiseBuffer(ctx,.16);
+      const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=450;
+      const envelope=ctx.createGain();envelope.gain.setValueAtTime(.8,now);envelope.gain.exponentialRampToValueAtTime(.001,now+.15);
+      noise.connect(filter);filter.connect(envelope);envelope.connect(masterGain);noise.start(now);noise.stop(now+.16);
+      break;
+    }
     case "water": {
       // Plop & splash: upward sine sweep droplet + bandpass filtered splash spray
       const baseVol = 0.45 * safeStrength;
@@ -315,7 +323,9 @@ const activeImpactMedia = new Set<HTMLAudioElement>();
 /** Native media playback remains independent of narration and Web Audio device state. */
 export function playImpact(kind: ImpactKind, strength: number = 2): void {
   if (typeof Audio === 'undefined') { synthesizeImpact(kind, strength); return; }
-  const audio = new Audio(`/audio/impacts/${kind}.wav`);
+  const clipNames:Partial<Record<ImpactKind,string>>={tile:'impactMining',glass:'impactGlass_light',egg:'impactPlate_light',apple:'impactSoft_medium',sand:'impactSoft_medium'};
+  const variant=Math.floor(Math.random()*3).toString().padStart(3,'0');
+  const audio = new Audio(`/audio/impacts/${clipNames[kind] ? `${clipNames[kind]}_${variant}.ogg` : `${kind}.wav`}`);
   audio.volume = Math.min(1, 0.85 * impactVolume(strength));
   audio.preload = 'auto';
   audio.dataset.impact = kind;

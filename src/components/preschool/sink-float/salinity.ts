@@ -3,7 +3,7 @@ import { TankDimensions, TankShape } from './types';
 
 // A pedagogical scale: one normal rectangular tank holds 1 litre.
 // Shapes and 50%-per-dimension scaling preserve actual volume ratios.
-const ML_PER_WORLD_VOLUME = 1000 / (9.6 * 4.6 * 4.8 * 0.52);
+export const ML_PER_WORLD_VOLUME = 1000 / (9.6 * 4.6 * 4.8 * 0.52);
 export const SALT_GRAMS_PER_SPOON = 50;
 export const MAX_SALT_SPOONS = 8;
 export function waterVolumeMl(shape: TankShape, dimensions: TankDimensions): number {

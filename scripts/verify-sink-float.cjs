@@ -19,6 +19,28 @@ const salt = source('src/components/preschool/sink-float/salinity.ts');
 const buoyancy = source('src/components/preschool/sink-float/buoyancy.ts');
 const impact = source('src/components/preschool/sink-float/impactPhysics.ts');
 const waterMotion = source('src/components/preschool/sink-float/waterMotion.ts');
+const waterPhysics=source('src/components/preschool/sink-float/waterPhysics.ts');
+const fillDims=geometry.getTankDimensions('rectangle','normal');
+const mlHeight=waterPhysics.addedWaterHeight(100,'rectangle',fillDims);
+assert.ok(Math.abs(mlHeight-fillDims.waterHeight*.1)<1e-9);
+const lowStone=waterPhysics.displacedWaterLevel(3,'rectangle',fillDims,[{y:.9,radius:.5,volume:80}]);
+const liftedStone=waterPhysics.displacedWaterLevel(3,'rectangle',fillDims,[{y:2,radius:.5,volume:80}]);
+assert.ok(Math.abs(lowStone-liftedStone)<1e-7); // depth of an immersed object cannot change displaced volume
+assert.ok(waterPhysics.displacedWaterLevel(3,'rectangle',fillDims,[{y:6,radius:.5,volume:80}])<lowStone);
+assert.ok(waterPhysics.maximumAddedWater(80,'rectangle',fillDims)>0);
+assert.ok(salt.brineDensity(150,1000)>salt.brineDensity(150,1500));
+let slow={y:3,vy:0},fine={y:3,vy:0};
+for(let i=0;i<10;i++)slow=waterPhysics.advanceSinking(slow.y,slow.vy,.1,2.6,1);
+for(let i=0;i<100;i++)fine=waterPhysics.advanceSinking(fine.y,fine.vy,.01,2.6,1);
+assert.ok(Math.abs(slow.y-fine.y)<1e-8);
+assert.ok(slow.y>1); // stone takes observable time to descend, not a teleport to the bed
+function descentTime(start){let state={y:start,vy:0},time=0;while(state.y>.9&&time<20){state=waterPhysics.advanceSinking(state.y,state.vy,1/60,2.6,1);time+=1/60;}return time;}
+assert.ok(descentTime(4)>descentTime(2)+1);
+for(const clip of ['impactMining','impactGlass_light','impactPlate_light','impactSoft_medium'])for(let i=0;i<3;i++) {
+  const data=fs.readFileSync(`public/audio/impacts/${clip}_${String(i).padStart(3,'0')}.ogg`);
+  assert.equal(data.toString('ascii',0,4),'OggS');
+}
+console.log('Passed: conserved water volume, held-object displacement, dilution, frame-independent sinking and foley assets.');
 const impulse = {x:0,z:0,time:1,strength:3};
 assert.notEqual(waterMotion.waterDisplacement(.4,0,1.2,[impulse]),waterMotion.waterDisplacement(.4,0,1.2,[]));
 assert.equal(waterMotion.waterDisplacement(.4,0,4,[impulse]),waterMotion.waterDisplacement(.4,0,4,[]));
@@ -62,6 +84,10 @@ assert.equal(buoyancy.submergedFraction(3,1,0),0);
 assert.equal(buoyancy.submergedFraction(-3,1,0),1);
 const THREE = require('three');
 const models=source('src/components/preschool/sink-float/itemModels.ts');
+const stoneModel=models.createItemModel('item-pebble',1);
+const stoneSize=new (require('three').Box3)().setFromObject(stoneModel).getSize(new (require('three').Vector3)());
+assert.ok(stoneSize.y>.75 && stoneSize.y/stoneSize.x>.7);
+models.disposeItemModel(stoneModel);
 for(const id of ['pebble','keys','spoon','egg','apple','wood','duck','pingpong','leaf','foam']) {
   const model=models.createItemModel(`item-${id}`,.8);
   const box=new THREE.Box3().setFromObject(model);

@@ -1,14 +1,15 @@
 import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import * as THREE from 'three';
 import { TankDimensions, TankObject, TankScale, TankShape, InteractionMode, SaltWorkflowStep } from './types';
-import { clampToTankBoundary, calculateWaterRise, isPointInsideFootprint, getTankDimensions } from './tankGeometry';
-import { floatingCenterY, submergedFraction } from './buoyancy';
+import { clampToTankBoundary, isPointInsideFootprint, getTankDimensions } from './tankGeometry';
+import { floatingCenterY } from './buoyancy';
 import { createItemModel, disposeItemModel, applyItemDamage } from './itemModels';
 import { damageFromImpact, gestureVelocity } from './impactPhysics';
 import { playImpact, playWaterSwish, unlockImpactAudio } from './impactAudio';
 import { waterDisplacement, waterEdgeFade, WaterImpulse } from './waterMotion';
-import { advanceAirFall, DISPLAY_GRAVITY, itemKind } from './playPhysics';
+import { advanceAirFall, itemKind } from './playPhysics';
 import { SceneBackdrop, SceneSetting } from './SceneBackdrop';
+import { advanceSinking, displacedWaterLevel, sandHeight } from './waterPhysics';
 
 export interface ThreeTankCanvasHandle {
   checkPointInWater: (screenX: number, screenY: number) => boolean;
@@ -40,6 +41,7 @@ interface ThreeTankCanvasProps {
   items: TankObject[];
   onUpdateItems: (items: TankObject[]) => void;
   waterDensity: number;
+  waterLevel?: number;
   interactionMode: InteractionMode;
   onInteractionModeChange: (mode: InteractionMode) => void;
   holdingItemId: string | null;
@@ -78,6 +80,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       items,
       onUpdateItems,
       waterDensity,
+      waterLevel = dims.waterHeight,
       interactionMode,
       onInteractionModeChange,
       carryingTrayItem = false,
@@ -94,6 +97,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     const [hoveredItemId,setHoveredItemId] = useState<string | null>(null);
     const [waterHand, setWaterHand] = useState<{x:number;y:number} | null>(null);
     const waterImpulsesRef = useRef<WaterImpulse[]>([]);
+    const baseWaterLevelRef=useRef(waterLevel);
+    baseWaterLevelRef.current=waterLevel;
+    const displayedWaterLevelRef=useRef(waterLevel);
     const lastWaterGestureRef = useRef({time:0,x:0,y:0});
     const activePointerRef = useRef<number | null>(null);
     const mountRef = useRef<HTMLDivElement | null>(null);
@@ -110,6 +116,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     // Groups & Meshes
     const tankGroupRef = useRef<THREE.Group | null>(null);
     const waterMeshRef = useRef<THREE.Mesh | null>(null);
+    const sandTextureRef=useRef<THREE.Texture|null>(null);
     const waterSurfaceMeshRef = useRef<THREE.Mesh | null>(null);
     const waterlineRef = useRef<THREE.LineSegments | null>(null);
     const objectsGroupRef = useRef<THREE.Group | null>(null);
@@ -606,6 +613,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         splashEffectsRef.current.forEach(effect => disposeItemModel(effect.mesh));
         rippleEffectsRef.current = []; splashEffectsRef.current = [];
         itemMeshesRef.current.forEach(disposeItemModel);
+        sandTextureRef.current?.dispose();
         saltGeom.dispose(); saltMat.dispose();
         floor.geometry.dispose(); floor.material.dispose(); grid.dispose();
         renderer.dispose();
@@ -623,6 +631,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     useEffect(() => {
       const tankGroup = tankGroupRef.current;
       if (!tankGroup) return;
+      sandTextureRef.current?.dispose();
 
       while (tankGroup.children.length > 0) {
         const child = tankGroup.children[0];
@@ -665,8 +674,16 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       });
 
       // Đáy cát (renderOrder: 0, depthWrite: true)
+      const sandCanvas=document.createElement('canvas'); sandCanvas.width=256; sandCanvas.height=256;
+      const sandContext=sandCanvas.getContext('2d')!;
+      sandContext.fillStyle='#dcc28f'; sandContext.fillRect(0,0,256,256);
+      let seed=12345;
+      for(let i=0;i<18000;i++) {seed=(seed*1664525+1013904223)>>>0;const x=(seed>>>16)%256;seed=(seed*1664525+1013904223)>>>0;const y=(seed>>>16)%256;sandContext.fillStyle=['#c7ad7a','#ead5aa','#bda273','#f1dfb7'][i%4];sandContext.fillRect(x,y,1.5,1.5);}
+      const sandTexture=new THREE.CanvasTexture(sandCanvas); sandTexture.wrapS=sandTexture.wrapT=THREE.RepeatWrapping;sandTexture.repeat.set(2,2);sandTexture.colorSpace=THREE.SRGBColorSpace;
+      sandTextureRef.current=sandTexture;
       const sandMaterial = new THREE.MeshBasicMaterial({
-        color: 0xe5f9f4,
+        color: 0xffffff,
+        map:sandTexture,
         toneMapped: false
       });
 
@@ -703,8 +720,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         sealMesh.renderOrder = 0;
         tankGroup.add(sealMesh);
 
-        const sandMesh = new THREE.Mesh(new THREE.BoxGeometry(W - 0.05, 0.1, D - 0.05), sandMaterial);
-        sandMesh.position.set(0, 0.05, 0);
+        const sandMesh = new THREE.Mesh(new THREE.BoxGeometry(W - 0.05, sandHeight(dims), D - 0.05), sandMaterial);
+        sandMesh.position.set(0, sandHeight(dims)/2, 0);
         sandMesh.renderOrder = 0;
         tankGroup.add(sandMesh);
 
@@ -782,8 +799,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         sealMesh.renderOrder = 0;
         tankGroup.add(sealMesh);
 
-        const sandMesh = new THREE.Mesh(new THREE.CylinderGeometry(radius - 0.03, radius - 0.03, 0.1, 48), sandMaterial);
-        sandMesh.position.set(0, 0.05, 0);
+        const sandMesh = new THREE.Mesh(new THREE.CylinderGeometry(radius - 0.03, radius - 0.03, sandHeight(dims), 48), sandMaterial);
+        sandMesh.position.set(0, sandHeight(dims)/2, 0);
         sandMesh.renderOrder = 0;
         tankGroup.add(sandMesh);
 
@@ -833,11 +850,17 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
         const sandGeom = new THREE.BufferGeometry();
         const sandVertices = new Float32Array([
-          A.x, 0.05, A.z,
-          B.x, 0.05, B.z,
-          C.x, 0.05, C.z
+          A.x, sandHeight(dims), A.z,
+          B.x, sandHeight(dims), B.z,
+          C.x, sandHeight(dims), C.z,
+          A.x,0,A.z,B.x,0,B.z,B.x,sandHeight(dims),B.z,A.x,0,A.z,B.x,sandHeight(dims),B.z,A.x,sandHeight(dims),A.z,
+          B.x,0,B.z,C.x,0,C.z,C.x,sandHeight(dims),C.z,B.x,0,B.z,C.x,sandHeight(dims),C.z,B.x,sandHeight(dims),B.z,
+          C.x,0,C.z,A.x,0,A.z,A.x,sandHeight(dims),A.z,C.x,0,C.z,A.x,sandHeight(dims),A.z,C.x,sandHeight(dims),C.z
         ]);
         sandGeom.setAttribute('position', new THREE.BufferAttribute(sandVertices, 3));
+        const sandUV=[];
+        for(let i=0;i<sandVertices.length;i+=3)sandUV.push((sandVertices[i]+W/2)/W,(sandVertices[i+2]+D/2)/D);
+        sandGeom.setAttribute('uv',new THREE.Float32BufferAttribute(sandUV,2));
         sandGeom.computeVertexNormals();
         const sandMesh = new THREE.Mesh(sandGeom, sandMaterial);
         sandMesh.renderOrder = 0;
@@ -1013,25 +1036,10 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
         // TÍNH THỂ TÍCH PHẦN CHÌM THỰC TẾ (SUBMERGED VOLUME)
         const currentTankItems = itemsRef.current;
-        let totalSubmergedVolumeMl = 0;
-
-        currentTankItems.forEach((item) => {
-          if (!item.inTank || item.outsideTank) return;
-          const scaleCfg = ITEM_WORLD_SCALES[itemKind(item.id)] || { size: 0.8, radius: 0.4 };
-          const itemR = scaleCfg.radius;
-
-          if (item.y - itemR >= d.waterHeight) {
-            return;
-          } else if (item.y + itemR <= d.waterHeight) {
-            totalSubmergedVolumeMl += item.volumeMl;
-          } else {
-            const frac = submergedFraction(item.y, itemR, d.waterHeight);
-            totalSubmergedVolumeMl += item.volumeMl * frac;
-          }
-        });
-
-        const waterRise = calculateWaterRise(totalSubmergedVolumeMl, s, d);
-        const effectiveWaterHeight = d.waterHeight + waterRise;
+        const displacedObjects=currentTankItems.filter(item=>item.inTank&&!item.outsideTank).map(item=>({y:item.y,radius:(ITEM_WORLD_SCALES[itemKind(item.id)]||{radius:.4}).radius,volume:item.volumeMl}));
+        const desiredLevel=displacedWaterLevel(baseWaterLevelRef.current,s,d,displacedObjects);
+        displayedWaterLevelRef.current+=(desiredLevel-displayedWaterLevelRef.current)*(1-Math.exp(-dt*6));
+        const effectiveWaterHeight=displayedWaterLevelRef.current;
 
         // Scale khối nước theo world Y chuẩn
         if (waterMeshRef.current) {
@@ -1127,7 +1135,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
               const speed=Math.hypot(nextVy,nextVx,nextVz);
               damage=damageFromImpact(item.id,speed,damage);
               if (itemKind(item.id)==='item-duck' || itemKind(item.id)==='item-foam') squashUntilRef.current.set(item.id,currentTime+350);
-              if (soundEnabled) playImpact(damage==='broken'||damage==='cracked'?'egg':itemKind(item.id)==='item-apple'?'apple':'tile',speed);
+              if (soundEnabled) playImpact(damage==='broken'||damage==='cracked'?'egg':['item-apple','item-duck','item-foam','item-leaf','item-pingpong'].includes(itemKind(item.id))?'apple':'tile',speed);
               if (damage && damage!==item.damage) onMessageUpdate(`${item.name} ${damage==='broken'?'đã vỡ':damage==='cracked'?'đã nứt':'bị dập'} khi chạm sàn. Con có thể lấy vật mới để thử lại nhé.`);
               nextVy=damage==='broken'?0:Math.abs(nextVy)*0.12;
             } else if (nextY<=floorY) nextVy=0;
@@ -1205,8 +1213,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
               const targetY = floatingCenterY(itemR, effectiveWaterHeight, submergedFraction);
 
               const displacement = y - targetY;
-              const springK = 28.0;
-              const damping = 4.2;
+              const springK = 12.0;
+              const damping = 5.0;
               const forceY = -springK * displacement - damping * vy;
 
               vy += forceY * dt;
@@ -1230,23 +1238,19 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
               itemsChanged = true;
             } else {
               // Vật nặng chìm xuống đáy cát
-              const sinkAccel = DISPLAY_GRAVITY * Math.max(0.015, 1 - currentWaterDensity / itemDensity);
-              const dragCoeff = itemDensity >= 2.0 ? 2.8 : 1.6;
-              const forceY = -sinkAccel - dragCoeff * vy;
-
-              vy += forceY * dt;
-              y += vy * dt;
+              const sinking=advanceSinking(y,Math.max(-2.8,vy),dt,itemDensity,currentWaterDensity);
+              vy=sinking.vy; y=sinking.y;
 
               vx *= 1 - 4.0 * dt;
               vz *= 1 - 4.0 * dt;
               x += vx * dt;
               z += vz * dt;
 
-              const bottomLimit = itemR + 0.08;
+              const bottomLimit = itemR + sandHeight(d);
               if (y <= bottomLimit) {
                 y = bottomLimit;
                 if (!settled && Math.abs(vy) > 0.15 && soundEnabled) {
-                  playImpact('tile', Math.abs(vy));
+                  playImpact('sand', Math.abs(vy));
                 }
                 vy = 0;
                 vx = 0;
@@ -1493,7 +1497,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             else if (previous) {clampedPos.x=previous.x;clampedPos.z=previous.z;}
           }
           if (isPointInsideFootprint(clampedPos.x,clampedPos.z,s,d,-itemR)) {
-            clampedY=Math.max(itemR+0.08,clampedY);
+            clampedY=Math.max(itemR+sandHeight(d),clampedY);
           }
 
           const surfaceY = waterSurfaceMeshRef.current?.position.y ?? d.waterHeight;
@@ -1545,7 +1549,13 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const samples=dragSamplesRef.current, first=samples[0], last=samples[samples.length-1];
         const v=e.type==='pointercancel'||!first||!last ? {vx:0,vy:0} : gestureVelocity(last.x-first.x,last.y-first.y,(performance.now()-first.t)/1000);
         const right=new THREE.Vector3(1,0,0).applyQuaternion(cameraRef.current!.quaternion);right.y=0;right.normalize();
-        const next=itemsRef.current.map(item=>item.id===id?{...item,vx:right.x*v.vx*0.005,vz:right.z*v.vx*0.005,vy:-v.vy*0.006,settled:false,status:'falling' as const}:item);
+        const next=itemsRef.current.map(item=>{
+          if(item.id!==id)return item;
+          const radius=(ITEM_WORLD_SCALES[itemKind(item.id)]||{radius:.4}).radius;
+          const submerged=!item.outsideTank && item.y-radius<=displayedWaterLevelRef.current;
+          const status:TankObject['status']=submerged ? (item.weightGrams/item.volumeMl<=waterDensityRef.current?'floating':'sunk'):'falling';
+          return {...item,vx:right.x*v.vx*0.005,vz:right.z*v.vx*0.005,vy:-v.vy*0.006,settled:false,status};
+        });
         itemsRef.current=next; onUpdateItems(next); onMessageUpdate('Con vừa buông tay. Hãy quan sát vật sẽ đi đâu nhé!');
       }
       heldIdRef.current=null; orbitRef.current.isDragging=0; onHoldItem(null); onInteractionModeChange('interact');

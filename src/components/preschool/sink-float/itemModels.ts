@@ -39,8 +39,23 @@ export function createItemModel(id: string, size: number): THREE.Group {
     add(sphere(), 0x293443, [-0.08, 0.32, 0.37], [0.07, 0.07, 0.07]);
     add(sphere(), 0xf6be1e, [-0.24, -0.09, 0.25], [0.4, 0.32, 0.17]);
   } else if (kind === 'item-pebble') {
-    const geometry = new THREE.IcosahedronGeometry(0.46, 2);
-    add(geometry, 0x8f9491, [0, 0, 0], [1.1, 0.7, 0.85]);
+    const geometry = new THREE.SphereGeometry(0.46, 32, 24);
+    const positions=geometry.getAttribute('position');
+    const colors:number[]=[];
+    for(let i=0;i<positions.count;i++) {
+      const x=positions.getX(i),y=positions.getY(i),z=positions.getZ(i);
+      const irregular=1+.045*Math.sin(x*8+y*5+z*11);
+      positions.setXYZ(i,x*irregular,y*irregular,z*irregular);
+      const shade=.55+.45*(y/.46+1)/2+.035*Math.sin(x*170+y*220+z*190);
+      const color=new THREE.Color(0xb5aa95).multiplyScalar(shade);
+      colors.push(color.r,color.g,color.b);
+    }
+    geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+    geometry.computeVertexNormals();
+    const stone=add(geometry, 0x827b6d, [0, 0, 0], [1.08, 0.94, 0.98]);
+    (stone.material as THREE.MeshStandardMaterial).roughness=.95;
+    (stone.material as THREE.MeshStandardMaterial).color.setHex(0xffffff);
+    (stone.material as THREE.MeshStandardMaterial).vertexColors=true;
   } else if (kind === 'item-wood') {
     add(new THREE.BoxGeometry(0.88, 0.3, 0.48), 0xc79156);
     for (let i = 0; i < 4; i++) add(new THREE.BoxGeometry(0.7, 0.006, 0.018), 0x996834, [0, 0.154, -0.16 + i * 0.1]);
