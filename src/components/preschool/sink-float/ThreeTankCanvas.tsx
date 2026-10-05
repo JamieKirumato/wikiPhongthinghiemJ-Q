@@ -106,6 +106,10 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     const tankGroupRef = useRef<THREE.Group | null>(null);
     const waterMeshRef = useRef<THREE.Mesh | null>(null);
     const waterSurfaceMeshRef = useRef<THREE.Mesh | null>(null);
+    const waterlineRef = useRef<THREE.LineSegments | null>(null);
+    const selectionRef = useRef<THREE.BoxHelper | null>(null);
+    const hoveredItemRef = useRef<string | null>(null);
+    hoveredItemRef.current = hoveredItemId;
     const objectsGroupRef = useRef<THREE.Group | null>(null);
     const itemMeshesRef = useRef<Map<string, THREE.Group>>(new Map());
     const rippleEffectsRef = useRef<Array<{mesh: THREE.Mesh; age: number; strength: number}>>([]);
@@ -471,15 +475,21 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       const exact = raycasterRef.current.intersectObjects(Array.from(itemMeshesRef.current.values()), true).find(hit => canPick(hit.object.userData.itemId));
       if (exact) return { itemId: exact.object.userData.itemId as string, point: exact.point };
       let nearest: { itemId: string; point: THREE.Vector3 } | null = null;
-      let distance = 34;
+      let distance = Infinity;
       for (const [id, mesh] of itemMeshesRef.current) {
         if (!canPick(id)) continue;
-        const projected = mesh.position.clone().project(cameraRef.current);
+        mesh.updateWorldMatrix(true, true);
+        const bounds = new THREE.Box3().setFromObject(mesh);
+        const sphere = bounds.getBoundingSphere(new THREE.Sphere());
+        const projected = sphere.center.clone().project(cameraRef.current);
         if (projected.z < -1 || projected.z > 1) continue;
         const dx = rect.left + (projected.x+1)*rect.width/2 - screenX;
         const dy = rect.top + (1-projected.y)*rect.height/2 - screenY;
+        const edge = sphere.center.clone().addScaledVector(new THREE.Vector3(1,0,0).applyQuaternion(cameraRef.current.quaternion), sphere.radius).project(cameraRef.current);
+        const radius = Math.max(38, Math.abs(edge.x - projected.x) * rect.width / 2 + 18);
         const gap = Math.hypot(dx, dy);
-        if (gap < distance) { distance = gap; nearest = { itemId: id, point: mesh.position.clone() }; }
+        const score = gap / radius;
+        if (score <= 1 && score < distance) { distance = score; nearest = { itemId: id, point: sphere.center.clone() }; }
       }
       return nearest;
     };
@@ -586,6 +596,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         splashEffectsRef.current.forEach(effect => disposeItemModel(effect.mesh));
         rippleEffectsRef.current = []; splashEffectsRef.current = [];
         itemMeshesRef.current.forEach(disposeItemModel);
+        selectionRef.current?.geometry.dispose();
+        (selectionRef.current?.material as THREE.Material | undefined)?.dispose();
+        selectionRef.current = null;
         saltGeom.dispose(); saltMat.dispose();
         floor.geometry.dispose(); floor.material.dispose(); grid.dispose();
         renderer.dispose();
@@ -654,7 +667,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       const waterVolumeMat = new THREE.MeshBasicMaterial({
         color: 0xa5edf5,
         transparent: true,
-        opacity: 0.16,
+        opacity: 0.25,
         toneMapped: false,
         depthWrite: false,
         side: THREE.DoubleSide
@@ -662,9 +675,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
       // Mặt trên nước trong suốt nhấp nhô nhẹ
       const waterSurfaceMat = new THREE.MeshBasicMaterial({
-        color: 0xc6f4f8,
+        color: 0x9de5f0,
         transparent: true,
-        opacity: 0.18,
+        opacity: 0.32,
         toneMapped: false,
         depthWrite: false,
         side: THREE.DoubleSide
@@ -874,6 +887,17 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         tankGroup.add(surfaceMesh);
         waterSurfaceMeshRef.current = surfaceMesh;
       }
+      // Outline the actual surface geometry, including circular and triangular tanks.
+      const surface = waterSurfaceMeshRef.current;
+      if (surface) {
+        const waterline = new THREE.LineSegments(new THREE.EdgesGeometry(surface.geometry),
+          new THREE.LineBasicMaterial({color: 0x309cb9, transparent: true, opacity: 0.85, depthWrite: false}));
+        waterline.rotation.copy(surface.rotation);
+        waterline.position.copy(surface.position);
+        waterline.renderOrder = 4;
+        tankGroup.add(waterline);
+        waterlineRef.current = waterline;
+      }
     }, [shape, scale, dims]);
 
     // 3. ĐỒNG BỘ CÁC VẬT THỂ 3D VÀO SCENE (SỬ DỤNG UNLIT MeshBasicMaterial BẢO TOÀN MÀU RỰC RỠ)
@@ -1004,6 +1028,22 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           waterSurfaceMeshRef.current.position.y =
             effectiveWaterHeight + Math.sin(currentTime * 0.003) * 0.015;
         }
+        if (waterlineRef.current && waterSurfaceMeshRef.current) {
+          waterlineRef.current.position.y = waterSurfaceMeshRef.current.position.y + 0.006;
+        }
+        const selectedMesh = itemMeshesRef.current.get(heldIdRef.current || hoveredItemRef.current || '');
+        if (selectedMesh && scene) {
+          if (!selectionRef.current) {
+            selectionRef.current = new THREE.BoxHelper(selectedMesh, 0xf4b400);
+            const material = selectionRef.current.material as THREE.LineBasicMaterial;
+            material.depthTest = false;
+            material.depthWrite = false;
+            selectionRef.current.renderOrder = 10;
+            scene.add(selectionRef.current);
+          }
+          selectionRef.current.visible = true;
+          selectionRef.current.setFromObject(selectedMesh);
+        } else if (selectionRef.current) selectionRef.current.visible = false;
 
         rippleEffectsRef.current = rippleEffectsRef.current.filter(effect => {
           effect.age += dt;
@@ -1478,7 +1518,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
               : holdingItemId || carryingTrayItem || interactionMode === 'orbit'
               ? 'cursor-grabbing'
               : hoveredItemId
-              ? 'cursor-pointer'
+              ? 'cursor-grab'
               : 'cursor-default'
           }`}
         />
