@@ -1040,12 +1040,15 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const desiredLevel=displacedWaterLevel(baseWaterLevelRef.current,s,d,displacedObjects);
         displayedWaterLevelRef.current+=(desiredLevel-displayedWaterLevelRef.current)*(1-Math.exp(-dt*6));
         const effectiveWaterHeight=displayedWaterLevelRef.current;
+        const hasWater=baseWaterLevelRef.current>sandHeight(d)+.001;
 
         // Scale khối nước theo world Y chuẩn
         if (waterMeshRef.current) {
+          waterMeshRef.current.visible=hasWater;
           waterMeshRef.current.scale.y = effectiveWaterHeight / d.waterHeight;
         }
         if (waterSurfaceMeshRef.current) {
+          waterSurfaceMeshRef.current.visible=hasWater;
           const surfaceGeometry = waterSurfaceMeshRef.current.geometry;
           const positions = surfaceGeometry.getAttribute('position');
           const seconds = currentTime / 1000;
@@ -1060,6 +1063,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             effectiveWaterHeight + Math.sin(currentTime * 0.003) * 0.015;
         }
         if (waterlineRef.current && waterSurfaceMeshRef.current) {
+          waterlineRef.current.visible=hasWater;
           waterlineRef.current.position.y = waterSurfaceMeshRef.current.position.y + 0.006;
         }
         rippleEffectsRef.current = rippleEffectsRef.current.filter(effect => {
@@ -1271,6 +1275,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             if (mesh) mesh.position.set(x, y, z);
             return {...item, x, y, z, vx, vy, vz, settled: false, outsideTank: true};
           }
+          // A floating object rests on the sand when scooping leaves too little water.
+          if(y<itemR+sandHeight(d)){y=itemR+sandHeight(d);vy=Math.max(0,vy);}
           // Giới hạn biên bể kính theo footprint thực tế
           const clamped = clampToTankBoundary(x, z, itemR, s, d);
           if ((clamped.x !== x || clamped.z !== z) && Math.hypot(vx,vz)>0.6 && soundEnabled) playImpact('glass',Math.hypot(vx,vz));

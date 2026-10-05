@@ -23,6 +23,43 @@ const waterPhysics=source('src/components/preschool/sink-float/waterPhysics.ts')
 const fillDims=geometry.getTankDimensions('rectangle','normal');
 const mlHeight=waterPhysics.addedWaterHeight(100,'rectangle',fillDims);
 assert.ok(Math.abs(mlHeight-fillDims.waterHeight*.1)<1e-9);
+assert.ok(waterPhysics.addedWaterHeight(-100,'rectangle',fillDims)<0);
+let scoopVolume=1000,scoopSalt=150;
+for(let n=0;n<4;n++){
+  const taken=waterPhysics.scoopWater(scoopVolume,scoopSalt,200);
+  scoopVolume-=taken.ml;scoopSalt-=taken.grams;
+  assert.ok(Math.abs(scoopSalt/scoopVolume-.15)<1e-10);
+  assert.ok(Math.abs(salt.brineDensity(scoopSalt,scoopVolume)-salt.brineDensity(150,1000))<1e-10);
+}
+const lastScoop=waterPhysics.scoopWater(scoopVolume,scoopSalt,500);
+assert.equal(lastScoop.ml,200);assert.equal(lastScoop.grams,30);
+assert.deepEqual(JSON.parse(JSON.stringify(waterPhysics.scoopWater(0,0,200))),{ml:0,grams:0});
+const returned=waterPhysics.scoopWater(1000,150,200);
+assert.equal(1000-returned.ml+returned.ml,1000);
+assert.equal(150-returned.grams+returned.grams,150);
+assert.ok(salt.brineDensity(150,1200)<salt.brineDensity(150,1000));
+console.log('Passed: ladle lowers water, bounds empty tanks, preserves brine concentration and returns carried salt.');
+// Exercise the real ladle pointer/animation handlers, including cancellation and water return.
+let ladleVolume=1000,ladleSalt=150,ladleActive=false,ladleHand=null;
+let ladleFrame=0;const ladleFrames=new Map(),ladleListeners=new Map();
+const fakeReact={useRef:value=>({current:value}),useEffect(){},useState:()=>[null,value=>{ladleHand=value;}],createElement:(type,props,...children)=>({type,props:props||{},children}),Fragment:'fragment'};
+fakeReact.default=fakeReact;
+const ladleModule={exports:{}};
+const ladleCode=ts.transpileModule(fs.readFileSync('src/components/preschool/sink-float/WaterLadle.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.React}}).outputText;
+vm.runInNewContext(ladleCode,{module:ladleModule,exports:ladleModule.exports,require:name=>name==='react'?fakeReact:{playWaterSwish(){},unlockImpactAudio(){}},performance:{now:()=>0},requestAnimationFrame:fn=>{ladleFrames.set(++ladleFrame,fn);return ladleFrame;},cancelAnimationFrame:id=>ladleFrames.delete(id),window:{addEventListener:(name,fn)=>ladleListeners.set(name,fn),removeEventListener:name=>ladleListeners.delete(name)}});
+function startLadle(){const tree=ladleModule.exports.WaterLadle({disabled:false,teacher:false,capacity:200,onActive:active=>{ladleActive=active;},checkWater:(x,y)=>x===100&&y===100,checkMouth:(x,y)=>x===100&&y===50,onFlow(){},onTake:ml=>{const taken=waterPhysics.scoopWater(ladleVolume,ladleSalt,ml);ladleVolume-=taken.ml;ladleSalt-=taken.grams;return taken;},onReturn:water=>{ladleVolume+=water.ml;ladleSalt+=water.grams;}});tree.children[0].props.onPointerDown({button:0,pointerId:1,clientX:500,clientY:500,preventDefault(){}});}
+function ladleTick(time){const [id,fn]=ladleFrames.entries().next().value;ladleFrames.delete(id);fn(time);}
+startLadle();assert.equal(ladleActive,true);
+ladleListeners.get('pointermove')({pointerId:2,clientX:100,clientY:100});ladleTick(100);assert.equal(ladleVolume,1000);
+ladleListeners.get('pointermove')({pointerId:1,clientX:100,clientY:100});for(let t=200;t<=1200;t+=100)ladleTick(t);
+assert.equal(ladleVolume,800);assert.equal(ladleHand.fill,1);
+ladleListeners.get('pointerup')({pointerId:2});assert.equal(ladleActive,true);
+ladleListeners.get('pointerup')({pointerId:1});assert.equal(ladleVolume,1000);assert.equal(ladleSalt,150);assert.equal(ladleActive,false);assert.equal(ladleFrames.size,0);
+startLadle();ladleListeners.get('pointermove')({pointerId:1,clientX:100,clientY:100});for(let t=100;t<=1000;t+=100)ladleTick(t);
+ladleListeners.get('pointermove')({pointerId:1,clientX:500,clientY:500});for(let t=1100;t<=1500;t+=100)ladleTick(t);
+assert.equal(ladleVolume,800);assert.ok(ladleHand.fill<1);ladleListeners.get('pointerup')({pointerId:1});assert.equal(ladleVolume,800);assert.equal(ladleSalt,120);
+startLadle();ladleListeners.get('pointermove')({pointerId:1,clientX:100,clientY:100});ladleTick(100);ladleListeners.get('blur')();assert.equal(ladleVolume,800);assert.equal(ladleSalt,120);assert.equal(ladleActive,false);
+console.log('Passed: actual ladle handlers fill, empty outside, return inside, ignore second pointer and restore carried water on blur.');
 const lowStone=waterPhysics.displacedWaterLevel(3,'rectangle',fillDims,[{y:.9,radius:.5,volume:80}]);
 const liftedStone=waterPhysics.displacedWaterLevel(3,'rectangle',fillDims,[{y:2,radius:.5,volume:80}]);
 assert.ok(Math.abs(lowStone-liftedStone)<1e-7); // depth of an immersed object cannot change displaced volume
