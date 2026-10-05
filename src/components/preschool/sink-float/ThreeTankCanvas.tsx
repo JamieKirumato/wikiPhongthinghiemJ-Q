@@ -9,6 +9,16 @@ export interface ThreeTankCanvasHandle {
   checkPointOverTankMouth: (screenX: number, screenY: number) => { isOver: boolean; point?: THREE.Vector3 };
   spawnSaltGrains: (count: number, center?: THREE.Vector3) => void;
   clearSaltGrains: () => void;
+  projectScreenToWorld: (screenX: number, screenY: number, targetPlaneZ?: number) => THREE.Vector3 | null;
+  dropOrThrowItemAtScreenPos: (
+    item: TankObject,
+    screenX: number,
+    screenY: number,
+    screenVelocity?: { vx: number; vy: number }
+  ) => void;
+  cancelActiveGesture: () => void;
+  resetDefaultView: () => void;
+  toggleAutoRotate: (enabled?: boolean) => boolean;
 }
 
 interface ThreeTankCanvasProps {
@@ -27,6 +37,7 @@ interface ThreeTankCanvasProps {
   soundEnabled: boolean;
   onMessageUpdate: (msg: string) => void;
   showXRay: boolean;
+  onItemObserved?: (itemId: string, status: 'floating' | 'sunk') => void;
 }
 
 // Cấu hình vật thể 3D thế giới (World Units)
@@ -59,11 +70,14 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       onPourSaltAtPoint,
       soundEnabled,
       onMessageUpdate,
-      showXRay
+      showXRay,
+      onItemObserved
     },
     ref
   ) => {
     const mountRef = useRef<HTMLDivElement | null>(null);
+    const observedCallbackRef = useRef(onItemObserved);
+    observedCallbackRef.current = onItemObserved;
 
     // Three.js core
     const sceneRef = useRef<THREE.Scene | null>(null);
@@ -113,7 +127,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     const dragPlaneRef = useRef<THREE.Plane>(new THREE.Plane());
     const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
 
-    // Sync refs for animation loops without triggering re-render
+    // Sync refs
     const itemsRef = useRef<TankObject[]>(items);
     useEffect(() => {
       itemsRef.current = items;
@@ -139,6 +153,11 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       workflowStepRef.current = workflowStep;
     }, [workflowStep]);
 
+    const interactionModeRef = useRef<InteractionMode>(interactionMode);
+    useEffect(() => {
+      interactionModeRef.current = interactionMode;
+    }, [interactionMode]);
+
     // Texture loader
     const loadItemTexture = useCallback((url: string): THREE.Texture => {
       if (textureCacheRef.current.has(url)) {
@@ -150,6 +169,36 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       textureCacheRef.current.set(url, tex);
       return tex;
     }, []);
+
+    // Helper: Project screen (x, y) to 3D world on vertical plane passing through targetPlaneZ facing camera
+    const projectScreenToWorldInternal = useCallback(
+      (screenX: number, screenY: number, targetPlaneZ: number = 0): THREE.Vector3 | null => {
+        if (!mountRef.current || !cameraRef.current) return null;
+        const rect = mountRef.current.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return null;
+
+        const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
+        const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
+
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), cameraRef.current);
+
+        const camDir = new THREE.Vector3();
+        cameraRef.current.getWorldDirection(camDir);
+
+        const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(
+          camDir.negate(),
+          new THREE.Vector3(0, dimsRef.current.height * 0.5, targetPlaneZ)
+        );
+
+        const result = new THREE.Vector3();
+        if (raycaster.ray.intersectPlane(plane, result)) {
+          return result;
+        }
+        return null;
+      },
+      []
+    );
 
     // IMPERATIVE API EXPOSED TO PARENT
     useImperativeHandle(ref, () => ({
@@ -197,7 +246,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const raycaster = new THREE.Raycaster();
         raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), cameraRef.current);
 
-        // Mặt phẳng miệng bể tại y = height
         const topH = dimsRef.current.height;
         const topPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -topH);
         const hitPoint = new THREE.Vector3();
@@ -208,7 +256,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             hitPoint.z,
             shapeRef.current,
             dimsRef.current,
-            0.35 // margin cho phép bấm gần mép miệng bể
+            0.4
           );
           if (isInside) {
             return { isOver: true, point: hitPoint };
@@ -248,6 +296,92 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           velocities[i * 3 + 2] = 0;
         }
         saltParticlesGroupRef.current.geometry.attributes.position.needsUpdate = true;
+      },
+
+      projectScreenToWorld: (screenX: number, screenY: number, targetPlaneZ: number = 0) => {
+        return projectScreenToWorldInternal(screenX, screenY, targetPlaneZ);
+      },
+
+      dropOrThrowItemAtScreenPos: (
+        item: TankObject,
+        screenX: number,
+        screenY: number,
+        screenVelocity?: { vx: number; vy: number }
+      ) => {
+        if (interactionModeRef.current !== 'interact' || workflowStepRef.current !== 'idle') return;
+        const d = dimsRef.current;
+        const s = shapeRef.current;
+        const scaleCfg = ITEM_WORLD_SCALES[item.id] || { size: 0.8, radius: 0.4 };
+        const itemR = scaleCfg.radius;
+
+        // Chiếu tia từ tọa độ màn hình vào không gian 3D
+        let worldPos = projectScreenToWorldInternal(screenX, screenY, 0);
+        if (!worldPos) {
+          worldPos = new THREE.Vector3(0, d.height + 1.2, 0);
+        }
+
+        // Clamp Y hợp lý (trên đáy bể và không bay khỏi nóc trời)
+        const dropY = Math.max(d.waterHeight + itemR, Math.min(d.height + 3.0, worldPos.y));
+
+        // Clamp footprint để vật rơi vào trong thành bể
+        const clampedPos = clampToTankBoundary(worldPos.x, worldPos.z, itemR, s, d);
+
+        // Vận tốc ném cử chỉ từ cử chỉ tay (gesture velocity)
+        let vx = 0;
+        let vy = -0.5; // Nhẹ nhàng rơi xuống mặc định
+        let vz = 0;
+
+        if (screenVelocity) {
+          const screenRight = new THREE.Vector3(1, 0, 0).applyQuaternion(cameraRef.current!.quaternion);
+          screenRight.y = 0;
+          screenRight.normalize();
+          const horizontalSpeed = Math.max(-4.0, Math.min(4.0, screenVelocity.vx * 0.005));
+          vx = screenRight.x * horizontalSpeed;
+          vz = screenRight.z * horizontalSpeed;
+          // vy kéo lên ném bổng, kéo xuống ném thẳng vào nước
+          vy = Math.max(-6.0, Math.min(6.0, -screenVelocity.vy * 0.006));
+        }
+
+        onUpdateItems(
+          itemsRef.current.map((i) =>
+            i.id === item.id
+              ? {
+                  ...i,
+                  inTank: true,
+                  x: clampedPos.x,
+                  y: dropY,
+                  z: clampedPos.z,
+                  vx,
+                  vy,
+                  vz,
+                  settled: false,
+                  status: 'falling'
+                }
+              : i
+          )
+        );
+
+        if (soundEnabled) {
+          soundEngine.playWaterDrop();
+        }
+      },
+
+      cancelActiveGesture: () => {
+        orbitRef.current.isDragging = 0;
+        orbitRef.current.isAutoRotating = false;
+        onHoldItem(null);
+      },
+
+      resetDefaultView: () => {
+        orbitRef.current.targetYaw = DEFAULT_YAW;
+        orbitRef.current.targetPitch = DEFAULT_PITCH;
+        orbitRef.current.isAutoRotating = false;
+      },
+
+      toggleAutoRotate: (enabled?: boolean) => {
+        const next = enabled !== undefined ? enabled : !orbitRef.current.isAutoRotating;
+        orbitRef.current.isAutoRotating = next;
+        return next;
       }
     }));
 
@@ -276,30 +410,23 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.05;
       renderer.shadowMap.enabled = true;
-      // Dùng PCFShadowMap (PCFSoftShadowMap đã deprecated/removed)
       renderer.shadowMap.type = THREE.PCFShadowMap;
       rendererRef.current = renderer;
+      renderer.domElement.style.display = 'block';
 
       container.replaceChildren(renderer.domElement);
 
-      // Ánh sáng
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.95);
+      // Ánh sáng trong trẻo
+      const ambientLight = new THREE.AmbientLight(0xffffff, 1.05);
       scene.add(ambientLight);
 
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.25);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.15);
       dirLight.position.set(8, 14, 10);
-      dirLight.castShadow = true;
-      dirLight.shadow.mapSize.width = 1024;
-      dirLight.shadow.mapSize.height = 1024;
       scene.add(dirLight);
 
-      const rimLight = new THREE.DirectionalLight(0xbae6fd, 0.85);
+      const rimLight = new THREE.DirectionalLight(0xbae6fd, 0.65);
       rimLight.position.set(-8, 8, -10);
       scene.add(rimLight);
-
-      const bottomBounceLight = new THREE.DirectionalLight(0xfef08a, 0.35);
-      bottomBounceLight.position.set(0, -5, 0);
-      scene.add(bottomBounceLight);
 
       // Groups
       const tankGroup = new THREE.Group();
@@ -326,6 +453,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         opacity: 0.95
       });
       const saltPoints = new THREE.Points(saltGeom, saltMat);
+      saltPoints.renderOrder = 3;
       scene.add(saltPoints);
       saltParticlesGroupRef.current = saltPoints;
       saltDataRef.current = {
@@ -357,12 +485,11 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       };
     }, []);
 
-    // 2. DỰNG HÌNH HỌC BỂ KÍNH VÀ NƯỚC (NHẤT QUÁN TOÀN BỘ VERTICES VÀ AXES)
+    // 2. DỰNG HÌNH HỌC BỂ KÍNH VÀ NƯỚC (RENDER ORDER & PALE CYAN TRANSPARENCY)
     useEffect(() => {
       const tankGroup = tankGroupRef.current;
       if (!tankGroup) return;
 
-      // Dọn dẹp cũ
       while (tankGroup.children.length > 0) {
         const child = tankGroup.children[0];
         tankGroup.remove(child);
@@ -378,12 +505,13 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
       const { width: W, height: H, depth: D } = dims;
 
+      // Kính trong suốt tinh khiết
       const glassMaterial = new THREE.MeshPhysicalMaterial({
         color: 0xe0f2fe,
-        transmission: 0.92,
-        opacity: 0.16,
+        transmission: 0.95,
+        opacity: 0.28,
         transparent: true,
-        roughness: 0.05,
+        roughness: 0.04,
         ior: 1.5,
         metalness: 0.05,
         side: THREE.DoubleSide,
@@ -402,72 +530,77 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         metalness: 0.15
       });
 
+      // Đáy cát (renderOrder: 0, depthWrite: true)
       const sandMaterial = new THREE.MeshStandardMaterial({
         color: 0xfde68a,
         roughness: 0.85,
         metalness: 0.05
       });
 
-      const waterVolumeMat = new THREE.MeshStandardMaterial({
-        color: 0x38bdf8,
+      // Khối nước PALE CYAN trong suốt, không ám tối
+      const waterVolumeMat = new THREE.MeshBasicMaterial({
+        color: 0xa5edf5,
         transparent: true,
-        opacity: 0.2,
-        roughness: 0.1,
-        metalness: 0.1,
+        opacity: 0.16,
+        toneMapped: false,
         depthWrite: false,
         side: THREE.DoubleSide
       });
 
-      const waterSurfaceMat = new THREE.MeshStandardMaterial({
-        color: 0xbae6fd,
+      // Mặt trên nước trong suốt nhấp nhô nhẹ
+      const waterSurfaceMat = new THREE.MeshBasicMaterial({
+        color: 0xc6f4f8,
         transparent: true,
-        opacity: 0.6,
-        roughness: 0.08,
-        metalness: 0.2,
+        opacity: 0.18,
+        toneMapped: false,
+        depthWrite: false,
         side: THREE.DoubleSide
       });
 
       if (shape === 'rectangle' || shape === 'square') {
-        // Chân đế trắng
         const basePad = new THREE.Mesh(new THREE.BoxGeometry(W + 0.6, 0.22, D + 0.6), whiteFrameMat);
         basePad.position.set(0, -0.11, 0);
-        basePad.receiveShadow = true;
+        basePad.renderOrder = 0;
         tankGroup.add(basePad);
 
-        // Đệm silicone xanh
         const sealMesh = new THREE.Mesh(new THREE.BoxGeometry(W + 0.12, 0.08, D + 0.12), siliconeSealMat);
         sealMesh.position.set(0, 0.04, 0);
+        sealMesh.renderOrder = 0;
         tankGroup.add(sealMesh);
 
-        // Đáy cát
         const sandMesh = new THREE.Mesh(new THREE.BoxGeometry(W - 0.05, 0.1, D - 0.05), sandMaterial);
         sandMesh.position.set(0, 0.05, 0);
-        sandMesh.receiveShadow = true;
+        sandMesh.renderOrder = 0;
         tankGroup.add(sandMesh);
 
-        // 4 vách kính
+        // 4 vách kính (renderOrder = 4 để không đè mất vật thể bên trong)
         const frontGlass = new THREE.Mesh(new THREE.PlaneGeometry(W, H), glassMaterial);
         frontGlass.position.set(0, H / 2, D / 2);
+        frontGlass.renderOrder = 4;
         tankGroup.add(frontGlass);
 
         const backGlass = new THREE.Mesh(new THREE.PlaneGeometry(W, H), glassMaterial);
         backGlass.position.set(0, H / 2, -D / 2);
         backGlass.rotation.y = Math.PI;
+        backGlass.renderOrder = 4;
         tankGroup.add(backGlass);
 
         const leftGlass = new THREE.Mesh(new THREE.PlaneGeometry(D, H), glassMaterial);
         leftGlass.position.set(-W / 2, H / 2, 0);
         leftGlass.rotation.y = Math.PI / 2;
+        leftGlass.renderOrder = 4;
         tankGroup.add(leftGlass);
 
         const rightGlass = new THREE.Mesh(new THREE.PlaneGeometry(D, H), glassMaterial);
         rightGlass.position.set(W / 2, H / 2, 0);
         rightGlass.rotation.y = -Math.PI / 2;
+        rightGlass.renderOrder = 4;
         tankGroup.add(rightGlass);
 
-        // Viền trắng trên miệng bể
+        // Viền trắng
         const rimFront = new THREE.Mesh(new THREE.BoxGeometry(W + 0.12, 0.08, 0.08), whiteFrameMat);
         rimFront.position.set(0, H, D / 2);
+        rimFront.renderOrder = 4;
         tankGroup.add(rimFront);
 
         const rimBack = rimFront.clone();
@@ -476,25 +609,28 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
         const rimLeft = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, D + 0.12), whiteFrameMat);
         rimLeft.position.set(-W / 2, H, 0);
+        rimLeft.renderOrder = 4;
         tankGroup.add(rimLeft);
 
         const rimRight = rimLeft.clone();
         rimRight.position.set(W / 2, H, 0);
         tankGroup.add(rimRight);
 
-        // Khối nước (gốc tại y = 0 để scale.y dọc theo thế giới chính xác)
+        // Khối nước: renderOrder = 2
         const waterGeom = new THREE.BoxGeometry(W - 0.04, dims.waterHeight, D - 0.04);
         waterGeom.translate(0, dims.waterHeight / 2, 0);
         const waterMesh = new THREE.Mesh(waterGeom, waterVolumeMat);
         waterMesh.position.set(0, 0, 0);
+        waterMesh.renderOrder = 2;
         tankGroup.add(waterMesh);
         waterMeshRef.current = waterMesh;
 
-        // Mặt nước
+        // Mặt nước: renderOrder = 3
         const surfaceGeom = new THREE.PlaneGeometry(W - 0.05, D - 0.05);
         const surfaceMesh = new THREE.Mesh(surfaceGeom, waterSurfaceMat);
         surfaceMesh.rotation.x = -Math.PI / 2;
         surfaceMesh.position.set(0, dims.waterHeight, 0);
+        surfaceMesh.renderOrder = 3;
         tankGroup.add(surfaceMesh);
         waterSurfaceMeshRef.current = surfaceMesh;
 
@@ -503,51 +639,50 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
         const basePad = new THREE.Mesh(new THREE.CylinderGeometry(radius + 0.35, radius + 0.35, 0.22, 48), whiteFrameMat);
         basePad.position.set(0, -0.11, 0);
-        basePad.receiveShadow = true;
+        basePad.renderOrder = 0;
         tankGroup.add(basePad);
 
         const sealMesh = new THREE.Mesh(new THREE.CylinderGeometry(radius + 0.06, radius + 0.06, 0.08, 48), siliconeSealMat);
         sealMesh.position.set(0, 0.04, 0);
+        sealMesh.renderOrder = 0;
         tankGroup.add(sealMesh);
 
         const sandMesh = new THREE.Mesh(new THREE.CylinderGeometry(radius - 0.03, radius - 0.03, 0.1, 48), sandMaterial);
         sandMesh.position.set(0, 0.05, 0);
-        sandMesh.receiveShadow = true;
+        sandMesh.renderOrder = 0;
         tankGroup.add(sandMesh);
 
         const glassMesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, H, 48, 1, true), glassMaterial);
         glassMesh.position.set(0, H / 2, 0);
+        glassMesh.renderOrder = 4;
         tankGroup.add(glassMesh);
 
         const rimMesh = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.04, 16, 64), whiteFrameMat);
         rimMesh.rotation.x = Math.PI / 2;
         rimMesh.position.set(0, H, 0);
+        rimMesh.renderOrder = 4;
         tankGroup.add(rimMesh);
 
-        // Khối nước trụ tròn (translate đáy về 0 để scale.y chuẩn)
         const waterGeom = new THREE.CylinderGeometry(radius - 0.03, radius - 0.03, dims.waterHeight, 48);
         waterGeom.translate(0, dims.waterHeight / 2, 0);
         const waterMesh = new THREE.Mesh(waterGeom, waterVolumeMat);
         waterMesh.position.set(0, 0, 0);
+        waterMesh.renderOrder = 2;
         tankGroup.add(waterMesh);
         waterMeshRef.current = waterMesh;
 
         const surfaceMesh = new THREE.Mesh(new THREE.CircleGeometry(radius - 0.04, 48), waterSurfaceMat);
         surfaceMesh.rotation.x = -Math.PI / 2;
         surfaceMesh.position.set(0, dims.waterHeight, 0);
+        surfaceMesh.renderOrder = 3;
         tankGroup.add(surfaceMesh);
         waterSurfaceMeshRef.current = surfaceMesh;
 
       } else if (shape === 'triangle') {
-        // Tam giác cân với tọa độ nhất quán không xoay lật:
-        // Đỉnh A: (0, 0, -D/2)
-        // Đáy trái B: (-W/2, 0, D/2)
-        // Đáy phải C: (W/2, 0, D/2)
         const A = new THREE.Vector3(0, 0, -D / 2);
         const B = new THREE.Vector3(-W / 2, 0, D / 2);
         const C = new THREE.Vector3(W / 2, 0, D / 2);
 
-        // 1. Chân đế tam giác
         const baseGeom = new THREE.BufferGeometry();
         const baseVertices = new Float32Array([
           A.x, -0.11, A.z - 0.25,
@@ -557,9 +692,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         baseGeom.setAttribute('position', new THREE.BufferAttribute(baseVertices, 3));
         baseGeom.computeVertexNormals();
         const baseMesh = new THREE.Mesh(baseGeom, whiteFrameMat);
+        baseMesh.renderOrder = 0;
         tankGroup.add(baseMesh);
 
-        // 2. Đáy cát tam giác
         const sandGeom = new THREE.BufferGeometry();
         const sandVertices = new Float32Array([
           A.x, 0.05, A.z,
@@ -569,10 +704,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         sandGeom.setAttribute('position', new THREE.BufferAttribute(sandVertices, 3));
         sandGeom.computeVertexNormals();
         const sandMesh = new THREE.Mesh(sandGeom, sandMaterial);
-        sandMesh.receiveShadow = true;
+        sandMesh.renderOrder = 0;
         tankGroup.add(sandMesh);
 
-        // Build each wall directly from its footprint edge; no inferred rotation angles.
         for (const [start, end] of [[A, B], [B, C], [C, A]]) {
           const wallGeometry = new THREE.BufferGeometry();
           wallGeometry.setAttribute('position', new THREE.Float32BufferAttribute([
@@ -580,32 +714,28 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             start.x, 0, start.z, end.x, H, end.z, start.x, H, start.z
           ], 3));
           wallGeometry.computeVertexNormals();
-          tankGroup.add(new THREE.Mesh(wallGeometry, glassMaterial));
+          const wall = new THREE.Mesh(wallGeometry, glassMaterial);
+          wall.renderOrder = 4;
+          tankGroup.add(wall);
           const direction = new THREE.Vector3().subVectors(end, start);
           for (const level of [0.04, H]) {
             const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, direction.length(), 8), whiteFrameMat);
             rim.position.copy(start).add(end).multiplyScalar(0.5);
             rim.position.y = level;
             rim.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+            rim.renderOrder = 4;
             tankGroup.add(rim);
-            // Restore the full edge length for the second rim.
             direction.subVectors(end, start);
           }
         }
 
-        // 4. Khối nước lăng trụ tam giác (tạo mesh prism trực tiếp với đáy tại y = 0)
         const prismPositions: number[] = [
-          // Đáy (y = 0)
           A.x, 0, A.z,  B.x, 0, B.z,  C.x, 0, C.z,
-          // Nóc nước (y = dims.waterHeight)
           A.x, dims.waterHeight, A.z,  C.x, dims.waterHeight, C.z,  B.x, dims.waterHeight, B.z,
-          // Mặt đáy Z = D/2 (B -> C)
           B.x, 0, B.z,  C.x, 0, C.z,  C.x, dims.waterHeight, C.z,
           B.x, 0, B.z,  C.x, dims.waterHeight, C.z,  B.x, dims.waterHeight, B.z,
-          // Mặt nghiêng trái (A -> B)
           A.x, 0, A.z,  A.x, dims.waterHeight, A.z,  B.x, dims.waterHeight, B.z,
           A.x, 0, A.z,  B.x, dims.waterHeight, B.z,  B.x, 0, B.z,
-          // Mặt nghiêng phải (C -> A)
           C.x, 0, C.z,  C.x, dims.waterHeight, C.z,  A.x, dims.waterHeight, A.z,
           C.x, 0, C.z,  A.x, dims.waterHeight, A.z,  A.x, 0, A.z
         ];
@@ -614,10 +744,10 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         waterGeom.computeVertexNormals();
 
         const waterMesh = new THREE.Mesh(waterGeom, waterVolumeMat);
+        waterMesh.renderOrder = 2;
         tankGroup.add(waterMesh);
         waterMeshRef.current = waterMesh;
 
-        // Mặt trên nước tam giác
         const surfaceGeom = new THREE.BufferGeometry();
         const surfVertices = new Float32Array([
           A.x, 0, A.z,
@@ -627,12 +757,13 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         surfaceGeom.setAttribute('position', new THREE.BufferAttribute(surfVertices, 3));
         surfaceGeom.computeVertexNormals();
         const surfaceMesh = new THREE.Mesh(surfaceGeom, waterSurfaceMat);
+        surfaceMesh.renderOrder = 3;
         tankGroup.add(surfaceMesh);
         waterSurfaceMeshRef.current = surfaceMesh;
       }
     }, [shape, scale, dims]);
 
-    // 3. ĐỒNG BỘ CÁC VẬT THỂ 3D VÀO SCENE
+    // 3. ĐỒNG BỘ CÁC VẬT THỂ 3D VÀO SCENE (SỬ DỤNG UNLIT MeshBasicMaterial BẢO TOÀN MÀU RỰC RỠ)
     useEffect(() => {
       const objectsGroup = objectsGroupRef.current;
       if (!objectsGroup) return;
@@ -640,6 +771,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       const currentMap = itemMeshesRef.current;
       const activeItemIds = new Set(items.filter((i) => i.inTank).map((i) => i.id));
 
+      // Xóa mesh không còn trong bể
       for (const [id, mesh] of currentMap.entries()) {
         if (!activeItemIds.has(id)) {
           objectsGroup.remove(mesh);
@@ -653,6 +785,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         }
       }
 
+      // Tạo hoặc cập nhật mesh bằng unlit MeshBasicMaterial (renderOrder: 1)
       items.forEach((item) => {
         if (!item.inTank) return;
 
@@ -663,29 +796,28 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         if (!mesh) {
           const tex = loadItemTexture(item.image);
           const geom = new THREE.PlaneGeometry(itemSize, itemSize);
-          const mat = new THREE.MeshStandardMaterial({
+          // Unlit MeshBasicMaterial: giữ nguyên màu sắc gốc rực rỡ, không bị tối do ánh sáng
+          const mat = new THREE.MeshBasicMaterial({
             map: tex,
             transparent: true,
+            toneMapped: false,
+            depthWrite: false, // Để hòa trộn mượt mà với nước
             alphaTest: 0.05,
-            side: THREE.DoubleSide,
-            roughness: 0.35,
-            metalness: 0.1
+            side: THREE.DoubleSide
           });
           mesh = new THREE.Mesh(geom, mat);
-          mesh.castShadow = true;
+          mesh.renderOrder = 1; // Vẽ trước nước để nước phủ trong suốt lên trên
           mesh.userData = { itemId: item.id };
 
           objectsGroup.add(mesh);
           currentMap.set(item.id, mesh);
         }
 
-        if (mesh.material instanceof THREE.MeshStandardMaterial) {
+        if (mesh.material instanceof THREE.MeshBasicMaterial) {
           if (showXRay) {
-            mesh.material.emissive.setHex(0x9333ea);
-            mesh.material.emissiveIntensity = 0.4;
+            mesh.material.color.setHex(0xd8b4fe);
           } else {
-            mesh.material.emissive.setHex(0x000000);
-            mesh.material.emissiveIntensity = 0;
+            mesh.material.color.setHex(0xffffff);
           }
         }
       });
@@ -707,9 +839,14 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const s = shapeRef.current;
         const currentWaterDensity = waterDensityRef.current;
 
-        // Camera Orbit
-        if (orbit.isAutoRotating && workflowStepRef.current === 'idle') {
-          orbit.targetYaw += 0.006;
+        // Camera Orbit (Tự xoay chỉ chạy khi ở chế độ orbit, không cầm đồ vật và không ở quy trình muối)
+        if (
+          orbit.isAutoRotating &&
+          interactionModeRef.current === 'orbit' &&
+          !holdingItemId &&
+          workflowStepRef.current === 'idle'
+        ) {
+          orbit.targetYaw += 0.005;
         }
         orbit.yaw += (orbit.targetYaw - orbit.yaw) * 0.12;
         orbit.pitch += (orbit.targetPitch - orbit.pitch) * 0.12;
@@ -735,13 +872,10 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           const itemR = scaleCfg.radius;
 
           if (item.y - itemR >= d.waterHeight) {
-            // Hoàn toàn trên không
             return;
           } else if (item.y + itemR <= d.waterHeight) {
-            // Hoàn toàn chìm dưới nước
             totalSubmergedVolumeMl += item.volumeMl;
           } else {
-            // Nổi lưng chừng trên mặt nước: tính tỉ lệ chìm thực tế
             const subDepth = d.waterHeight - (item.y - itemR);
             const frac = Math.max(0, Math.min(1.0, subDepth / (itemR * 2)));
             totalSubmergedVolumeMl += item.volumeMl * frac;
@@ -760,7 +894,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             effectiveWaterHeight + Math.sin(currentTime * 0.003) * 0.015;
         }
 
-        // Cập nhật hạt muối rơi 3D
+        // Hạt muối rơi 3D
         if (saltDataRef.current && saltParticlesGroupRef.current) {
           const { positions, velocities } = saltDataRef.current;
           let needsUpdate = false;
@@ -799,13 +933,12 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           let { x, y, z, vx, vy, vz, angle, vRot } = item;
           let status = item.status;
           let settled = item.settled;
+          if (settled && status === 'floating' && !willFloat) settled = false;
 
-          // Xử lý vật bị dìm xuống nước (status === 'pushed'):
-          // Nếu vẫn đang bị dìm, giữ ở đáy; nếu thả ra, phóng vọt lên
+          // Xử lý dìm (pushed)
           if (status === 'pushed') {
             y = 0.15 + itemR;
             vy = 0;
-            // Mesh vẫn cập nhật vị trí
             const mesh = itemMeshesRef.current.get(item.id);
             if (mesh && camera) {
               mesh.position.set(x, y, z);
@@ -814,14 +947,15 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             return item;
           }
 
-          // Nếu vật nằm dưới đáy nhưng độ mặn tăng đủ để nổi -> BẬT DẬY NỔI LÊN NGAY!
+          // Vật nằm dưới đáy nhưng độ mặn tăng đủ để nổi -> BẬT DẬY NỔI LÊN NGAY!
           if (settled && status === 'sunk' && willFloat) {
             itemsChanged = true;
             return {
               ...item,
               status: 'floating' as const,
               settled: false,
-              vy: 2.2
+              observed: 'floating' as const,
+              vy: 2.5
             };
           }
 
@@ -846,8 +980,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           } else {
             // Nằm trong nước
             if (willFloat) {
-              const submergedFraction = Math.min(1.0, Math.max(0.2, itemDensity / currentWaterDensity));
-              const targetY = effectiveWaterHeight - itemR * (submergedFraction * 1.5 - 0.75);
+              const submergedFraction = Math.min(1.0, Math.max(0.15, itemDensity / currentWaterDensity));
+              // Vị trí cân bằng để quả trứng NỔI NHÔ HẲN LÊN KHỎI MẶT NƯỚC (visibly breaks surface)
+              const targetY = effectiveWaterHeight - itemR * (submergedFraction * 1.3 - 0.5);
 
               const displacement = y - targetY;
               const springK = 28.0;
@@ -865,6 +1000,10 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
               if (Math.abs(displacement) < 0.05 && Math.abs(vy) < 0.08) {
                 y = targetY + Math.sin(currentTime * 0.003 + x) * 0.02;
                 vy = 0;
+                if (!settled) {
+                  settled = true;
+                  observedCallbackRef.current?.(item.id, 'floating');
+                }
               }
 
               status = 'floating';
@@ -893,14 +1032,17 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
                 vx = 0;
                 vz = 0;
                 vRot = 0;
-                settled = true;
+                if (!settled) {
+                  settled = true;
+                  observedCallbackRef.current?.(item.id, 'sunk');
+                }
               }
               status = 'sunk';
               itemsChanged = true;
             }
           }
 
-          // Giới hạn biên bể kính theo footprint thực tế (inset chính xác cả 4 loại)
+          // Giới hạn biên bể kính theo footprint thực tế
           const clamped = clampToTankBoundary(x, z, itemR, s, d);
           x = clamped.x;
           z = clamped.z;
@@ -923,7 +1065,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             angle,
             vRot,
             settled,
-            status
+            status,
+            observed: settled ? (status === 'floating' ? 'floating' : 'sunk') : item.observed
           };
         });
 
@@ -956,18 +1099,16 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       };
     }, [dims, shape, holdingItemId, onUpdateItems, soundEnabled]);
 
-    // 5. TƯƠNG TÁC CON TRỎ CHUỘT / POINTER (CHẶN ORBIT VÀ KÉO VẬT KHI KHÔNG PHẢI IDLE)
+    // 5. TƯƠNG TÁC CON TRỎ CHUỘT (STRICT MODES: INTERACT NEVER ROTATES, ORBIT NEVER PICKS/DROPS)
     const handlePointerDown = (e: React.PointerEvent) => {
       const mount = mountRef.current;
       if (!mount || !cameraRef.current) return;
 
       const currentStep = workflowStepRef.current;
 
-      // NẾU ĐANG TRONG QUY TRÌNH MUỐI (KHÔNG PHẢI IDLE):
-      // CHẶN HOÀN TOÀN ORBIT XOAY BỂ VÀ KÉO ĐỒ VẬT!
+      // 1. Nếu đang trong quy trình muối: khóa camera và đồ vật
       if (currentStep !== 'idle') {
         if (currentStep === 'holdingSpoon') {
-          // Kiểm tra xem vị trí click có nằm trên miệng bể không
           const rect = mount.getBoundingClientRect();
           const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
           const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -997,7 +1138,16 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         return;
       }
 
-      // KHI Ở TRẠNG THÁI IDLE:
+      // 2. CHẾ ĐỘ ORBIT (XOAY BỂ 360°): CHỈ XOAY BỂ, KHÔNG CẦM ĐỒ VẬT!
+      if (interactionModeRef.current === 'orbit') {
+        orbitRef.current.isDragging = 1;
+        orbitRef.current.startX = e.clientX;
+        orbitRef.current.startY = e.clientY;
+        orbitRef.current.isAutoRotating = false;
+        return;
+      }
+
+      // 3. CHẾ ĐỘ INTERACT (CẦM VÀ NÉM): CHỈ TƯƠNG TÁC VẬT, TUYỆT ĐỐI KHÔNG XOAY BỂ!
       const rect = mount.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
@@ -1007,17 +1157,16 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         -(mouseY / rect.height) * 2 + 1
       );
 
-      // Raycast kiểm tra trúng đồ vật
       raycasterRef.current.setFromCamera(mouseNdc, cameraRef.current);
       const meshes = Array.from(itemMeshesRef.current.values());
       const intersects = raycasterRef.current.intersectObjects(meshes, false);
 
-      if (intersects.length > 0 && interactionMode !== 'orbit') {
+      if (intersects.length > 0) {
         const hitMesh = intersects[0].object as THREE.Mesh;
         const itemId = hitMesh.userData.itemId;
         if (itemId) {
           onHoldItem(itemId);
-          orbitRef.current.isDragging = 2; // Kéo đồ vật
+          orbitRef.current.isDragging = 2; // Đang kéo đồ vật trong bể
 
           const hitPoint = intersects[0].point;
           dragPlaneRef.current.setFromNormalAndCoplanarPoint(
@@ -1028,18 +1177,15 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           const itemObj = itemsRef.current.find((i) => i.id === itemId);
           if (itemObj) {
             onMessageUpdate(
-              `Bé đang cầm "${itemObj.name}". Kéo lên cao để thả, hoặc kéo dìm xuống nước xem lực đẩy nhé!`
+              `Bé đang cầm "${itemObj.name}". Kéo lên cao để ném, hoặc kéo dìm xuống nước nhé!`
             );
           }
           return;
         }
       }
 
-      // Xoay bể 360 độ
-      orbitRef.current.isDragging = 1;
-      orbitRef.current.startX = e.clientX;
-      orbitRef.current.startY = e.clientY;
-      orbitRef.current.isAutoRotating = false;
+      // Khi bấm trúng khoảng trống ở chế độ interact: KHÔNG LÀM GÌ CẢ (Loại bỏ hoàn toàn blanket orbit fallback!)
+      orbitRef.current.isDragging = 0;
     };
 
     const handlePointerMove = (e: React.PointerEvent) => {
@@ -1049,7 +1195,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
       if (workflowStepRef.current !== 'idle') return;
 
-      if (orbit.isDragging === 1) {
+      // Xoay bể ở chế độ orbit
+      if (orbit.isDragging === 1 && interactionModeRef.current === 'orbit') {
         const dx = e.clientX - orbit.startX;
         const dy = e.clientY - orbit.startY;
         orbit.startX = e.clientX;
@@ -1060,7 +1207,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         return;
       }
 
-      if (orbit.isDragging === 2 && holdingItemId) {
+      // Kéo đồ vật ở chế độ interact
+      if (orbit.isDragging === 2 && holdingItemId && interactionModeRef.current === 'interact') {
         const rect = mount.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
@@ -1079,7 +1227,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           const scaleCfg = ITEM_WORLD_SCALES[holdingItemId] || { size: 0.8, radius: 0.4 };
           const itemR = scaleCfg.radius;
 
-          const maxY = d.height + 2.2;
+          const maxY = d.height + 2.4;
           const minY = 0.15 + itemR;
           const clampedY = Math.max(minY, Math.min(maxY, intersectionPoint.y));
 
@@ -1122,7 +1270,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             }
           } else {
             if (willFloat) {
-              onMessageUpdate(`🚀 Lực đẩy Ác-si-mét đẩy vọt ${item.name} nổi bồng bềnh lên mặt nước!`);
+              onMessageUpdate(`🚀 Lực đẩy của nước đẩy vọt ${item.name} nổi bồng bềnh lên!`);
               if (soundEnabled) soundEngine.playBuoyantPop();
             } else {
               onMessageUpdate(`⚓ ${item.name} chìm nghỉm xuống đáy cát!`);
@@ -1135,29 +1283,15 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       onHoldItem(null);
     };
 
-    const handleResetToDefaultAngle = () => {
-      orbitRef.current.targetYaw = DEFAULT_YAW;
-      orbitRef.current.targetPitch = DEFAULT_PITCH;
-      orbitRef.current.isAutoRotating = false;
-      onMessageUpdate('Đã quay về góc nhìn phối cảnh 3D chuẩn của bể kính!');
-    };
-
-    const handleSetPresetAngle = (yawRad: number, pitchRad: number, label: string) => {
-      orbitRef.current.targetYaw = yawRad;
-      orbitRef.current.targetPitch = pitchRad;
-      orbitRef.current.isAutoRotating = false;
-      onMessageUpdate(`Đang quan sát ở ${label}`);
-    };
-
     return (
-      <div className="relative w-full h-[520px] rounded-3xl overflow-hidden bg-gradient-to-b from-sky-100/70 via-sky-50/50 to-blue-100/60 dark:from-slate-950 dark:via-sky-950/40 dark:to-slate-900 border-2 border-sky-300/80 shadow-2xl flex flex-col">
+      <div className="relative w-full h-full min-h-0 rounded-3xl overflow-hidden bg-gradient-to-b from-sky-100/70 via-sky-50/50 to-blue-100/60 dark:from-slate-950 dark:via-sky-950/40 dark:to-slate-900 border-2 border-sky-300/80 shadow-inner flex flex-col">
         <div
           ref={mountRef}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerLeave={handlePointerUp}
-          className={`w-full flex-1 touch-none select-none ${
+          className={`w-full flex-1 min-h-0 touch-none select-none ${
             workflowStep !== 'idle'
               ? 'cursor-pointer'
               : interactionMode === 'orbit'
@@ -1165,84 +1299,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
               : 'cursor-default'
           }`}
         />
-
-        {/* Nút Preset & Về góc mặc định */}
-        <div className="absolute top-3 inset-x-3 flex items-center justify-between gap-2 pointer-events-none z-20 flex-wrap">
-          <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-md pointer-events-auto">
-            <button
-              onClick={handleResetToDefaultAngle}
-              className="px-2.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-extrabold text-xs shadow-xs flex items-center gap-1 transition"
-              title="Quay về góc nhìn phối cảnh 3D mặc định"
-            >
-              <span>🎯 Góc Mặc Định</span>
-            </button>
-
-            <button
-              onClick={() => handleSetPresetAngle(0, 0.25, 'Góc Mặt Trước (0°)')}
-              className="px-2 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs transition"
-              title="Nhìn thẳng mặt trước"
-            >
-              0° Trước
-            </button>
-
-            <button
-              onClick={() => handleSetPresetAngle(DEFAULT_YAW, DEFAULT_PITCH, 'Góc Nghiêng Phối Cảnh (35°)')}
-              className="px-2 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs transition"
-              title="Góc nghiêng thấy chiều sâu và mặt nước"
-            >
-              35° Nghiêng
-            </button>
-
-            <button
-              onClick={() => handleSetPresetAngle(Math.PI / 2, 0.25, 'Góc Cạnh Bên (90°)')}
-              className="px-2 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs transition"
-              title="Nhìn cạnh bên hông bể"
-            >
-              90° Bên Hông
-            </button>
-
-            <button
-              onClick={() => handleSetPresetAngle(Math.PI, 0.25, 'Góc Sau Lưng (180°)')}
-              className="px-2 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs transition"
-              title="Nhìn từ phía sau bể"
-            >
-              180° Phía Sau
-            </button>
-
-            <button
-              onClick={() => {
-                orbitRef.current.isAutoRotating = !orbitRef.current.isAutoRotating;
-                onMessageUpdate(
-                  orbitRef.current.isAutoRotating
-                    ? 'Bể kính 3D đang tự động xoay 360 độ quanh tâm...'
-                    : 'Đã dừng tự xoay 360 độ.'
-                );
-              }}
-              className="px-2 py-1 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold text-xs transition flex items-center gap-1"
-              title="Bật/Tắt tự động xoay 360 độ"
-            >
-              <span>🎠 Tự Xoay</span>
-            </button>
-          </div>
-
-          <div className="hidden sm:flex items-center gap-2 p-1.5 rounded-2xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border border-slate-200 dark:border-slate-800 text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 shadow-md pointer-events-auto">
-            <span>Kích thước: {scale === 'compact' ? 'Nhỏ (50%)' : 'To (100%)'}</span>
-            <span className="text-sky-500">•</span>
-            <span>
-              {shape === 'rectangle'
-                ? 'Hộp Chữ Nhật'
-                : shape === 'square'
-                ? 'Lập Phương'
-                : shape === 'cylinder'
-                ? 'Trụ Tròn'
-                : 'Tam Giác'}
-            </span>
-          </div>
-        </div>
-
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 pointer-events-none z-10 px-3 py-1 rounded-full bg-white/70 dark:bg-slate-900/70 backdrop-blur-xs border border-white/60 text-[11px] font-medium text-slate-600 dark:text-slate-300">
-          💡 Kéo chuột để xoay bể 360° • Bấm vào đồ vật để kéo thả tự do • Thả vào nước xem chìm nổi
-        </div>
       </div>
     );
   }

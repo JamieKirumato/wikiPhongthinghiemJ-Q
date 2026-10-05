@@ -4,6 +4,7 @@ import { soundEngine } from '../../../utils/audioEffects';
 import { RotateCcw, Sparkles } from 'lucide-react';
 
 interface SaltWorkflowProps {
+  disabled?: boolean;
   saltSpoons: number; // Số thìa đã tan 100% (0 đến 5)
   activeStirProgress: number; // 0 đến 100% của thìa hiện tại
   currentDensity: number; // Khối lượng riêng hiện tại (g/cm³)
@@ -88,7 +89,7 @@ export const RealisticHandSpoon: React.FC<{
   </div>
 );
 
-// Bàn tay cầm đũa thủy tinh quấy nước
+// Bàn tay cầm đũa thủy tinh khuấy nước
 export const RealisticStirringHand: React.FC<{
   x: number;
   y: number;
@@ -142,6 +143,7 @@ export const RealisticStirringHand: React.FC<{
 );
 
 export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
+  disabled = false,
   saltSpoons,
   activeStirProgress,
   currentDensity,
@@ -183,7 +185,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
     };
   }, []);
 
-  // Lắng nghe di chuột toàn trang khi đang trong quy trình xúc / quấy muối
+  // Lắng nghe di chuột toàn trang khi đang trong quy trình xúc / khuấy muối
   useEffect(() => {
     if (workflowStep === 'idle') {
       lastStirPosRef.current = { x: 0, y: 0, wasInside: false };
@@ -206,7 +208,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
         setIsHoveringJarMouth(inJar);
       }
 
-      // 2. Xử lý quấy nước khi đang ở bước 'stirring'
+      // 2. Xử lý khuấy nước khi đang ở bước 'stirring'
       // KIỂM TRA BẰNG RAYCASTER 3D QUA CALLBACK checkPointInWater (ĐÚNG Ở MỌI GÓC NHÌN VÀ 4 LOẠI BỂ)
       if (workflowStep === 'stirring') {
         const isInsideWater = checkPointInWater(px, py);
@@ -223,7 +225,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
           if (dist > 1.5 && dist < 70) {
             setStirWobble((prev) => prev + dist * 0.6);
 
-            // Âm thanh quấy nước
+            // Âm thanh khuấy nước
             const now = performance.now();
             if (now - lastSoundTimeRef.current > 180) {
               if (soundEnabled) soundEngine.playWaterStir();
@@ -231,11 +233,12 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
             }
 
             const deltaProgress = dist * 0.12;
-            const nextProgress = Math.min(100, progressRef.current + deltaProgress);
+            const previousProgress = progressRef.current;
+            const nextProgress = Math.min(100, previousProgress + deltaProgress);
             progressRef.current = nextProgress;
             onStirProgressUpdate(nextProgress);
 
-            if (nextProgress >= 100 && activeStirProgress < 100) {
+            if (nextProgress >= 100 && previousProgress < 100) {
               if (soundEnabled) soundEngine.playMagicChime();
               onSpoonCompleted();
               onStepChange('idle');
@@ -288,10 +291,11 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
 
   const isMaxSpoons = saltSpoons >= 5;
 
-  if (!isJarOpen) {
+  if (!isJarOpen || disabled) {
     return (
       <div className="flex-shrink-0 flex flex-col items-center gap-2 p-3 rounded-3xl bg-white/90 border-2 border-amber-300 shadow-lg self-start lg:self-stretch">
         <button
+          disabled={disabled}
           className="p-3 rounded-2xl hover:bg-amber-100 text-amber-900 font-bold flex flex-col items-center gap-1"
           onClick={(event) => {
             setIsJarOpen(true);
@@ -323,7 +327,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
             Đã hòa tan: <span className="font-extrabold text-amber-600">{saltSpoons} / 5</span> thìa
           </div>
           <div className="text-[10px] font-mono font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 px-2 py-0.5 rounded-full border border-sky-200 dark:border-sky-800">
-            D = {currentDensity.toFixed(3)} g/cm³
+            {currentDensity > 1 ? 'Nước đang mặn hơn' : 'Nước ngọt'}
           </div>
         </div>
 
@@ -366,7 +370,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
           <div className="w-36 h-[152px] rounded-b-3xl border-4 border-sky-300/80 bg-gradient-to-b from-sky-50/40 via-white/80 to-slate-100 relative overflow-hidden shadow-2xl flex flex-col justify-end p-2.5">
             <div className="w-full h-28 rounded-t-2xl bg-gradient-to-b from-white via-slate-50 to-slate-200 border-t-2 border-slate-200 shadow-inner flex flex-col items-center justify-center p-1.5 relative">
               <span className="text-[10px] font-black text-amber-900 tracking-wider">MUỐI TINH</span>
-              <span className="text-[8px] text-amber-700 font-medium">Hạt mịn 99.9%</span>
+              <span className="text-[8px] text-amber-700 font-medium">Muối trắng</span>
 
               <div className="absolute top-2 left-3 w-1.5 h-1.5 rounded-full bg-sky-200 opacity-70 animate-ping" />
               <div
@@ -424,7 +428,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
           {workflowStep === 'stirring' && (
             <div className="w-full space-y-1 p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800">
               <div className="flex items-center justify-between text-[10px] font-extrabold text-emerald-800 dark:text-emerald-200">
-                <span>Quấy tan muối:</span>
+                <span>Khuấy tan muối:</span>
                 <span>{Math.round(activeStirProgress)}%</span>
               </div>
               <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
@@ -434,7 +438,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
                 />
               </div>
               <p className="text-[9px] text-emerald-700 dark:text-emerald-300 text-center leading-tight">
-                {isInWaterState ? '✨ Đang quấy trong nước...' : '⚠️ Hãy di đũa VÀO TRONG NƯỚC'}
+                {isInWaterState ? '✨ Đang khuấy trong nước...' : '⚠️ Hãy di đũa VÀO TRONG NƯỚC'}
               </p>
             </div>
           )}

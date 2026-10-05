@@ -3,6 +3,12 @@ export type TankScale = 'normal' | 'compact';
 
 export type InteractionMode = 'interact' | 'orbit';
 
+export type AgeGroup = '3-4' | '5-6';
+
+export type ItemPrediction = 'float' | 'sink' | 'curious' | 'none';
+
+export type ItemObserved = 'untested' | 'floating' | 'sunk';
+
 export interface TankObject {
   id: string;
   name: string;
@@ -25,6 +31,8 @@ export interface TankObject {
   vRot: number;
   settled: boolean;
   status: 'basket' | 'falling' | 'floating' | 'sunk' | 'pushed';
+  prediction?: ItemPrediction;
+  observed?: ItemObserved;
 }
 
 export interface TankDimensions {
@@ -48,23 +56,14 @@ export interface SaltGrain {
   size: number;
 }
 
-export interface WaterSplashEffect {
-  id: number;
-  x: number;
-  y: number;
-  z: number;
-  radius: number;
-  maxRadius: number;
-  alpha: number;
-}
-
-export interface BubbleParticle3D {
-  id: number;
-  x: number;
-  y: number;
-  z: number;
-  vy: number;
-  size: number;
-  wobble: number;
-  alpha: number;
+export interface ObservationRecord {
+  itemId: string;
+  name: string;
+  icon: string;
+  image: string;
+  prediction: ItemPrediction;
+  observed: ItemObserved;
+  waterDensityAtObserved: number;
+  saltSpoons: number;
+  timestamp: number;
 }
