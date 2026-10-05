@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import * as THREE from 'three';
 import { TankDimensions, TankObject, TankScale, TankShape, InteractionMode, SaltWorkflowStep } from './types';
 import { clampToTankBoundary, calculateWaterRise, isPointInsideFootprint, getTankDimensions } from './tankGeometry';
@@ -24,7 +24,6 @@ export interface ThreeTankCanvasHandle {
   resetDefaultView: () => void;
   resetSideView: () => void;
   refreshObservations: () => void;
-  pushItemUnderWater: (itemId: string) => void;
   stirAtScreenPoint: (x: number, y: number, strength?: number) => void;
   setSaltDissolveProgress: (progress: number) => void;
   toggleAutoRotate: (enabled?: boolean) => boolean;
@@ -86,6 +85,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     },
     ref
   ) => {
+    const [hoveredItemId,setHoveredItemId] = useState<string | null>(null);
     const mountRef = useRef<HTMLDivElement | null>(null);
     const observedCallbackRef = useRef(onItemObserved);
     observedCallbackRef.current = onItemObserved;
@@ -421,10 +421,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         orbitRef.current.targetYaw = 0;
         orbitRef.current.targetPitch = 0.08;
         orbitRef.current.isAutoRotating = false;
-      },
-      pushItemUnderWater: (itemId: string) => {
-        if (interactionModeRef.current !== 'interact' || workflowStepRef.current !== 'idle') return;
-        onUpdateItems(itemsRef.current.map(item => item.id === itemId ? {...item, y: 0.2 + (ITEM_WORLD_SCALES[item.id]?.radius || 0.4), vy: 0, settled: false, status: 'floating'} : item));
       },
       setSaltDissolveProgress: (progress: number) => { dissolveProgressRef.current = progress; },
       stirAtScreenPoint: (x: number, y: number, strength = 1) => {
@@ -1203,7 +1199,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           if (currentTime - lastItemsFlushRef.current >= 50) {
             lastItemsFlushRef.current = currentTime;
             itemsRef.current=nextItems;
-          onUpdateItems(nextItems);
+            onUpdateItems(nextItems);
           }
         }
 
@@ -1305,6 +1301,13 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
       if (workflowStepRef.current !== 'idle') return;
 
+      if (orbit.isDragging === 0 && !carryingTrayItem) {
+        const rect=mount.getBoundingClientRect();
+        raycasterRef.current.setFromCamera(new THREE.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1),cameraRef.current);
+        const hit=raycasterRef.current.intersectObjects(Array.from(itemMeshesRef.current.values()),true).find(hit=>itemsRef.current.find(item=>item.id===hit.object.userData.itemId)?.damage!=='broken');
+        setHoveredItemId(hit?.object.userData.itemId || null);
+      }
+
       // Xoay bể ở chế độ orbit
       if (orbit.isDragging === 1) {
         const dx = e.clientX - orbit.startX;
@@ -1344,7 +1347,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
           const maxY = d.height + 2.4;
           const minY = itemR - 0.6;
-          const clampedY = Math.max(minY, Math.min(maxY, intersectionPoint.y));
+          let clampedY = Math.max(minY, Math.min(maxY, intersectionPoint.y));
 
           const clampedPos = {x:Math.max(-12,Math.min(12,intersectionPoint.x)),z:Math.max(-12,Math.min(12,intersectionPoint.z))};
           const previous = itemsRef.current.find(i=>i.id===holdingItemId);
@@ -1353,6 +1356,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           if (clampedY-itemR < d.height && wasInside !== nowInside) {
             if (wasInside) Object.assign(clampedPos,clampToTankBoundary(clampedPos.x,clampedPos.z,itemR,s,d));
             else if (previous) {clampedPos.x=previous.x;clampedPos.z=previous.z;}
+          }
+          if (isPointInsideFootprint(clampedPos.x,clampedPos.z,s,d,-itemR)) {
+            clampedY=Math.max(itemR+0.08,clampedY);
           }
 
           const nextItems = itemsRef.current.map((item) =>
@@ -1373,7 +1379,10 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           const heldMesh=itemMeshesRef.current.get(holdingItemId);
           heldMesh?.position.set(clampedPos.x,clampedY,clampedPos.z);
           itemsRef.current=nextItems;
-          onUpdateItems(nextItems);
+          if (performance.now()-lastItemsFlushRef.current>=50) {
+            lastItemsFlushRef.current=performance.now();
+            onUpdateItems(nextItems);
+          }
         }
       }
     };
@@ -1403,13 +1412,16 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           ref={mountRef}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
+          onPointerLeave={()=>setHoveredItemId(null)}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
           className={`w-full flex-1 min-h-0 touch-none select-none ${
             workflowStep !== 'idle'
               ? 'cursor-pointer'
-              : interactionMode === 'orbit'
-              ? 'cursor-grab active:cursor-grabbing'
+              : holdingItemId || carryingTrayItem || interactionMode === 'orbit'
+              ? 'cursor-grabbing'
+              : hoveredItemId
+              ? 'cursor-pointer'
               : 'cursor-default'
           }`}
         />

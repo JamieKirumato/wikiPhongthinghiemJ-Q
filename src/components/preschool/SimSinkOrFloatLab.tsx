@@ -836,13 +836,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     if (onboardingStep === 2) setOnboardingStep(3);
   };
 
-  const handlePushDownItem = (item: TankObject) => {
-    if (!gestureAllowedRef.current) return;
-    markUserInteracted();
-    threeTankRef.current?.pushItemUnderWater(item.id);
-    setMessage('Con vừa dìm vật rồi buông tay. Hãy quan sát vật sẽ đi đâu nhé!');
-  };
-
   // Hoàn thành tan 1 thìa muối (dựa vào waterDensity, không chỉ báo nổi ở spoons count)
   const handleSpoonCompleted = useCallback(() => {
     threeTankRef.current?.clearSaltGrains();
@@ -1101,30 +1094,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                 onItemObserved={handleItemObserved}
               />
 
-              {/* Nút dìm các vật đang nổi trong bể */}
-              {items.some((i) => i.inTank && i.status === 'floating') && (
-                <div className="absolute bottom-2 left-2 right-2 z-20 flex items-center gap-1.5 flex-wrap pointer-events-auto">
-                  <span className="text-[10px] font-bold text-white bg-slate-900/70 px-2 py-1 rounded-lg backdrop-blur-xs">
-                    👇 Thử dìm vật:
-                  </span>
-                  {items
-                    .filter((i) => i.inTank && i.status === 'floating')
-                    .map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePushDownItem(item);
-                        }}
-                        className="px-2 py-1 rounded-xl bg-sky-500/90 hover:bg-sky-600 text-white text-[11px] font-bold shadow-md transition flex items-center gap-1 backdrop-blur-xs"
-                        title={`Ấn dìm ${item.name} xuống đáy rồi buông tay quan sát`}
-                      >
-                        <span>{item.icon}</span>
-                        <span>Dìm {item.name}</span>
-                      </button>
-                    ))}
-                </div>
-              )}
+
             </div>
           )}
 
