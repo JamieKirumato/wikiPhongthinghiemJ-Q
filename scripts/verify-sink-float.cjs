@@ -79,3 +79,45 @@ speech.setVoiceEnabled(false);
 assert.equal(paused,1);
 assert.equal(speech.speak('Con hãy quan sát.'),false);
 console.log('Passed: volume/salinity, displaced-volume equilibrium, solid 3D models, local Vietnamese audio, mute/cancel.');
+
+// Real-time trajectories accelerate consistently at different frame rates.
+const motion = source('src/components/preschool/sink-float/playPhysics.ts');
+const expectedFall = 4 - .5 * motion.DISPLAY_GRAVITY * .4 ** 2;
+for (const fps of [30, 60, 120]) {
+  let state = {y:4,vy:0};
+  for(let n=0;n<fps*.4;n++) state=motion.advanceAirFall(state.y,state.vy,1/fps);
+  assert.ok(Math.abs(state.y-expectedFall)<1e-9);
+}
+assert.ok(motion.advanceAirFall(4,0,.2).vy < motion.advanceAirFall(4,0,.1).vy);
+assert.ok(motion.impactVolume(0)>=.4);
+assert.ok(motion.impactVolume(8)<=1);
+assert.ok(motion.impactVolume(6)>motion.impactVolume(1));
+assert.equal(impact.damageFromImpact('item-egg#2',6),'broken');
+const inventory=source('src/components/preschool/sink-float/basketInventory.ts');
+const presets=['egg','pebble','apple','duck'].map(kind=>({id:`item-${kind}`,inTank:false,status:'basket',weightGrams:10,volumeMl:20}));
+const used=presets.map(item=>({...item,inTank:true,status:'falling'}));
+assert.equal(inventory.replenishBasket(presets,presets,1),presets);
+const replenished=inventory.replenishBasket(used,presets,1);
+assert.equal(replenished.length,8);
+assert.equal(inventory.basketSlots(replenished,presets).filter(item=>!item.inTank).length,4);
+assert.equal(new Set(replenished.map(item=>item.id)).size,8);
+assert.equal(replenished[0],used[0]); // no disappearance of the experiment already in water
+assert.equal(inventory.replenishBasket(replenished,presets,2),replenished);
+const cloned=models.createItemModel('item-egg#2',1.05);
+cloned.traverse(child=>{if(child.isMesh)assert.equal(child.userData.itemId,'item-egg#2');});
+assert.equal(cloned.children.length,1);
+models.disposeItemModel(cloned);
+// Impact audio really creates audible gain/output nodes for both surfaces and damage kinds.
+let audioStarts=0, audioOutputs=0;
+const parameter={setValueAtTime(){},exponentialRampToValueAtTime(){},linearRampToValueAtTime(){}};
+const audioNode=()=>({gain:parameter,frequency:parameter,Q:parameter,connect(){audioOutputs++;},disconnect(){},start(){audioStarts++;},stop(){}});
+class ContextMock {
+ constructor(){this.state='running';this.currentTime=0;this.sampleRate=48000;this.destination={};}
+ createGain(){return audioNode();} createOscillator(){return audioNode();}
+ createBufferSource(){return audioNode();} createBiquadFilter(){return audioNode();}
+ createBuffer(channels,length){return {getChannelData:()=>new Float32Array(length)};}
+}
+const impactSounds=source('src/components/preschool/sink-float/impactAudio.ts',{window:{AudioContext:ContextMock,setTimeout:()=>0}});
+for(const kind of ['water','tile','egg','apple','glass']) impactSounds.playImpact(kind,5);
+assert.ok(audioStarts>=10 && audioOutputs>=20);
+console.log('Passed: frame-rate independent gravity, audible impact graphs, unique repeated basket supplies and cloned object identities.');

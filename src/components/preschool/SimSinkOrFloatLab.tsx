@@ -36,6 +36,9 @@ import { brineDensity, waterVolumeMl, SALT_GRAMS_PER_SPOON, MAX_SALT_SPOONS } fr
 import { SaltWorkflow } from './sink-float/SaltWorkflow';
 import { BoatChallenge } from './sink-float/BoatChallenge';
 import { RealLifeActivityCards } from './sink-float/RealLifeActivityCards';
+import { basketSlots, replenishBasket } from './sink-float/basketInventory';
+import { itemKind } from './sink-float/playPhysics';
+import { SceneSetting } from './sink-float/SceneBackdrop';
 import { ObjectBasket } from './sink-float/ObjectBasket';
 import { GuidedDemoHand } from './sink-float/GuidedDemoHand';
 import { TeacherObjectivesModal } from './sink-float/TeacherObjectivesModal';
@@ -471,6 +474,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const [showGuideModal, setShowGuideModal] = useState<boolean>(false);
   const [showTeacherObjectives, setShowTeacherObjectives] = useState<boolean>(false);
   const [isTeacherMode,setIsTeacherMode] = useState(false);
+  const [sceneSetting, setSceneSetting] = useState<SceneSetting>('laboratory');
+  const basketBatchRef = useRef(0);
   const [showAdultPanel, setShowAdultPanel] = useState<boolean>(false);
   const showXRay = false;
 
@@ -593,7 +598,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       pourTimeoutRef.current = null;
     }
     setItems((prev) =>
-      prev.map((i) => ({
+      prev.filter(i => !i.id.includes('#')).map((i) => ({
         ...i,
         inTank: false,
         x: 0,
@@ -652,7 +657,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       });
 
       // 2. Cập nhật quan sát trứng theo nước ngọt / nước muối
-      if (itemId === 'item-egg') {
+      if (itemKind(itemId) === 'item-egg') {
         if (waterDensity > 1.00001) {
           setEggSaltObserved(result);
           if (result === 'floating') {
@@ -934,8 +939,15 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   };
 
   // Danh sách đồ vật hiển thị theo lứa tuổi (3-4 tuổi: 4 món quen thuộc; 5-6 tuổi: cả 10 món)
-  const displayItems =
-    ageGroup === '3-4' ? items.filter((i) => AGE_3_4_ITEM_IDS.includes(i.id)) : items;
+  const basketPresets = ageGroup === '3-4' ? PLAY_ITEMS_PRESETS.filter(i => AGE_3_4_ITEM_IDS.includes(i.id)) : PLAY_ITEMS_PRESETS;
+  const displayItems = basketSlots(items, basketPresets);
+
+  // Replenish real, uniquely identified objects; keep previous trials in the tank.
+  useEffect(() => {
+    if (!displayItems.every(item => item.inTank)) return;
+    const batch = ++basketBatchRef.current;
+    setItems(previous => replenishBasket(previous, basketPresets, batch));
+  }, [items, ageGroup]);
 
   const observedCount = Object.keys(observations).length;
 
@@ -987,6 +999,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               <ThreeTankCanvas
                 ref={threeTankRef}
                 shape={tankShape}
+                sceneSetting={sceneSetting}
                 scale={tankScale}
                 dims={dimensions}
                 items={items}
@@ -1499,16 +1512,11 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                   </div>
                 </div>
 
-                {/* Số liệu vật lý & Khối lượng riêng */}
-                <div className="p-2 rounded-xl bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 space-y-1">
-                  <span className="text-[10px] font-black text-sky-900 dark:text-sky-200 block">
-                    Khối lượng riêng (D):
-                  </span>
-                  <div className="text-[9px] font-mono space-y-0.5 text-slate-700 dark:text-slate-300">
-                    <div>• Nước hiện tại: {waterDensity.toFixed(3)} g/ml</div>
-                    <div>• Quả trứng tươi: 1.100 g/ml</div>
-                    <div>• Quả táo ruột xốp: 0.830 g/ml</div>
-                    <div>• Hòn sỏi tự nhiên: 2.500 g/ml</div>
+                <div className="space-y-2">
+                  <span className="text-xs font-bold">Cảnh nền</span>
+                  <div className="grid grid-cols-1 gap-2">
+                    <button aria-pressed={sceneSetting === 'laboratory'} onClick={() => setSceneSetting('laboratory')} className={`min-h-[44px] rounded-xl border px-2 font-bold text-xs ${sceneSetting === 'laboratory' ? 'bg-sky-100 border-sky-500' : 'bg-white border-slate-200'}`}>🔬 Phòng thí nghiệm</button>
+                    <button aria-pressed={sceneSetting === 'seaside'} onClick={() => setSceneSetting('seaside')} className={`min-h-[44px] rounded-xl border px-2 font-bold text-xs ${sceneSetting === 'seaside' ? 'bg-sky-100 border-sky-500' : 'bg-white border-slate-200'}`}>🌊 Bờ biển</button>
                   </div>
                 </div>
 

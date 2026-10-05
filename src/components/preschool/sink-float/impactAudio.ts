@@ -1,3 +1,4 @@
+import { impactVolume } from './playPhysics';
 /**
  * Procedural Web Audio API sound synthesis for preschool sink-or-float impacts.
  * SSR-safe, cached AudioContext, zero external audio asset dependencies.
@@ -60,7 +61,7 @@ export function playImpact(
   if (!ctx) return;
 
   // Bounded strength and master volume normalization (safe for preschool ears)
-  const safeStrength = Math.min(Math.max(Number.isFinite(strength) ? strength / 10 : 0.5, 0.18), 1.0);
+  const safeStrength = impactVolume(strength);
   const now = ctx.currentTime;
 
   const masterGain = ctx.createGain();
@@ -70,7 +71,7 @@ export function playImpact(
   switch (kind) {
     case "water": {
       // Plop & splash: upward sine sweep droplet + bandpass filtered splash spray
-      const baseVol = 0.28 * safeStrength;
+      const baseVol = 0.45 * safeStrength;
       masterGain.gain.setValueAtTime(baseVol, now);
 
       // Droplet bubble plop
@@ -78,7 +79,7 @@ export function playImpact(
       const plopGain = ctx.createGain();
       plopOsc.type = "sine";
       plopOsc.frequency.setValueAtTime(320, now);
-      plopOsc.frequency.exponentialRampToValueAtTime(740 + safeStrength * 160, now + 0.12);
+      plopOsc.frequency.exponentialRampToValueAtTime(120 + safeStrength * 70, now + 0.12);
 
       plopGain.gain.setValueAtTime(0.8, now);
       plopGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
@@ -191,7 +192,7 @@ export function playImpact(
 
     case "tile": {
       // Tile tap: crisp hard ceramic tap with high-mid resonance
-      const baseVol = 0.25 * safeStrength;
+      const baseVol = 0.4 * safeStrength;
       masterGain.gain.setValueAtTime(baseVol, now);
 
       // Ceramic transient click

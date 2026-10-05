@@ -1,6 +1,8 @@
 import { TankObject } from './types';
+import { itemKind } from './playPhysics';
 
 export function damageFromImpact(id: string, speed: number, previous?: TankObject['damage']): TankObject['damage'] {
+  id = itemKind(id);
   if (previous === 'broken') return previous;
   if (id === 'item-egg' && speed >= 4) return 'broken';
   if (id === 'item-egg' && speed >= 2.2) return 'cracked';
