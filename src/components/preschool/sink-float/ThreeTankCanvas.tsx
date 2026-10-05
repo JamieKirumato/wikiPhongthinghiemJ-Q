@@ -939,7 +939,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         let totalSubmergedVolumeMl = 0;
 
         currentTankItems.forEach((item) => {
-          if (!item.inTank) return;
+          if (!item.inTank || item.outsideTank) return;
           const scaleCfg = ITEM_WORLD_SCALES[item.id] || { size: 0.8, radius: 0.4 };
           const itemR = scaleCfg.radius;
 
