@@ -3,7 +3,9 @@ import * as THREE from 'three';
 import { TankDimensions, TankObject, TankScale, TankShape, InteractionMode, SaltWorkflowStep } from './types';
 import { clampToTankBoundary, calculateWaterRise, isPointInsideFootprint, getTankDimensions } from './tankGeometry';
 import { floatingCenterY, submergedFraction } from './buoyancy';
-import { createItemModel, disposeItemModel } from './itemModels';
+import { createItemModel, disposeItemModel, applyItemDamage } from './itemModels';
+import { damageFromImpact, gestureVelocity } from './impactPhysics';
+import { playImpact, unlockImpactAudio } from './impactAudio';
 import { soundEngine } from '../../../utils/audioEffects';
 
 export interface ThreeTankCanvasHandle {
@@ -38,6 +40,7 @@ interface ThreeTankCanvasProps {
   interactionMode: InteractionMode;
   onInteractionModeChange: (mode: InteractionMode) => void;
   holdingItemId: string | null;
+  carryingTrayItem?: boolean;
   onHoldItem: (id: string | null) => void;
   workflowStep: SaltWorkflowStep;
   onPourSaltAtPoint: (point: THREE.Vector3) => void;
@@ -71,6 +74,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       onUpdateItems,
       waterDensity,
       interactionMode,
+      onInteractionModeChange,
+      carryingTrayItem = false,
       holdingItemId,
       onHoldItem,
       workflowStep,
@@ -100,6 +105,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     const itemMeshesRef = useRef<Map<string, THREE.Group>>(new Map());
     const rippleEffectsRef = useRef<Array<{mesh: THREE.Mesh; age: number; strength: number}>>([]);
     const splashEffectsRef = useRef<Array<{mesh: THREE.Mesh; age: number; velocity: THREE.Vector3}>>([]);
+    const squashUntilRef = useRef(new Map<string,number>());
     const dissolveProgressRef = useRef(0);
     const liveSaltCountRef = useRef(200);
     const saltParticlesGroupRef = useRef<THREE.Points | null>(null);
@@ -132,6 +138,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       isAutoRotating: false
     });
 
+    const zoomRef = useRef(1);
+    const heldIdRef = useRef<string | null>(null);
+    const dragSamplesRef = useRef<Array<{x:number;y:number;t:number}>>([]);
     const dragPlaneRef = useRef<THREE.Plane>(new THREE.Plane());
     const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
 
@@ -333,13 +342,21 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const itemR = scaleCfg.radius;
 
         // Chiếu tia từ tọa độ màn hình vào không gian 3D
-        let worldPos = projectScreenToWorldInternal(screenX, screenY, 0);
+        // A horizontal release plane makes screen position choose both X and Z.
+        const rect = mountRef.current!.getBoundingClientRect();
+        raycasterRef.current.setFromCamera(new THREE.Vector2((screenX-rect.left)/rect.width*2-1, -(screenY-rect.top)/rect.height*2+1), cameraRef.current!);
+        const handPoint = projectScreenToWorldInternal(screenX,screenY,0);
+        const handHeight = Math.max(itemR-0.6,Math.min(d.height+4,handPoint?.y ?? d.height+1.1));
+        const releasePlane = new THREE.Plane(new THREE.Vector3(0,1,0), -handHeight);
+        const releasePoint = new THREE.Vector3();
+        const hit = raycasterRef.current.ray.intersectPlane(releasePlane, releasePoint);
+        let worldPos = hit && releasePoint.distanceTo(cameraRef.current!.position) < 35 ? releasePoint : projectScreenToWorldInternal(screenX, screenY, 0);
         if (!worldPos) {
           worldPos = new THREE.Vector3(0, d.height + 1.2, 0);
         }
 
         // Clamp Y hợp lý (trên đáy bể và không bay khỏi nóc trời)
-        const dropY = Math.max(d.waterHeight + itemR, Math.min(d.height + 3.0, worldPos.y));
+        const dropY = Math.max(itemR - 0.6, Math.min(d.height + 4.0, worldPos.y));
 
         // Clamp footprint để vật rơi vào trong thành bể
         const clampedPos = { x: worldPos.x, z: worldPos.z };
@@ -382,18 +399,18 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           )
         );
 
-        if (soundEnabled) {
-          soundEngine.playWaterDrop();
-        }
+
       },
 
       cancelActiveGesture: () => {
+        heldIdRef.current = null;
         orbitRef.current.isDragging = 0;
         orbitRef.current.isAutoRotating = false;
         onHoldItem(null);
       },
 
       resetDefaultView: () => {
+        zoomRef.current = 1;
         orbitRef.current.targetYaw = DEFAULT_YAW;
         orbitRef.current.targetPitch = DEFAULT_PITCH;
         orbitRef.current.isAutoRotating = false;
@@ -484,6 +501,10 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       scene.add(objectsGroup);
       objectsGroupRef.current = objectsGroup;
 
+      // Visible tiled floor: missed throws remain part of the experiment.
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(32,32), new THREE.MeshStandardMaterial({color:0xeee7db,roughness:0.9}));
+      floor.rotation.x = -Math.PI/2; floor.position.y = -0.61; scene.add(floor);
+      const grid = new THREE.GridHelper(32,32,0xc5bba9,0xd8cebd); grid.position.y=-0.6; scene.add(grid);
       // Hạt muối rơi 3D
       const maxSaltCount = 200;
       const saltGeom = new THREE.BufferGeometry();
@@ -847,6 +868,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           currentMap.set(item.id, mesh);
         }
 
+        applyItemDamage(mesh, item.id, item.damage);
         mesh.traverse(child => {
           if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
             child.material.emissive.setHex(showXRay ? 0x523171 : 0x000000);
@@ -901,6 +923,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             }
           }
         }
+        r *= zoomRef.current;
         const targetY = d.height * 0.4;
         const cx = r * Math.sin(orbit.yaw) * Math.cos(orbit.pitch);
         const cy = targetY + r * Math.sin(orbit.pitch);
@@ -996,13 +1019,34 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           const itemR = scaleCfg.radius;
 
           const inside = isPointInsideFootprint(item.x, item.z, s, d, -itemR);
-          if (item.outsideTank && !inside) {
-            const nextY = Math.max(itemR - 0.6, item.y + (item.vy - 12 * dt) * dt);
-            const mesh = itemMeshesRef.current.get(item.id);
-            if (mesh) mesh.position.set(item.x, nextY, item.z);
-            itemsChanged = true;
-            return {...item, y: nextY, vy: nextY <= itemR - 0.6 ? 0 : item.vy - 12 * dt,
-              x: item.x + item.vx * dt, z: item.z + item.vz * dt, vx: item.vx * (1 - 3 * dt), vz: item.vz * (1 - 3 * dt)};
+          if (!inside) {
+            let nx = item.x + item.vx*dt, nz = item.z + item.vz*dt;
+            let nextVx = item.vx, nextVz = item.vz;
+            if (item.y-itemR < d.height && isPointInsideFootprint(nx,nz,s,d,-itemR)) {
+              nx=item.x; nz=item.z; nextVx *= -0.35; nextVz *= -0.35;
+              if (soundEnabled && Math.hypot(item.vx,item.vz)>0.6) playImpact('glass',Math.hypot(item.vx,item.vz));
+            }
+            const floorY=item.damage==='broken' ? -0.42 : itemR-0.6;
+            let nextVy=item.vy-12*dt;
+            const nextY=Math.max(floorY,item.y+nextVy*dt);
+            const hitFloor=item.y>floorY+0.001 && nextY<=floorY;
+            let damage=item.damage;
+            if (hitFloor) {
+              const speed=Math.hypot(nextVy,nextVx,nextVz);
+              damage=damageFromImpact(item.id,speed,damage);
+              if (item.id==='item-duck' || item.id==='item-foam') squashUntilRef.current.set(item.id,currentTime+350);
+              if (soundEnabled) playImpact(damage==='broken'||damage==='cracked'?'egg':item.id==='item-apple'?'apple':'tile',speed);
+              if (damage && damage!==item.damage) onMessageUpdate(`${item.name} ${damage==='broken'?'đã vỡ':damage==='cracked'?'đã nứt':'bị dập'} khi chạm sàn. Con có thể lấy vật mới để thử lại nhé.`);
+              nextVy=damage==='broken'?0:Math.abs(nextVy)*0.12;
+            } else if (nextY<=floorY) nextVy=0;
+            const mesh=itemMeshesRef.current.get(item.id);
+            if(mesh) {
+              mesh.position.set(nx,nextY,nz); applyItemDamage(mesh,item.id,damage);
+              const squeeze=Math.max(0,((squashUntilRef.current.get(item.id)||0)-currentTime)/350)*0.22;
+              mesh.scale.set(scaleCfg.size*(1+squeeze*0.5),scaleCfg.size*(1-squeeze),scaleCfg.size*(1+squeeze*0.5));
+            }
+            itemsChanged=true;
+            return {...item,x:nx,z:nz,y:nextY,vy:nextVy,vx:nextVx*(1-3*dt),vz:nextVz*(1-3*dt),damage,outsideTank:true,status:nextY<=floorY?'grounded' as const:'falling' as const};
           }
           const itemDensity = item.weightGrams / item.volumeMl;
           const willFloat = itemDensity < currentWaterDensity;
@@ -1049,7 +1093,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             if (y - itemR <= effectiveWaterHeight) {
               spawnWaterReaction(x, z, Math.min(6, Math.abs(vy)), true);
               if (soundEnabled) {
-                soundEngine.playWaterSplash(!willFloat || Math.abs(vy) > 4.5);
+                playImpact('water', Math.abs(vy) * itemR * 2);
               }
               status = willFloat ? 'floating' : 'sunk';
             }
@@ -1126,6 +1170,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           }
           // Giới hạn biên bể kính theo footprint thực tế
           const clamped = clampToTankBoundary(x, z, itemR, s, d);
+          if ((clamped.x !== x || clamped.z !== z) && Math.hypot(vx,vz)>0.6 && soundEnabled) playImpact('glass',Math.hypot(vx,vz));
           if (clamped.x !== x) vx *= -0.25;
           if (clamped.z !== z) vz *= -0.25;
           x = clamped.x; z = clamped.z;
@@ -1157,7 +1202,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           itemsRef.current = nextItems;
           if (currentTime - lastItemsFlushRef.current >= 50) {
             lastItemsFlushRef.current = currentTime;
-            onUpdateItems(nextItems);
+            itemsRef.current=nextItems;
+          onUpdateItems(nextItems);
           }
         }
 
@@ -1191,6 +1237,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       const mount = mountRef.current;
       if (!mount || !cameraRef.current) return;
 
+      unlockImpactAudio();
+      if (carryingTrayItem || heldIdRef.current) return;
       e.currentTarget.setPointerCapture(e.pointerId);
       const currentStep = workflowStepRef.current;
 
@@ -1202,16 +1250,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         return;
       }
 
-      // 2. CHẾ ĐỘ ORBIT (XOAY BỂ 360°): CHỈ XOAY BỂ, KHÔNG CẦM ĐỒ VẬT!
-      if (interactionModeRef.current === 'orbit') {
-        orbitRef.current.isDragging = 1;
-        orbitRef.current.startX = e.clientX;
-        orbitRef.current.startY = e.clientY;
-        orbitRef.current.isAutoRotating = false;
-        return;
-      }
-
-      // 3. CHẾ ĐỘ INTERACT (CẦM VÀ NÉM): CHỈ TƯƠNG TÁC VẬT, TUYỆT ĐỐI KHÔNG XOAY BỂ!
       const rect = mount.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
@@ -1229,6 +1267,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const hitMesh = intersects[0].object as THREE.Mesh;
         const itemId = hitMesh.userData.itemId;
         if (itemId) {
+          if (itemsRef.current.find(i=>i.id===itemId)?.damage==='broken') {onMessageUpdate('Trứng đã vỡ. Con chọn Lấy vật mới để thử lại nhé.');return;}
+          heldIdRef.current=itemId;
+          dragSamplesRef.current=[{x:e.clientX,y:e.clientY,t:performance.now()}];
           onHoldItem(itemId);
           orbitRef.current.isDragging = 2; // Đang kéo đồ vật trong bể
 
@@ -1248,8 +1289,13 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         }
       }
 
-      // Khi bấm trúng khoảng trống ở chế độ interact: KHÔNG LÀM GÌ CẢ (Loại bỏ hoàn toàn blanket orbit fallback!)
-      orbitRef.current.isDragging = 0;
+      const glassHits = raycasterRef.current.intersectObjects(tankGroupRef.current?.children.filter(o => (o as THREE.Mesh).material instanceof THREE.MeshPhysicalMaterial || o.position.y >= dimsRef.current.height-0.1) || [], true);
+      if (glassHits.length) {
+        orbitRef.current.isDragging=1; orbitRef.current.startX=e.clientX; orbitRef.current.startY=e.clientY;
+        orbitRef.current.isAutoRotating=false; onInteractionModeChange('orbit');
+        onMessageUpdate('Con đang xoay bể. Buông tay để cầm đồ vật; lăn chuột để nhìn gần hoặc xa nhé.');
+      }
+
     };
 
     const handlePointerMove = (e: React.PointerEvent) => {
@@ -1260,19 +1306,24 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       if (workflowStepRef.current !== 'idle') return;
 
       // Xoay bể ở chế độ orbit
-      if (orbit.isDragging === 1 && interactionModeRef.current === 'orbit') {
+      if (orbit.isDragging === 1) {
         const dx = e.clientX - orbit.startX;
         const dy = e.clientY - orbit.startY;
         orbit.startX = e.clientX;
         orbit.startY = e.clientY;
 
         orbit.targetYaw -= dx * 0.008;
+        orbit.yaw = orbit.targetYaw;
         orbit.targetPitch = Math.max(0.08, Math.min(1.2, orbit.targetPitch + dy * 0.008));
+        orbit.pitch = orbit.targetPitch;
         return;
       }
 
       // Kéo đồ vật ở chế độ interact
-      if (orbit.isDragging === 2 && holdingItemId && interactionModeRef.current === 'interact') {
+      if (orbit.isDragging === 2 && heldIdRef.current) {
+        const holdingItemId=heldIdRef.current!;
+        const samples=dragSamplesRef.current; samples.push({x:e.clientX,y:e.clientY,t:performance.now()});
+        while(samples.length>1 && performance.now()-samples[0].t>120) samples.shift();
         const rect = mount.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
@@ -1292,10 +1343,17 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           const itemR = scaleCfg.radius;
 
           const maxY = d.height + 2.4;
-          const minY = 0.15 + itemR;
+          const minY = itemR - 0.6;
           const clampedY = Math.max(minY, Math.min(maxY, intersectionPoint.y));
 
-          const clampedPos = clampToTankBoundary(intersectionPoint.x, intersectionPoint.z, itemR, s, d);
+          const clampedPos = {x:Math.max(-12,Math.min(12,intersectionPoint.x)),z:Math.max(-12,Math.min(12,intersectionPoint.z))};
+          const previous = itemsRef.current.find(i=>i.id===holdingItemId);
+          const wasInside = previous && isPointInsideFootprint(previous.x,previous.z,s,d,-itemR);
+          const nowInside = isPointInsideFootprint(clampedPos.x,clampedPos.z,s,d,-itemR);
+          if (clampedY-itemR < d.height && wasInside !== nowInside) {
+            if (wasInside) Object.assign(clampedPos,clampToTankBoundary(clampedPos.x,clampedPos.z,itemR,s,d));
+            else if (previous) {clampedPos.x=previous.x;clampedPos.z=previous.z;}
+          }
 
           const nextItems = itemsRef.current.map((item) =>
             item.id === holdingItemId
@@ -1308,23 +1366,36 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
                   vy: 0,
                   vz: 0,
                   settled: false,
-                  outsideTank: false
+                  outsideTank: !isPointInsideFootprint(clampedPos.x,clampedPos.z,s,d,-itemR)
                 }
               : item
           );
+          const heldMesh=itemMeshesRef.current.get(holdingItemId);
+          heldMesh?.position.set(clampedPos.x,clampedY,clampedPos.z);
+          itemsRef.current=nextItems;
           onUpdateItems(nextItems);
         }
       }
     };
 
-    const handlePointerUp = () => {
-      if (orbitRef.current.isDragging === 2 && holdingItemId) {
-        const item = itemsRef.current.find(i => i.id === holdingItemId);
-        if (item) onMessageUpdate('Con vừa buông tay. Hãy quan sát vật sẽ đi đâu nhé!');
+    const handlePointerUp = (e: React.PointerEvent) => {
+      const id=heldIdRef.current;
+      if (orbitRef.current.isDragging===2 && id) {
+        const samples=dragSamplesRef.current, first=samples[0], last=samples[samples.length-1];
+        const v=e.type==='pointercancel'||!first||!last ? {vx:0,vy:0} : gestureVelocity(last.x-first.x,last.y-first.y,(performance.now()-first.t)/1000);
+        const right=new THREE.Vector3(1,0,0).applyQuaternion(cameraRef.current!.quaternion);right.y=0;right.normalize();
+        const next=itemsRef.current.map(item=>item.id===id?{...item,vx:right.x*v.vx*0.005,vz:right.z*v.vx*0.005,vy:-v.vy*0.006,settled:false,status:'falling' as const}:item);
+        itemsRef.current=next; onUpdateItems(next); onMessageUpdate('Con vừa buông tay. Hãy quan sát vật sẽ đi đâu nhé!');
       }
-      orbitRef.current.isDragging = 0;
-      onHoldItem(null);
+      heldIdRef.current=null; orbitRef.current.isDragging=0; onHoldItem(null); onInteractionModeChange('interact');
+      if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);
     };
+
+    useEffect(() => {
+      const mount=mountRef.current;if(!mount)return;
+      const wheel=(e:WheelEvent)=>{if(workflowStepRef.current!=='idle')return;e.preventDefault();zoomRef.current=Math.max(0.7,Math.min(1.8,zoomRef.current*Math.exp(e.deltaY*0.001)));};
+      mount.addEventListener('wheel',wheel,{passive:false});return()=>mount.removeEventListener('wheel',wheel);
+    },[]);
 
     return (
       <div className="relative w-full h-full min-h-0 rounded-3xl overflow-hidden bg-gradient-to-b from-sky-100/70 via-sky-50/50 to-blue-100/60 dark:from-slate-950 dark:via-sky-950/40 dark:to-slate-900 border-2 border-sky-300/80 shadow-inner flex flex-col">

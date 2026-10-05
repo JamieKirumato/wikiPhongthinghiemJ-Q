@@ -17,6 +17,16 @@ function source(relative, context = {}) {
 const geometry = source('src/components/preschool/sink-float/tankGeometry.ts');
 const salt = source('src/components/preschool/sink-float/salinity.ts');
 const buoyancy = source('src/components/preschool/sink-float/buoyancy.ts');
+const impact = source('src/components/preschool/sink-float/impactPhysics.ts');
+assert.equal(impact.damageFromImpact('item-egg',1),undefined);
+assert.equal(impact.damageFromImpact('item-egg',3),'cracked');
+assert.equal(impact.damageFromImpact('item-egg',6),'broken');
+assert.equal(impact.damageFromImpact('item-apple',6),'bruised');
+assert.equal(impact.damageFromImpact('item-pebble',12),undefined);
+assert.equal(impact.damageFromImpact('item-egg',0,'broken'),'broken');
+assert.deepEqual(JSON.parse(JSON.stringify(impact.gestureVelocity(20,10,0.3))),{vx:0,vy:0});
+assert.deepEqual(JSON.parse(JSON.stringify(impact.gestureVelocity(5,5,0.1))),{vx:0,vy:0});
+assert.ok(impact.gestureVelocity(100,-100,0.1).vy<0);
 for (const shape of ['rectangle','square','cylinder','triangle']) {
   const normal = geometry.getTankDimensions(shape,'normal');
   const small = geometry.getTankDimensions(shape,'compact');

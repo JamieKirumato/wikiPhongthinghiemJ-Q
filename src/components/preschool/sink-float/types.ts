@@ -22,6 +22,7 @@ export interface TankObject {
   densityNote: string;
   inTank: boolean;
   outsideTank?: boolean;
+  damage?: 'cracked' | 'broken' | 'bruised';
   x: number; // Tọa độ thế giới 3D X
   y: number; // Tọa độ thế giới 3D Y (trục đứng)
   z: number; // Tọa độ thế giới 3D Z (chiều sâu)
@@ -31,7 +32,7 @@ export interface TankObject {
   angle: number;
   vRot: number;
   settled: boolean;
-  status: 'basket' | 'falling' | 'floating' | 'sunk' | 'pushed';
+  status: 'basket' | 'falling' | 'floating' | 'sunk' | 'pushed' | 'grounded';
   prediction?: ItemPrediction;
   observed?: ItemObserved;
 }

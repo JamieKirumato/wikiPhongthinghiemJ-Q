@@ -74,3 +74,34 @@ export function disposeItemModel(group: THREE.Object3D) {
     }
   });
 }
+
+export function applyItemDamage(group: THREE.Group, id: string, damage?: string) {
+  if (!damage || group.userData.damage === damage) return;
+  group.userData.damage = damage;
+  const size = group.scale.x;
+  const add = (geometry: THREE.BufferGeometry, color: number, x: number, y: number, z: number) => {
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({color, roughness: 0.8}));
+    mesh.position.set(x, y, z); mesh.userData.itemId = id; group.add(mesh); return mesh;
+  };
+  if (damage === 'broken') {
+    group.children.forEach(child => {child.visible = false;});
+    const white = add(new THREE.SphereGeometry(0.5, 20, 12), 0xffefba, 0, -0.18, 0);
+    white.scale.set(1.4, 0.09, 1.1);
+    const yolk = add(new THREE.SphereGeometry(0.19, 16, 10), 0xffbc24, 0.08, -0.11, 0);
+    yolk.scale.y = 0.4;
+    for (let i = 0; i < 5; i++) {
+      const a = i * 1.25;
+      const shell = add(new THREE.SphereGeometry(0.18, 12, 6, 0, Math.PI), 0xffe4ba, Math.cos(a)*0.48, -0.08, Math.sin(a)*0.35);
+      shell.rotation.set(i*0.5, a, 0.3); shell.scale.y = 0.45;
+    }
+  } else if (damage === 'cracked') {
+    for (let i = 0; i < 3; i++) {
+      const crack = add(new THREE.BoxGeometry(0.014, 0.19, 0.015), 0x69513d, (i-1)*0.05, i*0.1-0.15, 0.37);
+      crack.rotation.z = i%2 ? -0.4 : 0.4;
+    }
+  } else {
+    const bruise = add(new THREE.SphereGeometry(0.18, 16, 10), 0x8a4831, 0.12, -0.08, 0.4);
+    bruise.scale.set(1, 0.8, 0.12);
+  }
+  group.scale.setScalar(size);
+}

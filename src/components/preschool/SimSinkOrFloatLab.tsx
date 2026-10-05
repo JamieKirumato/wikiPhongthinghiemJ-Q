@@ -12,10 +12,11 @@ import {
   X,
   Compass,
   Sparkles,
-  Hand,
   Eye,
   Award
 } from 'lucide-react';
+import { unlockImpactAudio } from './sink-float/impactAudio';
+import { gestureVelocity } from './sink-float/impactPhysics';
 import { soundEngine } from '../../utils/audioEffects';
 import { speechEngine } from '../../utils/speechUtils';
 
@@ -564,26 +565,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     }
   };
 
-  // CHUYỂN CHẾ ĐỘ NGHIÊM NGẶT (STRICT MODES): HỦY MỌI CỬ CHỈ ĐANG DỞ
-  const handleSwitchInteractionMode = (mode: InteractionMode) => {
-    markUserInteracted();
-    if (mode === interactionMode) return;
-    threeTankRef.current?.cancelActiveGesture();
-    dragCleanupRef.current?.();
-    activeDragItemRef.current = null;
-    setSelectedTrayItem(null);
-    setDraggingTrayItem(null);
-    isDraggingRef.current = false;
-    setInteractionMode(mode);
-
-    if (mode === 'orbit') {
-      setMessage('Bé đang ở chế độ xoay bể 360 độ! Kéo chuột để ngắm nhìn bể nước từ mọi phía nhé.');
-    } else {
-      setMessage('Bé đang ở chế độ Cầm và Ném! Hãy chọn đồ vật ở khay để thả vào bể nước nhé.');
-    }
-  };
-
-  // Về góc nhìn mặc định chuẩn
   const handleResetDefaultView = () => {
     markUserInteracted();
     threeTankRef.current?.resetDefaultView();
@@ -621,6 +602,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
         vx: 0,
         vy: 0,
         vz: 0,
+        outsideTank: false,
+        damage: undefined,
         settled: false,
         status: 'basket'
       }))
@@ -713,6 +696,11 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     [predictions, items, waterDensity, dissolvedFraction, onboardingStep, activityMode]
   );
 
+  useEffect(() => {
+    const cancel=(event:KeyboardEvent)=>{if(event.key!=='Escape')return;dragCleanupRef.current?.();activeDragItemRef.current=null;isDraggingRef.current=false;setSelectedTrayItem(null);setDraggingTrayItem(null);threeTankRef.current?.cancelActiveGesture();setInteractionMode('interact');};
+    window.addEventListener('keydown',cancel);return()=>window.removeEventListener('keydown',cancel);
+  },[]);
+
   // BẮT ĐẦU CẦM VÀ KÉO ĐỒ VẬT TỪ KHAY (HAND-BASED THROWING FROM TRAY)
   const handleTrayItemPointerDown = (e: React.PointerEvent, item: TankObject) => {
     e.preventDefault();
@@ -722,10 +710,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       setMessage('Đang trong quy trình hòa tan muối, bé làm xong hẵng thả đồ vật nhé!');
       return;
     }
-    if (interactionMode !== 'interact') {
-      setMessage('Bé hãy chuyển sang chế độ "Cầm và ném" để thả đồ vật nhé!');
-      return;
-    }
+    if (interactionMode === 'orbit' || holdingItemId) return;
+    unlockImpactAudio();
 
     const startX = e.clientX;
     setDragCursorPos({ x: e.clientX, y: e.clientY });
@@ -787,8 +773,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           const latest = history[history.length - 1];
           const dt = (latest.t - oldest.t) / 1000;
           if (dt > 0.01) {
-            vx = (latest.x - oldest.x) / dt;
-            vy = (latest.y - oldest.y) / dt;
+            const v = gestureVelocity(latest.x-oldest.x,latest.y-oldest.y,(performance.now()-oldest.t)/1000);
+            vx=v.vx; vy=v.vy;
           }
         }
 
@@ -815,7 +801,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
         // Chạm chọn rồi chạm bể
         setSelectedTrayItem((prev) => (prev?.id === item.id ? null : item));
         if (selectedTrayItem?.id !== item.id) {
-          setMessage(`Bé đã cầm "${item.name}"! Giờ hãy chạm vào bể nước để ném đồ vật vào nhé!`);
+          setMessage(`Bé đã cầm "${item.name}"! Đưa tay đến chỗ muốn thả, hoặc kéo nhanh rồi buông để ném nhé!`);
           if (soundEnabled) soundEngine.playSpoonClink();
           if (onboardingStep === 1) setOnboardingStep(2);
         }
@@ -843,7 +829,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       selectedTrayItem,
       e.clientX,
       e.clientY,
-      { vx: 0, vy: -1.2 }
+      { vx: 0, vy: 0 }
     );
     announceItemDropScience(selectedTrayItem);
     setSelectedTrayItem(null);
@@ -1058,7 +1044,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                 <div className="absolute top-10 inset-x-4 z-30 flex items-center justify-between px-3 py-1.5 rounded-2xl bg-amber-400 text-slate-950 font-black text-xs shadow-lg animate-bounce">
                   <span className="flex items-center gap-1.5">
                     <span>👉</span>
-                    <span>Bé đang cầm {selectedTrayItem.name}: Chạm vào bể nước để ném vào!</span>
+                    <span>Bé đang cầm {selectedTrayItem.name}: Chạm chỗ muốn thả hoặc chọn Đặt lại!</span>
                   </span>
                   <button
                     onClick={(e) => {
@@ -1067,7 +1053,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                     }}
                     className="px-2 py-0.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 text-[10px]"
                   >
-                    Hủy ✕
+                    Đặt lại ✕
                   </button>
                 </div>
               )}
@@ -1091,6 +1077,9 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               )}
 
               {/* Three.js 3D Canvas */}
+              {items.some(i=>i.damage) && <div className="absolute left-3 bottom-16 z-20 flex flex-wrap gap-2">
+                {items.filter(i=>i.damage).map(item=><button key={item.id} className="min-h-[48px] rounded-xl bg-amber-50 border border-amber-300 px-3 font-bold" onClick={(event)=>{event.stopPropagation();setItems(prev=>prev.map(i=>i.id===item.id?{...i,inTank:false,outsideTank:false,damage:undefined,x:0,y:0.45,z:0,vx:0,vy:0,vz:0,status:'basket',settled:false}:i));}}> {item.icon} {item.damage==='broken'?'Đã vỡ':item.damage==='cracked'?'Đã nứt':'Bị dập'} · Lấy vật mới</button>)}
+              </div>}
               <ThreeTankCanvas
                 ref={threeTankRef}
                 shape={tankShape}
@@ -1101,6 +1090,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                 waterDensity={waterDensity}
                 interactionMode={interactionMode}
                 onInteractionModeChange={setInteractionMode}
+                carryingTrayItem={!!selectedTrayItem || !!draggingTrayItem || !!activeDragItemRef.current}
                 holdingItemId={holdingItemId}
                 onHoldItem={setHoldingItemId}
                 workflowStep={workflowStep}
@@ -1273,7 +1263,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
         {/* ======================================================== */}
         {/* CỘT PHẢI: BẢNG ĐIỀU KHIỂN HỢP NHẤT (~240px - 260px)       */}
         {/* ======================================================== */}
-        <aside className="w-[148px] sm:w-[220px] lg:w-[252px] flex-shrink-0 flex flex-col h-full overflow-y-auto space-y-2 p-1">
+        <aside className="w-[148px] sm:w-[220px] lg:w-[252px] flex-shrink-0 flex flex-col h-full overflow-y-auto space-y-2 p-1 pb-5 [&>*]:shrink-0">
           {(activityMode === 'discovery' || activityMode === 'egg-challenge') && <div className={`flex gap-2 ${ageGroup === '3-4' ? 'lg:hidden' : ''}`}><button aria-label="Xem vật trước" className="flex-1 min-h-[44px] rounded-xl bg-white border font-bold" onClick={() => trayScrollRef.current?.scrollBy({left:-304,behavior:'smooth'})}>◀ Vật trước</button><button aria-label="Xem vật tiếp" className="flex-1 min-h-[44px] rounded-xl bg-white border font-bold" onClick={() => trayScrollRef.current?.scrollBy({left:304,behavior:'smooth'})}>Vật tiếp ▶</button></div>}
           {/* BỘ CHUYỂN CHẾ ĐỘ HOẠT ĐỘNG (COMPACT ACTIVITY MODE SELECTOR) */}
           <div className="p-1.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-amber-300 dark:border-amber-700 shadow-sm space-y-1">
@@ -1335,35 +1325,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           {(activityMode === 'discovery' || activityMode === 'egg-challenge') && <>
           {/* CHẾ ĐỘ TƯƠNG TÁC NGHIÊM NGẶT (STRICT MODES) */}
           <div className="flex flex-col gap-1 p-1.5 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-sky-200 dark:border-slate-800 shadow-xs">
-            <div className="grid grid-cols-2 gap-1 w-full">
-              <button
-                disabled={workflowStep !== 'idle'}
-                onClick={() => handleSwitchInteractionMode('interact')}
-                className={`min-h-[48px] px-2 py-2 rounded-xl text-xs font-black flex items-center justify-center gap-1 transition ${
-                  interactionMode === 'interact'
-                    ? 'bg-sky-500 text-white shadow-xs'
-                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                }`}
-                title="Cầm và ném đồ vật vào bể (không xoay bể)"
-              >
-                <Hand className="w-3.5 h-3.5" />
-                <span>Ném Vật</span>
-              </button>
-
-              <button
-                disabled={workflowStep !== 'idle'}
-                onClick={() => handleSwitchInteractionMode('orbit')}
-                className={`min-h-[48px] px-2 py-2 rounded-xl text-xs font-black flex items-center justify-center gap-1 transition ${
-                  interactionMode === 'orbit'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                }`}
-                title="Xoay ngắm nhìn bể 360 độ (không nhặt đồ vật)"
-              >
-                <Compass className="w-3.5 h-3.5" />
-                <span>Xoay Bể</span>
-              </button>
-            </div>
+            <p className="px-2 py-2 text-xs font-bold text-sky-800">🖐 Giữ đồ vật để cầm · Giữ thành bể để xoay · Lăn chuột để nhìn gần/xa</p>
 
             <button
               onClick={handleResetAllTank}
@@ -1939,7 +1901,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                     Cầm và Ném đồ vật vào bể:
                   </h4>
                   <p className="text-sky-700 dark:text-sky-300 mt-0.5 leading-relaxed">
-                    Bé chạm hoặc kéo các món đồ dưới khay (sỏi, trứng, vịt cao su, táo...) ném vào bể để xem vật chìm hay nổi.
+                    Giữ một món đồ trong khay rồi kéo đến chỗ muốn thả. Buông nhẹ để thả, kéo nhanh rồi buông để ném. Vật có thể rơi vào nước hoặc ra sàn. Khi tay trống, giữ thành bể rồi kéo để xoay; lăn chuột để nhìn gần hoặc xa. Nhấn Esc để đặt vật đang cầm lại khay.
                   </p>
                 </div>
               </div>

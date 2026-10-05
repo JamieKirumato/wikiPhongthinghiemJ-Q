@@ -40,3 +40,11 @@ Vật nổi dùng tỷ lệ thể tích ngập để xác định vị trí cân
 - Chơi bằng trình duyệt: trứng chìm trong nước ngọt và nổi sau ba thìa đầy ở bể mặc định; xúc–nghiêng–khuấy nhiều lần; nửa thìa; lịch sử trước/sau; thuyền thấp và sâu cho sức chở khác nhau; giao diện 1280×720 và 768×1024.
 
 Chưa thực hiện nghiên cứu sử dụng trực tiếp với trẻ. Mức hấp dẫn và độ dễ hiểu cần tiếp tục xác nhận qua quan sát trẻ trong lớp.
+
+## Thao tác tự do và va chạm
+
+Nhấn giữ vật trong khay hoặc vật còn nguyên trong cảnh để cầm; nhấn giữ thành kính/mép bể khi tay trống để xoay. Hai cử chỉ khóa nhau đến khi buông tay. Có thể chọn bằng một lần nhấn rồi nhấn vị trí muốn thả; Esc hoặc Đặt lại trả vật chưa thả về khay. Bánh xe tiến/lùi phóng to/thu nhỏ, Góc Chuẩn phục hồi zoom và camera.
+
+Vị trí thả giữ tọa độ không gian dưới con trỏ, không tự kéo về tâm bể; tốc độ cử chỉ nhanh thêm vận tốc ném. Vật rơi ngoài bể chạm sàn gạch, có thể nhặt lại hoặc dọn về khay. Muốn kéo vật qua thành kính cần nâng cao hơn mép bể. Trứng nứt/vỡ và táo dập theo tốc độ va chạm, có nút lấy vật mới; các ngưỡng là quy ước minh họa, không phải dự báo độ bền của vật thật.
+
+Tiếng nước, kính, sàn, trứng và táo được tổng hợp bằng Web Audio, phát tại va chạm và thay đổi cường độ theo lực rơi; không phải bản ghi hiện trường. Antigravity CLI hỗ trợ mô-đun âm thanh, Codex tích hợp và kiểm tra. Lỗi E2E thanh bên bị cắt đã được sửa bằng cách giữ chiều cao các nhóm công cụ và cho phép cuộn đầy đủ.
