@@ -10,8 +10,10 @@ import {
   ChevronDown,
   ChevronUp,
   X,
-  Plus,
-  RefreshCw
+  RefreshCw,
+  Compass,
+  Box,
+  Layers
 } from 'lucide-react';
 import { soundEngine } from '../../utils/audioEffects';
 import { speechEngine } from '../../utils/speechUtils';
@@ -20,6 +22,9 @@ export interface Props {
   onBackToTable?: () => void;
   isStandalone?: boolean;
 }
+
+export type TankShape = 'rectangle' | 'square' | 'cylinder' | 'triangle';
+export type TankScale = 'normal' | 'compact';
 
 export interface TankObject {
   id: string;
@@ -35,6 +40,7 @@ export interface TankObject {
   inTank: boolean;
   x: number;
   y: number;
+  z: number; // 3D depth inside aquarium [-80, +80]
   vx: number;
   vy: number;
   angle: number;
@@ -44,16 +50,16 @@ export interface TankObject {
 }
 
 const PLAY_ITEMS_PRESETS: TankObject[] = [
-  { id: 'item-pebble', name: 'Hòn sỏi', icon: '🪨', image: '/assets/items/pebble.png', size: 62, weightGrams: 50, volumeMl: 20, floatsDefault: false, desc: 'Đá tự nhiên', densityNote: 'Đặc ruột và nặng hơn nước nên chìm nghỉm ngay lập tức xuống đáy', inTank: false, x: 120, y: 120, vx: 0, vy: 0, angle: 0, vRot: 0, settled: false, status: 'basket' },
-  { id: 'item-keys', name: 'Chùm chìa khóa', icon: '🔑', image: '/assets/items/keys.png', size: 70, weightGrams: 42, volumeMl: 10, floatsDefault: false, desc: 'Kim loại nặng', densityNote: 'Kim loại đặc nặng, rơi thẳng tắp và chìm ngay xuống đáy cát', inTank: false, x: 190, y: 120, vx: 0, vy: 0, angle: 15, vRot: 0, settled: false, status: 'basket' },
-  { id: 'item-spoon', name: 'Thìa inox', icon: '🥄', image: '/assets/items/spoon.png', size: 80, weightGrams: 35, volumeMl: 7, floatsDefault: false, desc: 'Kim loại phẳng', densityNote: 'Kim loại nặng đặc, chìm nhanh xuống đáy cát', inTank: false, x: 260, y: 120, vx: 0, vy: 0, angle: -15, vRot: 0, settled: false, status: 'basket' },
-  { id: 'item-egg', name: 'Quả trứng', icon: '🥚', image: '/assets/items/egg.png', size: 64, weightGrams: 55, volumeMl: 50, floatsDefault: false, desc: 'Trứng gà tươi', densityNote: 'Nặng hơn nước ngọt nên chìm, nhưng sẽ NỔI BỒNG BỀNH khi nước đủ mặn!', inTank: false, x: 330, y: 120, vx: 0, vy: 0, angle: 0, vRot: 0, settled: false, status: 'basket' },
-  { id: 'item-apple', name: 'Quả táo đỏ', icon: '🍎', image: '/assets/items/apple.png', size: 78, weightGrams: 75, volumeMl: 90, floatsDefault: true, desc: 'Trái cây ruột xốp', densityNote: 'Ruột táo chứa nhiều túi khí nhỏ nên nổi bồng bềnh trên mặt nước', inTank: false, x: 400, y: 120, vx: 0, vy: 0, angle: 0, vRot: 0, settled: false, status: 'basket' },
-  { id: 'item-wood', name: 'Khối gỗ', icon: '🪵', image: '/assets/items/wood.png', size: 74, weightGrams: 28, volumeMl: 45, floatsDefault: true, desc: 'Gỗ khô', densityNote: 'Nhẹ hơn nước ngọt, nổi vững chãi chìm khoảng một nửa', inTank: false, x: 470, y: 120, vx: 0, vy: 0, angle: 5, vRot: 0, settled: false, status: 'basket' },
-  { id: 'item-duck', name: 'Vịt cao su', icon: '🐥', image: '/assets/items/duck.png', size: 86, weightGrams: 12, volumeMl: 55, floatsDefault: true, desc: 'Cao su rỗng ruột', densityNote: 'Rất nhẹ; khi kéo dìm xuống nước sẽ cảm nhận lực đẩy Acsimet giằng ngược lên!', inTank: false, x: 540, y: 120, vx: 0, vy: 0, angle: 0, vRot: 0, settled: false, status: 'basket' },
-  { id: 'item-pingpong', name: 'Bóng bàn', icon: '⚪', image: '/assets/items/pingpong.png', size: 56, weightGrams: 3, volumeMl: 40, floatsDefault: true, desc: 'Nhựa rỗng chứa khí', densityNote: 'Siêu nhẹ và chứa đầy không khí; dìm xuống đáy sẽ phóng vọt lên như tên lửa!', inTank: false, x: 610, y: 120, vx: 0, vy: 0, angle: 0, vRot: 0, settled: false, status: 'basket' },
-  { id: 'item-leaf', name: 'Chiếc lá', icon: '🍃', image: '/assets/items/leaf.png', size: 72, weightGrams: 1, volumeMl: 5, floatsDefault: true, desc: 'Lá cây tự nhiên', densityNote: 'Bản rộng và siêu nhẹ, lượn êm dịu trên mặt nước', inTank: false, x: 680, y: 120, vx: 0, vy: 0, angle: 10, vRot: 0, settled: false, status: 'basket' },
-  { id: 'item-foam', name: 'Mẩu xốp', icon: '🧱', image: '/assets/items/foam.png', size: 76, weightGrams: 2, volumeMl: 35, floatsDefault: true, desc: 'Xốp bọt biển', densityNote: 'Hàng triệu lỗ khí li ti, nổi sát trên bề mặt nước', inTank: false, x: 750, y: 120, vx: 0, vy: 0, angle: 0, vRot: 0, settled: false, status: 'basket' }
+  { id: 'item-pebble', name: 'Hòn sỏi', icon: '🪨', image: '/assets/items/pebble.png', size: 62, weightGrams: 50, volumeMl: 20, floatsDefault: false, desc: 'Đá tự nhiên', densityNote: 'Đặc ruột và nặng hơn nước nên chìm nghỉm ngay lập tức xuống đáy', inTank: false, x: 120, y: 120, z: -15, vx: 0, vy: 0, angle: 0, vRot: 0, settled: false, status: 'basket' },
+  { id: 'item-keys', name: 'Chùm chìa khóa', icon: '🔑', image: '/assets/items/keys.png', size: 70, weightGrams: 42, volumeMl: 10, floatsDefault: false, desc: 'Kim loại nặng', densityNote: 'Kim loại đặc nặng, rơi thẳng tắp và chìm ngay xuống đáy cát', inTank: false, x: 190, y: 120, z: 20, vx: 0, vy: 0, angle: 15, vRot: 0, settled: false, status: 'basket' },
+  { id: 'item-spoon', name: 'Thìa inox', icon: '🥄', image: '/assets/items/spoon.png', size: 80, weightGrams: 35, volumeMl: 7, floatsDefault: false, desc: 'Kim loại phẳng', densityNote: 'Kim loại nặng đặc, chìm nhanh xuống đáy cát', inTank: false, x: 260, y: 120, z: -25, vx: 0, vy: 0, angle: -15, vRot: 0, settled: false, status: 'basket' },
+  { id: 'item-egg', name: 'Quả trứng', icon: '🥚', image: '/assets/items/egg.png', size: 64, weightGrams: 55, volumeMl: 50, floatsDefault: false, desc: 'Trứng gà tươi', densityNote: 'Nặng hơn nước ngọt nên chìm, nhưng sẽ NỔI BỒNG BỀNH khi nước đủ mặn!', inTank: false, x: 330, y: 120, z: 10, vx: 0, vy: 0, angle: 0, vRot: 0, settled: false, status: 'basket' },
+  { id: 'item-apple', name: 'Quả táo đỏ', icon: '🍎', image: '/assets/items/apple.png', size: 78, weightGrams: 75, volumeMl: 90, floatsDefault: true, desc: 'Trái cây ruột xốp', densityNote: 'Ruột táo chứa nhiều túi khí nhỏ nên nổi bồng bềnh trên mặt nước', inTank: false, x: 400, y: 120, z: 35, vx: 0, vy: 0, angle: 0, vRot: 0, settled: false, status: 'basket' },
+  { id: 'item-wood', name: 'Khối gỗ', icon: '🪵', image: '/assets/items/wood.png', size: 74, weightGrams: 28, volumeMl: 45, floatsDefault: true, desc: 'Gỗ khô', densityNote: 'Nhẹ hơn nước ngọt, nổi vững chãi chìm khoảng một nửa', inTank: false, x: 470, y: 120, z: -30, vx: 0, vy: 0, angle: 5, vRot: 0, settled: false, status: 'basket' },
+  { id: 'item-duck', name: 'Vịt cao su', icon: '🐥', image: '/assets/items/duck.png', size: 86, weightGrams: 12, volumeMl: 55, floatsDefault: true, desc: 'Cao su rỗng ruột', densityNote: 'Rất nhẹ; khi kéo dìm xuống nước sẽ cảm nhận lực đẩy Acsimet giằng ngược lên!', inTank: false, x: 540, y: 120, z: 25, vx: 0, vy: 0, angle: 0, vRot: 0, settled: false, status: 'basket' },
+  { id: 'item-pingpong', name: 'Bóng bàn', icon: '⚪', image: '/assets/items/pingpong.png', size: 56, weightGrams: 3, volumeMl: 40, floatsDefault: true, desc: 'Nhựa rỗng chứa khí', densityNote: 'Siêu nhẹ và chứa đầy không khí; dìm xuống đáy sẽ phóng vọt lên như tên lửa!', inTank: false, x: 610, y: 120, z: -10, vx: 0, vy: 0, angle: 0, vRot: 0, settled: false, status: 'basket' },
+  { id: 'item-leaf', name: 'Chiếc lá', icon: '🍃', image: '/assets/items/leaf.png', size: 72, weightGrams: 1, volumeMl: 5, floatsDefault: true, desc: 'Lá cây tự nhiên', densityNote: 'Bản rộng và siêu nhẹ, lượn êm dịu trên mặt nước', inTank: false, x: 680, y: 120, z: 15, vx: 0, vy: 0, angle: 10, vRot: 0, settled: false, status: 'basket' },
+  { id: 'item-foam', name: 'Mẩu xốp', icon: '🧱', image: '/assets/items/foam.png', size: 76, weightGrams: 2, volumeMl: 35, floatsDefault: true, desc: 'Xốp bọt biển', densityNote: 'Hàng triệu lỗ khí li ti, nổi sát trên bề mặt nước', inTank: false, x: 750, y: 120, z: -20, vx: 0, vy: 0, angle: 0, vRot: 0, settled: false, status: 'basket' }
 ];
 
 interface SurfaceRipple {
@@ -106,6 +112,109 @@ interface SaltParticle {
   alpha: number;
 }
 
+// Realistic Hand Holding Stainless Steel Spoon Component
+const RealisticHandSpoon: React.FC<{
+  x: number;
+  y: number;
+  hasSalt: boolean;
+  isPouring: boolean;
+}> = ({ x, y, hasSalt, isPouring }) => (
+  <div
+    style={{
+      left: `${x}px`,
+      top: `${y}px`,
+      transform: `translate(-50%, -50%) rotate(${isPouring ? 45 : -12}deg)`,
+      transition: 'transform 0.25s ease-out'
+    }}
+    className="fixed pointer-events-none z-50 filter drop-shadow-2xl select-none"
+  >
+    <svg width="140" height="90" viewBox="0 0 140 90" fill="none">
+      {/* Spoon Handle (Polished chrome) */}
+      <path
+        d="M 130 52 L 52 36 Q 44 34 38 33"
+        stroke="url(#metalShineGrad)"
+        strokeWidth="6.5"
+        strokeLinecap="round"
+      />
+      {/* Spoon Bowl */}
+      <ellipse cx="28" cy="33" rx="22" ry="14" fill="url(#metalBowlGrad)" stroke="#94a3b8" strokeWidth="1.8" />
+
+      {/* Salt Mound inside spoon */}
+      {hasSalt && !isPouring && (
+        <ellipse cx="28" cy="30" rx="16" ry="9" fill="#ffffff" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.25))" />
+      )}
+      {/* Pouring salt grains tumbling */}
+      {isPouring && (
+        <g>
+          <ellipse cx="22" cy="34" rx="10" ry="6" fill="#f8fafc" />
+          <circle cx="12" cy="46" r="3" fill="#ffffff" />
+          <circle cx="16" cy="54" r="2.5" fill="#ffffff" />
+          <circle cx="10" cy="62" r="3" fill="#ffffff" />
+        </g>
+      )}
+
+      {/* Hand Fingers Gripping Handle */}
+      <path d="M 135 64 Q 112 50 98 46 Q 90 44 82 42" stroke="#f59e0b" strokeWidth="12" strokeLinecap="round" />
+      <path d="M 135 64 Q 112 50 98 46 Q 90 44 82 42" stroke="#fcd34d" strokeWidth="10" strokeLinecap="round" />
+      <ellipse cx="90" cy="38" rx="9" ry="5.5" fill="#fde68a" stroke="#d97706" strokeWidth="1.5" transform="rotate(-15 90 38)" />
+      <ellipse cx="80" cy="42" rx="6.5" ry="5" fill="#fcd34d" stroke="#d97706" strokeWidth="1.5" transform="rotate(10 80 42)" />
+
+      <defs>
+        <linearGradient id="metalShineGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#94a3b8" />
+          <stop offset="50%" stopColor="#f8fafc" />
+          <stop offset="100%" stopColor="#64748b" />
+        </linearGradient>
+        <linearGradient id="metalBowlGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#e2e8f0" />
+          <stop offset="70%" stopColor="#cbd5e1" />
+          <stop offset="100%" stopColor="#64748b" />
+        </linearGradient>
+      </defs>
+    </svg>
+  </div>
+);
+
+// Realistic Hand Holding Glass Stirring Rod Component
+const RealisticStirringHand: React.FC<{
+  x: number;
+  y: number;
+  angle: number;
+}> = ({ x, y, angle }) => (
+  <div
+    style={{
+      left: `${x}px`,
+      top: `${y}px`,
+      transform: `translate(-50%, -40%) rotate(${Math.sin((angle * Math.PI) / 180) * 15}deg)`,
+      transition: 'transform 0.06s linear'
+    }}
+    className="fixed pointer-events-none z-50 filter drop-shadow-2xl select-none flex flex-col items-center"
+  >
+    <svg width="90" height="180" viewBox="0 0 90 180" fill="none">
+      {/* Laboratory glass stirring rod with cyan glow */}
+      <rect x="42" y="28" width="6.5" height="145" rx="3.2" fill="url(#glassRodGrad)" stroke="rgba(255,255,255,0.9)" strokeWidth="1.2" />
+      <circle cx="45" cy="26" r="4.5" fill="#38bdf8" opacity="0.9" />
+      <circle cx="45" cy="172" r="4.2" fill="#38bdf8" opacity="0.9" />
+
+      {/* Hand holding top of rod */}
+      <path d="M 82 46 Q 64 32 50 30" stroke="#f59e0b" strokeWidth="12" strokeLinecap="round" />
+      <path d="M 82 46 Q 64 32 50 30" stroke="#fcd34d" strokeWidth="10" strokeLinecap="round" />
+      <ellipse cx="46" cy="32" rx="7.5" ry="5.5" fill="#fde68a" stroke="#d97706" strokeWidth="1.5" />
+
+      <defs>
+        <linearGradient id="glassRodGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.9)" />
+          <stop offset="50%" stopColor="rgba(56,189,248,0.6)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0.9)" />
+        </linearGradient>
+      </defs>
+    </svg>
+
+    {/* Effervescent vortex rings and micro-bubbles in water */}
+    <div className="w-12 h-6 rounded-full border-2 border-white/80 animate-ping opacity-70 -mt-5 pointer-events-none" />
+  </div>
+);
+
 export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => {
   // Container & Fullscreen state
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -124,9 +233,37 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
   // Guide modal for teachers & parents
   const [showGuideModal, setShowGuideModal] = useState<boolean>(false);
 
+  // Tank Shape & Size Selection
+  const [tankShape, setTankShape] = useState<TankShape>('rectangle');
+  const [tankScale, setTankScale] = useState<TankScale>('normal');
+  const [showShapeMenu, setShowShapeMenu] = useState<boolean>(false);
+
+  // 3D 360-DEGREE ROTATION STATES
+  const [yaw, setYaw] = useState<number>(0); // -180 to 180 degrees
+  const [pitch, setPitch] = useState<number>(0); // -20 to 20 degrees
+  const [isAutoRotating, setIsAutoRotating] = useState<boolean>(false);
+  const [isRotatingMode, setIsRotatingMode] = useState<boolean>(false);
+  const [isDraggingRotate, setIsDraggingRotate] = useState<boolean>(false);
+  const rotateStartRef = useRef<{ x: number; y: number; startYaw: number; startPitch: number }>({ x: 0, y: 0, startYaw: 0, startPitch: 0 });
+
+  // REALISTIC MULTI-STEP SALT WORKFLOW
+  // 'idle' | 'scooping' | 'holdingSpoon' | 'stirring'
+  const [saltInteractionMode, setSaltInteractionMode] = useState<'idle' | 'scoopMode' | 'holdingSpoon' | 'stirring'>('idle');
+  const [bigJarOpen, setBigJarOpen] = useState<boolean>(false);
+  const [spoonSaltPile, setSpoonSaltPile] = useState<boolean>(false);
+  const [spoonScreenPos, setSpoonScreenPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isPouringSpoon, setIsPouringSpoon] = useState<boolean>(false);
+  const [stirScreenPos, setStirScreenPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [stirProgress, setStirProgress] = useState<number>(0); // 0 to 100%
+  const [stirWobbleAngle, setStirWobbleAngle] = useState<number>(0);
+  const lastStirPosRef = useRef<{ x: number; y: number; distSum: number }>({ x: 0, y: 0, distSum: 0 });
+
+  // Salinity State
+  const [saltSpoons, setSaltSpoons] = useState<number>(0); // 0 to 5 spoons
+  const waterDensity = 1.00 + saltSpoons * 0.035; // 1.00 -> 1.175 g/cm³
+
   // Collapsible Floating Panels
   const [isToyTrayCollapsed, setIsToyTrayCollapsed] = useState<boolean>(false);
-  const [isSaltPanelCollapsed, setIsSaltPanelCollapsed] = useState<boolean>(false);
 
   // Tools & modes
   const [activeTool, setActiveTool] = useState<'hand' | 'net'>('hand');
@@ -149,10 +286,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
   const lastStirSoundTime = useRef<number>(0);
   const lastCavitationTime = useRef<number>(0);
 
-  // Salinity State
-  const [saltSpoons, setSaltSpoons] = useState<number>(0); // 0 to 5 spoons
-  const waterDensity = 1.00 + saltSpoons * 0.035; // 1.00 -> 1.175 g/cm³
-
   // Drop race mode: comparing 2 items dropped simultaneously
   const [raceModeActive, setRaceModeActive] = useState<boolean>(false);
   const [raceSlotA, setRaceSlotA] = useState<string>('item-pebble');
@@ -161,15 +294,25 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
 
   // Tank DOM measurement & water geometry constants
   const tankRef = useRef<HTMLDivElement | null>(null);
-  const [tankDimensions, setTankDimensions] = useState<{ width: number; height: number }>({ width: 960, height: 600 });
+  const [baseDimensions, setBaseDimensions] = useState<{ width: number; height: number }>({ width: 960, height: 600 });
 
-  // Update tank dimensions on mount and resize
+  // Dynamic tank dimensions based on shape and scale
+  const isCompact = tankScale === 'compact';
+  const tankDimensions = {
+    width: isCompact ? Math.round(baseDimensions.width * 0.52) : (tankShape === 'square' ? 620 : baseDimensions.width),
+    height: isCompact ? 390 : 600
+  };
+
+  // 3D Aquarium Depth based on scale
+  const depth3DPx = isCompact ? 160 : (tankShape === 'square' ? 320 : 260);
+
+  // Update base tank dimensions on mount and resize
   useEffect(() => {
     const updateSize = () => {
       if (tankRef.current) {
-        setTankDimensions({
-          width: tankRef.current.clientWidth || 960,
-          height: tankRef.current.clientHeight || 600
+        setBaseDimensions({
+          width: Math.min(1080, Math.max(640, (containerRef.current?.clientWidth || 960) - 40)),
+          height: 600
         });
       }
     };
@@ -178,16 +321,32 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
     return () => window.removeEventListener('resize', updateSize);
   }, [isFullscreen]);
 
+  // 360-DEGREE AUTO ROTATION LOOP
+  useEffect(() => {
+    if (!isAutoRotating) return;
+    let animId: number;
+    const rotateTick = () => {
+      setYaw((prev) => {
+        let next = prev + 0.35;
+        if (next > 180) next -= 360;
+        return next;
+      });
+      animId = requestAnimationFrame(rotateTick);
+    };
+    animId = requestAnimationFrame(rotateTick);
+    return () => cancelAnimationFrame(animId);
+  }, [isAutoRotating]);
+
   // LOWER WATER LEVEL GEOMETRY: Water surface at ~52% of tank height
-  // Generous headroom (> 290px) above water for kids to fling, throw, and drop!
-  const BASE_WATER_SURFACE_Y = Math.round((tankDimensions.height || 600) * 0.52);
-  const TANK_BOTTOM_Y = (tankDimensions.height || 600) - 55; // Sand bed collision plane
+  const BASE_WATER_SURFACE_Y = Math.round(tankDimensions.height * 0.52);
+  const TANK_BOTTOM_Y = tankDimensions.height - (isCompact ? 40 : 55);
 
   // Archimedes water displacement (mực nước dâng)
   const totalVolumeInWater = items
     .filter((i) => i.inTank)
     .reduce((sum, i) => sum + i.volumeMl, 0);
-  const waterLevelRisePx = Math.min(30, Math.round(totalVolumeInWater * 0.07));
+  const displacementFactor = isCompact ? 0.14 : 0.07;
+  const waterLevelRisePx = Math.min(isCompact ? 40 : 30, Math.round(totalVolumeInWater * displacementFactor));
   const currentWaterSurfaceY = BASE_WATER_SURFACE_Y - waterLevelRisePx;
 
   // Particle systems
@@ -225,13 +384,12 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
     setIsFullscreen(!isFullscreen);
   };
 
-  // Water splash fountain & droplets scaled by impact velocity and object weight
+  // Water splash fountain & droplets
   const createWaterSplash = useCallback((xPx: number, isHeavy: boolean, impactSpeed: number = 100, itemSize: number = 60, weightGrams: number = 30) => {
     if (soundEnabled) {
       soundEngine.playWaterSplash(isHeavy || impactSpeed > 280);
     }
 
-    // 1. Disturb wave springs near impact - scaled by impact speed & weight
     if (tankRef.current) {
       const tankWidth = tankDimensions.width || 960;
       const nodeIndex = Math.min(47, Math.max(0, Math.floor((xPx / tankWidth) * 48)));
@@ -241,11 +399,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
       waveVelocities.current[nodeIndex] = baseForce;
       if (nodeIndex > 0) waveVelocities.current[nodeIndex - 1] = baseForce * 0.65;
       if (nodeIndex < 47) waveVelocities.current[nodeIndex + 1] = baseForce * 0.65;
-      if (nodeIndex > 1) waveVelocities.current[nodeIndex - 2] = baseForce * 0.35;
-      if (nodeIndex < 46) waveVelocities.current[nodeIndex + 2] = baseForce * 0.35;
     }
 
-    // 2. Realistic Concentric Surface Ripples
     const newRipples: SurfaceRipple[] = [
       {
         id: Date.now() + Math.random(),
@@ -258,7 +413,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
     ];
     setSurfaceRipples((prev) => [...prev.slice(-8), ...newRipples]);
 
-    // 3. Dynamic Water Splash Droplets (Water Fountain Particles shooting into the air!)
     const dropletCount = Math.min(24, Math.max(4, Math.round((impactSpeed * 0.035) * (weightGrams / 25))));
     const newDroplets: SplashDroplet[] = [];
     const colors = ['#e0f2fe', '#bae6fd', '#7dd3fc', '#ffffff'];
@@ -279,7 +433,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
     }
     setSplashDroplets((prev) => [...prev.slice(-36), ...newDroplets]);
 
-    // 4. Cavitation bubbles under water surface
     const bubbleCount = isHeavy ? 6 : 2;
     const newBubbles: BubbleParticle[] = [];
     for (let i = 0; i < bubbleCount; i++) {
@@ -318,7 +471,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
     setSandDust((prev) => [...prev.slice(-24), ...newPuffs]);
   }, [soundEnabled, TANK_BOTTOM_Y]);
 
-  // 60 FPS 2D PHYSICS ENGINE LOOP (FAST SINKING FOR HEAVY OBJECTS, VIBRANT SPLASH, SMOOTH BUOYANCY)
+  // 60 FPS 2D & 3D PHYSICS ENGINE LOOP
   useEffect(() => {
     let animId: number;
     let lastTime = performance.now();
@@ -327,7 +480,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
       const dt = Math.min(0.04, (currentTime - lastTime) / 1000);
       lastTime = currentTime;
 
-      // 1. Water Wave Springs Update
+      // 1. Water Wave Springs
       const tension = 0.006;
       const dampening = 0.085;
       const spread = 0.12;
@@ -355,7 +508,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
           }
         }
 
-        // Slow calm idle swell
         next[0] += Math.sin(currentTime * 0.0014) * 0.22;
         return next;
       });
@@ -371,14 +523,14 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
           .filter((r) => r.alpha > 0 && r.radius < r.maxRadius)
       );
 
-      // 3. Splash Droplets (Gravity pulls arched fountain droplets back down)
+      // 3. Splash Droplets
       setSplashDroplets((prev) =>
         prev
           .map((d) => ({
             ...d,
             x: d.x + d.vx * dt,
             y: d.y + d.vy * dt,
-            vy: d.vy + 680 * dt, // Gravity on water drops
+            vy: d.vy + 680 * dt,
             alpha: d.alpha - 0.016
           }))
           .filter((d) => d.alpha > 0 && (d.vy < 0 || d.y < currentWaterSurfaceY + 6))
@@ -398,7 +550,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
           .filter((d) => d.life > 0 && d.alpha > 0)
       );
 
-      // 5. Underwater Cavitation Bubbles
+      // 5. Bubbles
       setBubbles((prev) =>
         prev
           .map((b) => ({
@@ -439,22 +591,21 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
               ...item,
               status: 'floating' as const,
               settled: false,
-              vy: -150
+              vy: -160
             };
           }
           return item;
         }
 
-        let { x, y, vx, vy, angle, vRot } = item;
+        let { x, y, z, vx, vy, angle, vRot } = item;
         let status = item.status;
         let settled = item.settled;
 
-        // Physical contact: Object bottom enters water surface
         const itemHalfHeight = item.size * 0.45;
         const isSubmerged = (y + itemHalfHeight) >= currentWaterSurfaceY;
 
         if (!isSubmerged) {
-          // Free fall in air: Strong gravity
+          // Free fall in air
           const gAir = 720;
           vy += gAir * dt;
           vx *= 1 - 0.3 * dt;
@@ -463,7 +614,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
           angle += vRot * dt;
 
           if ((y + itemHalfHeight) >= currentWaterSurfaceY) {
-            // Water Entry Splash!
             createWaterSplash(x, !willFloatInCurrentLiquid, Math.abs(vy), item.size, item.weightGrams);
             status = willFloatInCurrentLiquid ? 'floating' : 'sunk';
           }
@@ -474,7 +624,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
           const equilibriumY = currentWaterSurfaceY + (equilibriumSubmergedFraction * (item.size * 0.4) - item.size * 0.2);
 
           if (willFloatInCurrentLiquid) {
-            // FLOATING OBJECT: Responsive, springy bobbing at waterline
             const fluidDragY = -5.0 * vy;
             const fluidDragX = -5.5 * vx;
             const displacement = y - equilibriumY;
@@ -486,7 +635,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
             vx += fluidDragX * dt;
             x += vx * dt;
 
-            // Dampen exit when bobbing above water
             if (y < currentWaterSurfaceY - item.size * 0.4 && vy < 0) {
               vy *= 0.6;
             }
@@ -501,8 +649,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
             status = 'floating';
             hasChanges = true;
           } else {
-            // SINKING OBJECT: HEAVY OBJECTS (Keys, Pebble, Spoon) PLUNGE RAPIDLY!
-            // Notice: Keys (~4.2 g/cm³) and pebble (~2.5 g/cm³) have high net gravitational acceleration!
+            // Rapid Sinking for heavy objects
             const isHeavyDense = currentDensity >= 2.0;
             const waterDownAccel = isHeavyDense ? 680 : 380;
             const fluidDragCoeff = isHeavyDense ? -2.2 : -4.8;
@@ -510,7 +657,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
 
             vy += (waterDownAccel + fluidDragY) * dt;
 
-            // Spawn trailing bubbles while plunging through water
             if (vy > 60 && y < TANK_BOTTOM_Y - 20 && currentTime - lastCavitationTime.current > 140) {
               setBubbles((prev) => [
                 ...prev.slice(-20),
@@ -527,7 +673,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
               lastCavitationTime.current = currentTime;
             }
 
-            // Descending motion
             if (y < TANK_BOTTOM_Y - itemHalfHeight) {
               if (item.id === 'item-spoon') {
                 angle = Math.sin(currentTime * 0.007) * 20;
@@ -540,7 +685,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
               x += vx * dt;
             }
 
-            // Sand bed collision
             if (y >= TANK_BOTTOM_Y - itemHalfHeight) {
               if (vy > 40) {
                 createSandBedDust(x);
@@ -560,13 +704,13 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
         }
 
         // Clamp walls
-        const tankWidth = tankDimensions.width || 960;
+        const tankWidth = tankDimensions.width;
         const halfW = item.size * 0.5;
-        if (x < halfW + 10) {
-          x = halfW + 10;
+        if (x < halfW + 15) {
+          x = halfW + 15;
           vx = -vx * 0.3;
-        } else if (x > tankWidth - halfW - 10) {
-          x = tankWidth - halfW - 10;
+        } else if (x > tankWidth - halfW - 15) {
+          x = tankWidth - halfW - 15;
           vx = -vx * 0.3;
         }
 
@@ -574,6 +718,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
           ...item,
           x,
           y,
+          z,
           vx,
           vy,
           angle,
@@ -592,11 +737,26 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
 
     animId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animId);
-  }, [currentWaterSurfaceY, waterDensity, holdingItemId, createWaterSplash, createSandBedDust, TANK_BOTTOM_Y, tankDimensions.width, tankDimensions.height]);
+  }, [currentWaterSurfaceY, waterDensity, holdingItemId, createWaterSplash, createSandBedDust, TANK_BOTTOM_Y, tankDimensions.width]);
 
-  // Hand drag, drop, and throw with BUOYANCY DRAG RESISTANCE
+  // Pointer Down on Tank / Item / Rotate
+  const handleTankPointerDown = (e: React.PointerEvent) => {
+    if (isRotatingMode || e.shiftKey) {
+      setIsDraggingRotate(true);
+      rotateStartRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        startYaw: yaw,
+        startPitch: pitch
+      };
+      setIsAutoRotating(false);
+    }
+  };
+
   const handleStartHold = (item: TankObject, e: React.PointerEvent) => {
     e.preventDefault();
+    if (isRotatingMode) return;
+
     if (activeTool === 'net') {
       handleScoopItem(item.id);
       return;
@@ -616,9 +776,83 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
+    // 1. If currently dragging to rotate 3D tank
+    if (isDraggingRotate) {
+      const dx = e.clientX - rotateStartRef.current.x;
+      const dy = e.clientY - rotateStartRef.current.y;
+      let newYaw = rotateStartRef.current.startYaw + dx * 0.5;
+      while (newYaw > 180) newYaw -= 360;
+      while (newYaw < -180) newYaw += 360;
+      const newPitch = Math.max(-20, Math.min(20, rotateStartRef.current.startPitch - dy * 0.3));
+      setYaw(newYaw);
+      setPitch(newPitch);
+      return;
+    }
+
+    // 2. Track screen pos for spoon / stirring rod if in salt workflow
+    if (saltInteractionMode === 'scoopMode' || saltInteractionMode === 'holdingSpoon') {
+      setSpoonScreenPos({ x: e.clientX, y: e.clientY });
+    } else if (saltInteractionMode === 'stirring') {
+      setStirScreenPos({ x: e.clientX, y: e.clientY });
+
+      // Detect swirling motion in water column
+      if (tankRef.current) {
+        const rect = tankRef.current.getBoundingClientRect();
+        const currX = e.clientX - rect.left;
+        const currY = e.clientY - rect.top;
+
+        if (currY >= currentWaterSurfaceY && currY <= TANK_BOTTOM_Y) {
+          const dx = currX - (lastStirPosRef.current.x || currX);
+          const dy = currY - (lastStirPosRef.current.y || currY);
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          lastStirPosRef.current.x = currX;
+          lastStirPosRef.current.y = currY;
+          lastStirPosRef.current.distSum += dist;
+
+          setStirWobbleAngle((prev) => prev + dist * 0.5);
+
+          // Spawn swirling vortex water ripples
+          const now = performance.now();
+          if (now - lastStirSoundTime.current > 160) {
+            if (soundEnabled) soundEngine.playWaterStir();
+            lastStirSoundTime.current = now;
+
+            // Swirl wave spring near cursor
+            const nodeIndex = Math.min(47, Math.max(0, Math.floor((currX / tankDimensions.width) * 48)));
+            waveVelocities.current[nodeIndex] = 12;
+
+            setBubbles((prev) => [
+              ...prev.slice(-20),
+              {
+                id: Date.now() + Math.random(),
+                x: currX + (Math.random() * 20 - 10),
+                y: currY + 15,
+                vy: -(Math.random() * 1.8 + 0.8),
+                size: Math.random() * 4.5 + 2.5,
+                wobble: Math.random() * 8,
+                alpha: 0.9
+              }
+            ]);
+          }
+
+          // Stir progress advances
+          if (dist > 2) {
+            setStirProgress((prev) => {
+              const next = Math.min(100, prev + dist * 0.08);
+              if (next >= 100 && prev < 100) {
+                // SALT FULLY DISSOLVED!
+                handleCompleteStirring();
+              }
+              return next;
+            });
+          }
+        }
+      }
+    }
+
     if (!tankRef.current) return;
     const rect = tankRef.current.getBoundingClientRect();
-    const currX = Math.max(30, Math.min(rect.width - 30, e.clientX - rect.left));
+    const currX = Math.max(20, Math.min(rect.width - 20, e.clientX - rect.left));
     const currY = Math.max(20, Math.min(rect.height - 20, e.clientY - rect.top));
 
     const now = performance.now();
@@ -630,7 +864,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
     if (holdingItemId) {
       setHoldingPointerPos({ x: currX, y: currY });
 
-      // Spawn effervescent bubbling when dragging buoyant items underwater
       const holdingItem = items.find((i) => i.id === holdingItemId);
       if (holdingItem && currY > currentWaterSurfaceY + 20) {
         const itemDensity = holdingItem.weightGrams / holdingItem.volumeMl;
@@ -650,32 +883,15 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
           lastCavitationTime.current = now;
         }
       }
-    } else if (activeTool === 'hand' && e.buttons === 1) {
-      // Gentle water surface stirring with finger
-      if (currY >= currentWaterSurfaceY - 20 && currY <= TANK_BOTTOM_Y) {
-        const tankWidth = rect.width || 960;
-        const nodeIndex = Math.min(47, Math.max(0, Math.floor((currX / tankWidth) * 48)));
-        waveVelocities.current[nodeIndex] = 10;
-
-        setItems((prev) =>
-          prev.map((i) => {
-            if (i.inTank && i.status === 'floating' && Math.abs(i.x - currX) < 70) {
-              return { ...i, vx: i.vx + (currX > i.x ? -15 : 15) };
-            }
-            return i;
-          })
-        );
-
-        if (soundEnabled && now - lastStirSoundTime.current > 200) {
-          soundEngine.playWaterStir();
-          lastStirSoundTime.current = now;
-        }
-      }
     }
   };
 
-  // Releasing the dragged item: calculates release velocity & buoyancy rocket launch
   const handlePointerUp = () => {
+    if (isDraggingRotate) {
+      setIsDraggingRotate(false);
+      return;
+    }
+
     if (!holdingItemId || !tankRef.current) return;
     const item = items.find((i) => i.id === holdingItemId);
     if (!item) {
@@ -699,18 +915,16 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
     const currentDensity = item.weightGrams / item.volumeMl;
     const willFloat = currentDensity < waterDensity;
 
-    // Calculate effective item release position taking buoyancy resistance into account
     let finalReleaseX = holdingPointerPos.x;
     let finalReleaseY = holdingPointerPos.y;
 
     if (holdingPointerPos.y > currentWaterSurfaceY && willFloat) {
-      // Released underwater: BUOYANCY RESISTANCE POP!
+      // Released underwater: BUOYANCY POP!
       const depth = holdingPointerPos.y - currentWaterSurfaceY;
       const buoyancyRatio = Math.max(0, (waterDensity - currentDensity) / waterDensity);
       const resistanceFactor = 1 / (1 + 0.007 * depth * buoyancyRatio);
       finalReleaseY = currentWaterSurfaceY + depth * resistanceFactor;
 
-      // Rocket launch upward!
       const launchVy = -(280 + 380 * buoyancyRatio);
       setItems((prev) =>
         prev.map((i) =>
@@ -732,7 +946,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
       if (soundEnabled) soundEngine.playBuoyantPop();
       setMessage(`💧 Bé thả ${item.name} dưới nước: Lực đẩy đẩy vọt nó lên mặt nước!`);
 
-      // Spawn pop bubble burst
       const popBubbles: BubbleParticle[] = [];
       for (let k = 0; k < 10; k++) {
         popBubbles.push({
@@ -748,7 +961,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
       setBubbles((prev) => [...prev.slice(-25), ...popBubbles]);
 
     } else if (holdingPointerPos.y > currentWaterSurfaceY && !willFloat) {
-      // Released underwater: HEAVY OBJECT SINKS IMMEDIATELY!
+      // Released underwater: HEAVY OBJECT SINKS RAPIDLY!
       setItems((prev) =>
         prev.map((i) =>
           i.id === item.id
@@ -787,7 +1000,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
         )
       );
 
-      // Splash if dropped near water surface or thrown
       if (holdingPointerPos.y >= currentWaterSurfaceY - 30) {
         createWaterSplash(finalReleaseX, !willFloat, Math.max(100, Math.abs(flingVy)), item.size, item.weightGrams);
       }
@@ -868,7 +1080,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
   // Quick drop item from Shelf into Tank from high air position
   const handleDropItemFromShelf = (item: TankObject) => {
     if (item.inTank) return;
-    const tankWidth = tankDimensions.width || 960;
+    const tankWidth = tankDimensions.width;
     const dropX = Math.random() * (tankWidth * 0.5) + tankWidth * 0.25;
 
     const currentDensity = item.weightGrams / item.volumeMl;
@@ -881,7 +1093,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
               ...i,
               inTank: true,
               x: dropX,
-              y: 70, // Dropped from high up in air!
+              y: 70,
               vx: (Math.random() - 0.5) * 30,
               vy: 90,
               settled: false,
@@ -895,7 +1107,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
       if (willFloat) {
         setMessage(`Kỳ diệu quá! Quả trứng đang NỔI BỒNG BỀNH vì nước muối mặn có sức nâng lớn!`);
       } else {
-        setMessage(`Quả trứng chìm xuống đáy vì nặng hơn nước ngọt. Bé thử bấm thêm 3 thìa muối xem nhé!`);
+        setMessage(`Quả trứng chìm xuống đáy vì nặng hơn nước ngọt. Bé thử xúc 3 thìa muối rồi quấy tan xem nhé!`);
       }
     } else if (willFloat) {
       setMessage(`Bé thả ${item.name}: Vật này nhẹ nên nổi bồng bềnh trên mặt nước!`);
@@ -904,7 +1116,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
     }
   };
 
-  // Scoop item back to shelf
   const handleScoopItem = (itemId: string) => {
     const item = items.find((i) => i.id === itemId);
     if (!item || !item.inTank) return;
@@ -931,7 +1142,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
     setMessage(`Đã vớt ${item.name} trả về khay đồ chơi!`);
   };
 
-  // Reset entire tank
   const handleResetAllTank = () => {
     setItems(PLAY_ITEMS_PRESETS);
     setHoldingItemId(null);
@@ -940,53 +1150,107 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
     setMessage('Đã dọn sạch bể nước! Khay đồ chơi đã đầy đủ để bé thử nghiệm lại.');
   };
 
-  // Salt addition
-  const handleAddSaltSpoon = () => {
+  // REALISTIC SALT DISSOLVING WORKFLOW HANDLERS
+  const handleOpenBigSaltJar = () => {
     if (saltSpoons >= 5) {
       setMessage('Nước đã đạt độ mặn tối đa (giống Biển Chết) rồi bé ơi!');
       return;
     }
+    setBigJarOpen(true);
+    setSaltInteractionMode('scoopMode');
+    setSpoonSaltPile(false);
+    setMessage('Bé hãy di chuột đưa thìa vào miệng hũ muối to để xúc một thìa muối nhé!');
+  };
 
-    const nextSpoons = saltSpoons + 1;
-    setSaltSpoons(nextSpoons);
+  const handleScoopSaltFromBigJar = () => {
+    if (saltInteractionMode !== 'scoopMode') return;
 
+    if (soundEnabled) soundEngine.playSpoonClink();
+    setSpoonSaltPile(true);
+    setSaltInteractionMode('holdingSpoon');
+    setMessage('Thìa đã đầy muối rồi! Bây giờ bé hãy di thìa vào bể nước và bấm để đổ muối vào nhé!');
+  };
+
+  const handlePourSaltIntoTank = () => {
+    if (saltInteractionMode !== 'holdingSpoon' || !spoonSaltPile) return;
+
+    setIsPouringSpoon(true);
     if (soundEnabled) soundEngine.playSaltPour();
 
-    // Spawn falling salt crystal grains
+    // Spawn falling salt crystals
     const newSalt: SaltParticle[] = [];
-    const tankWidth = tankDimensions.width || 960;
-    for (let i = 0; i < 28; i++) {
+    const tankWidth = tankDimensions.width;
+    const dropCenter = holdingPointerPos.x || tankWidth * 0.5;
+
+    for (let i = 0; i < 35; i++) {
       newSalt.push({
         id: Date.now() + Math.random() + i,
-        x: tankWidth * 0.5 + (Math.random() - 0.5) * 200,
-        y: currentWaterSurfaceY - 10 + Math.random() * 20,
-        vy: Math.random() * 60 + 40,
-        size: Math.random() * 3 + 1.8,
+        x: dropCenter + (Math.random() - 0.5) * 140,
+        y: currentWaterSurfaceY - 10 + Math.random() * 25,
+        vy: Math.random() * 70 + 40,
+        size: Math.random() * 3.5 + 1.8,
         alpha: 0.95
       });
     }
-    setSaltParticles((prev) => [...prev.slice(-40), ...newSalt]);
+    setSaltParticles((prev) => [...prev.slice(-45), ...newSalt]);
+
+    setTimeout(() => {
+      setIsPouringSpoon(false);
+      setSpoonSaltPile(false);
+      setBigJarOpen(false);
+      setSaltInteractionMode('stirring');
+      setStirProgress(0);
+      lastStirPosRef.current = { x: 0, y: 0, distSum: 0 };
+      setMessage('Muối đang nằm dưới đáy! Bé hãy di chuột quấy đũa theo vòng tròn trong bể để hòa tan muối nhé!');
+    }, 450);
+  };
+
+  const handleCompleteStirring = () => {
+    const nextSpoons = Math.min(5, saltSpoons + 1);
+    setSaltSpoons(nextSpoons);
+    setSaltInteractionMode('idle');
+    setStirProgress(0);
+
+    if (soundEnabled) soundEngine.playMagicChime();
+
+    // Check if egg or settled items now float!
+    const newDensity = 1.00 + nextSpoons * 0.035;
+    setItems((prev) =>
+      prev.map((i) => {
+        if (i.inTank && (i.weightGrams / i.volumeMl) < newDensity && i.settled) {
+          return {
+            ...i,
+            status: 'floating',
+            settled: false,
+            vy: -180
+          };
+        }
+        return i;
+      })
+    );
 
     if (nextSpoons >= 3) {
-      setMessage(`🧂 Đã thêm thìa muối thứ ${nextSpoons}! Nước rất mặn và đặc. Hãy nhìn quả trứng xem nó có nổi lên không nào!`);
+      setMessage(`🎉 HOAN HÔ! Muối đã hòa tan hết (+${nextSpoons} thìa)! Nước rất đặc nên quả trứng và đồ vật chìm đã bơi nổi bồng bềnh lên rồi!`);
     } else {
-      setMessage(`🧂 Bé vừa rắc thêm 1 thìa muối! Nước đang đậm đặc dần lên.`);
+      setMessage(`✨ Muối đã tan hoàn toàn (+${nextSpoons} thìa)! Nước đang đậm đặc dần lên.`);
     }
   };
 
   const handleResetSalt = () => {
     setSaltSpoons(0);
+    setSaltInteractionMode('idle');
+    setBigJarOpen(false);
     if (soundEnabled) soundEngine.playWaterSplash(false);
     setMessage('Đã thay nước ngọt mới! Nước trở lại bình thường và trong vắt.');
   };
 
-  // Drop race: 2 items dropped simultaneously from high up
+  // Drop race
   const handleStartRace = () => {
     const itemA = items.find((i) => i.id === raceSlotA);
     const itemB = items.find((i) => i.id === raceSlotB);
     if (!itemA || !itemB) return;
 
-    const tankWidth = tankDimensions.width || 960;
+    const tankWidth = tankDimensions.width;
     setRaceRunning(true);
     setMessage('Chuẩn bị... 3... 2... 1... THẢ 2 VẬT CÙNG LÚC TỪ TRÊN CAO!');
 
@@ -1045,17 +1309,30 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
     if (willFloat) {
       const depth = holdingPointerPos.y - currentWaterSurfaceY;
       const buoyancyRatio = Math.max(0, (waterDensity - itemDensity) / waterDensity);
-      // Buoyancy spring resistance formula
       const resistanceFactor = 1 / (1 + 0.007 * depth * buoyancyRatio);
       activeDisplayY = currentWaterSurfaceY + depth * resistanceFactor;
-      // Micro-tremor vibration under water pushback force
       const vibration = Math.sin(performance.now() * 0.035) * 3.5 * buoyancyRatio;
       activeDisplayX = holdingPointerPos.x + vibration;
       isUnderBuoyantStrain = depth > 30;
     }
   }
 
-  const tankW = tankDimensions.width || 960;
+  const tankW = tankDimensions.width;
+  const tankH = tankDimensions.height;
+
+  // Visual tank shape styling
+  const getShapeClass = () => {
+    switch (tankShape) {
+      case 'square':
+        return 'rounded-2xl aspect-square';
+      case 'cylinder':
+        return 'rounded-[80px] sm:rounded-[110px]';
+      case 'triangle':
+        return 'rounded-3xl clip-triangle-style';
+      default:
+        return 'rounded-3xl';
+    }
+  };
 
   return (
     <div
@@ -1066,20 +1343,30 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
           : 'relative space-y-3'
       }`}
     >
-      {/* 1. TOP FRIENDLY MASCOT BAR (1-line, Preschool style with Cô Mimi) */}
-      <div className="w-full flex items-center justify-between gap-3 px-3.5 py-2 rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-sky-200/90 dark:border-slate-800 shadow-xs">
+      {/* 1. TOP FRIENDLY MASCOT BAR (Preschool style with Cô Mimi) */}
+      <div className="w-full flex items-center justify-between gap-3 px-3.5 py-2 rounded-2xl bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border border-sky-200/90 dark:border-slate-800 shadow-xs">
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <div className="w-9 h-9 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center text-lg flex-shrink-0 shadow-xs animate-bounce">
             👩‍🏫
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider block">
                 Cô Mimi Hướng Dẫn:
               </span>
               {isStandalone && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 font-bold">
                   Bản Full Màn Hình
+                </span>
+              )}
+              {isAutoRotating && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-bold animate-pulse">
+                  🎠 Đang Tự Xoay 360°
+                </span>
+              )}
+              {saltInteractionMode === 'stirring' && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500 text-white font-bold animate-bounce">
+                  🥄 Bé Hãy Quấy Đũa Hòa Tan Muối ({Math.round(stirProgress)}%)
                 </span>
               )}
             </div>
@@ -1123,496 +1410,780 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
         </div>
       </div>
 
-      {/* 2. THE FULL-WIDTH PHYSICAL WATER TANK (IMMERSIVE INTERACTIVE CANVAS) */}
-      <div
-        ref={tankRef}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        className="relative w-full h-[580px] sm:h-[620px] lg:h-[660px] rounded-3xl overflow-hidden shadow-2xl border-4 border-sky-400/60 dark:border-sky-700/60 bg-gradient-to-b from-sky-100 via-sky-50 to-blue-50 dark:from-slate-900 dark:via-sky-950/40 dark:to-slate-950 cursor-default touch-none"
+      {/* 2. 3D 360-DEGREE AQUARIUM STAGE */}
+      <div 
+        className="w-full flex flex-col items-center justify-center relative overflow-hidden p-2 sm:p-4 rounded-3xl bg-slate-100/60 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800"
+        style={{ perspective: '1400px' }}
       >
         {/* ================================================================= */}
-        {/* TOP FLOATING TOOLS DOCK (TOP-LEFT INSIDE TANK)                    */}
+        {/* TOP FLOATING CONTROLS: ROTATE 360° PRESETS & TANK SHAPE SELECTOR  */}
         {/* ================================================================= */}
-        <div className="absolute top-3 left-3 z-30 flex items-center gap-1.5 p-1.5 rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-white/60 dark:border-slate-700/60 shadow-lg">
-          <button
-            onClick={handleResetAllTank}
-            className="p-2 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-slate-800 text-sky-700 dark:text-sky-300 font-bold text-xs flex items-center gap-1 transition shadow-xs"
-            title="Vớt sạch đồ vật trong bể về khay"
-          >
-            <RotateCcw className="w-4 h-4 text-sky-600" />
-            <span className="hidden sm:inline">Dọn Bể</span>
-          </button>
+        <div className="w-full flex items-center justify-between gap-2 mb-3 z-30 flex-wrap">
+          {/* 360 Rotation Controls */}
+          <div className="flex items-center gap-1.5 p-1.5 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-md">
+            <span className="text-xs font-bold text-sky-800 dark:text-sky-300 flex items-center gap-1 pl-1 pr-1">
+              <Compass className="w-4 h-4 text-sky-500 animate-spin" style={{ animationDuration: '8s' }} />
+              <span className="hidden md:inline">Góc Xoay:</span>
+            </span>
 
-          <button
-            onClick={() => setActiveTool(activeTool === 'hand' ? 'net' : 'hand')}
-            className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition ${
-              activeTool === 'net'
-                ? 'bg-emerald-500 text-white shadow-md'
-                : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
-            }`}
-            title={activeTool === 'net' ? 'Đang dùng Vợt Lưới. Bấm để dùng Tay' : 'Đang dùng Tay. Bấm để dùng Vợt Lưới'}
-          >
-            <span>{activeTool === 'net' ? '🕸️ Vợt' : '🖐️ Tay'}</span>
-          </button>
+            {/* Quick Angle Presets */}
+            <button
+              onClick={() => { setYaw(0); setPitch(0); setIsAutoRotating(false); }}
+              className={`px-2.5 py-1 rounded-xl text-xs font-bold transition ${yaw === 0 && pitch === 0 ? 'bg-sky-500 text-white shadow-xs' : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+              title="Nhìn chính diện mặt trước (0°)"
+            >
+              0° Mặt Trước
+            </button>
+            <button
+              onClick={() => { setYaw(35); setPitch(8); setIsAutoRotating(false); }}
+              className={`px-2.5 py-1 rounded-xl text-xs font-bold transition ${yaw === 35 ? 'bg-sky-500 text-white shadow-xs' : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+              title="Góc nghiêng 3D quan sát chiều sâu (35°)"
+            >
+              35° Nghiêng 3D
+            </button>
+            <button
+              onClick={() => { setYaw(90); setPitch(0); setIsAutoRotating(false); }}
+              className={`px-2.5 py-1 rounded-xl text-xs font-bold transition ${yaw === 90 ? 'bg-sky-500 text-white shadow-xs' : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+              title="Nhìn cạnh bên hông bể (90°)"
+            >
+              90° Cạnh Bên
+            </button>
+            <button
+              onClick={() => { setYaw(180); setPitch(0); setIsAutoRotating(false); }}
+              className={`px-2.5 py-1 rounded-xl text-xs font-bold transition ${yaw === 180 ? 'bg-sky-500 text-white shadow-xs' : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
+              title="Nhìn từ phía sau bể (180°)"
+            >
+              180° Sau Lưng
+            </button>
 
-          <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition"
-            title={soundEnabled ? 'Tắt âm thanh hiệu ứng' : 'Bật âm thanh hiệu ứng'}
-          >
-            <span className="text-xs">{soundEnabled ? '🔊' : '🔇'}</span>
-          </button>
+            {/* Turntable Auto-Rotate Button */}
+            <button
+              onClick={() => setIsAutoRotating(!isAutoRotating)}
+              className={`px-2.5 py-1 rounded-xl text-xs font-bold flex items-center gap-1 transition ${isAutoRotating ? 'bg-amber-400 text-slate-950 shadow-md animate-pulse' : 'bg-amber-100 hover:bg-amber-200 text-amber-900 dark:bg-amber-950 dark:text-amber-200'}`}
+              title="Tự động xoay 360 độ liên tục"
+            >
+              <span>🎠</span>
+              <span>{isAutoRotating ? 'Dừng Xoay' : 'Tự Xoay 360°'}</span>
+            </button>
 
-          <button
-            onClick={() => setRaceModeActive(!raceModeActive)}
-            className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition ${
-              raceModeActive
-                ? 'bg-amber-500 text-slate-950 shadow-md'
-                : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
-            }`}
-            title="Đua thả 2 vật cùng lúc từ trên cao"
-          >
-            <span>🏁</span>
-            <span className="hidden sm:inline">Đua Thả</span>
-          </button>
+            {/* Drag Rotate Mode Toggle */}
+            <button
+              onClick={() => setIsRotatingMode(!isRotatingMode)}
+              className={`p-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition ${isRotatingMode ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600'}`}
+              title={isRotatingMode ? 'Đang bật chế độ Kéo Xoay Bể 360°' : 'Bấm để Kéo Xoay Bể 360°'}
+            >
+              <span>🔄</span>
+            </button>
+          </div>
 
-          <button
-            onClick={() => setShowXRay(!showXRay)}
-            className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition ${
-              showXRay
-                ? 'bg-purple-600 text-white shadow-md'
-                : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
-            }`}
-            title="Kính lúp soi túi khí và ruột đồ vật"
-          >
-            <Search className="w-4 h-4" />
-            <span className="hidden sm:inline">Soi Khí</span>
-          </button>
+          {/* Tank Shape & Scale Selector Button */}
+          <div className="relative flex items-center gap-2">
+            <button
+              onClick={() => setShowShapeMenu(!showShapeMenu)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-md text-xs font-extrabold text-slate-800 dark:text-white hover:bg-slate-100 transition"
+            >
+              <Box className="w-4 h-4 text-emerald-500" />
+              <span>Kiểu Bể: {tankShape === 'rectangle' ? 'Chữ Nhật' : tankShape === 'square' ? 'Vuông Lập Phương' : tankShape === 'cylinder' ? 'Trụ Tròn' : 'Tam Giác'} ({isCompact ? '50% Nhỏ' : '100% To'})</span>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+            </button>
 
-          <button
-            onClick={handleToggleFullscreen}
-            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition"
-            title={isFullscreen ? 'Thu nhỏ màn hình' : 'Mở toàn màn hình'}
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </button>
+            {/* Shape Menu Popup */}
+            {showShapeMenu && (
+              <div className="absolute right-0 top-10 z-40 p-3 rounded-2xl bg-white dark:bg-slate-900 border-2 border-emerald-400 shadow-2xl space-y-3 w-64 animate-fadeIn">
+                <div className="flex items-center justify-between border-b pb-1.5">
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                    <Layers className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Chọn Hình Dạng Bể:</span>
+                  </span>
+                  <button onClick={() => setShowShapeMenu(false)} className="text-slate-400 hover:text-slate-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    onClick={() => { setTankShape('rectangle'); setShowShapeMenu(false); }}
+                    className={`p-2 rounded-xl text-xs font-bold flex flex-col items-center gap-1 border transition ${tankShape === 'rectangle' ? 'bg-emerald-50 border-emerald-500 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-slate-50 border-slate-200 dark:bg-slate-800 dark:border-slate-700'}`}
+                  >
+                    <span className="text-lg">▬</span>
+                    <span>Chữ Nhật</span>
+                  </button>
+                  <button
+                    onClick={() => { setTankShape('square'); setShowShapeMenu(false); }}
+                    className={`p-2 rounded-xl text-xs font-bold flex flex-col items-center gap-1 border transition ${tankShape === 'square' ? 'bg-emerald-50 border-emerald-500 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-slate-50 border-slate-200 dark:bg-slate-800 dark:border-slate-700'}`}
+                  >
+                    <span className="text-lg">◼</span>
+                    <span>Lập Phương</span>
+                  </button>
+                  <button
+                    onClick={() => { setTankShape('cylinder'); setShowShapeMenu(false); }}
+                    className={`p-2 rounded-xl text-xs font-bold flex flex-col items-center gap-1 border transition ${tankShape === 'cylinder' ? 'bg-emerald-50 border-emerald-500 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-slate-50 border-slate-200 dark:bg-slate-800 dark:border-slate-700'}`}
+                  >
+                    <span className="text-lg">⚪</span>
+                    <span>Trụ Tròn (Bát)</span>
+                  </button>
+                  <button
+                    onClick={() => { setTankShape('triangle'); setShowShapeMenu(false); }}
+                    className={`p-2 rounded-xl text-xs font-bold flex flex-col items-center gap-1 border transition ${tankShape === 'triangle' ? 'bg-emerald-50 border-emerald-500 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-slate-50 border-slate-200 dark:bg-slate-800 dark:border-slate-700'}`}
+                  >
+                    <span className="text-lg">▲</span>
+                    <span>Tam Giác</span>
+                  </button>
+                </div>
+
+                <div className="border-t pt-2 space-y-1.5">
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">Kích Thước Bể:</span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      onClick={() => setTankScale('normal')}
+                      className={`py-1.5 rounded-xl text-xs font-bold transition border ${tankScale === 'normal' ? 'bg-sky-500 text-white border-sky-600' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}
+                    >
+                      To (100%)
+                    </button>
+                    <button
+                      onClick={() => setTankScale('compact')}
+                      className={`py-1.5 rounded-xl text-xs font-bold transition border ${tankScale === 'compact' ? 'bg-sky-500 text-white border-sky-600' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}
+                    >
+                      Nhỏ (50%)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ================================================================= */}
-        {/* TOP-RIGHT FLOATING SALINITY PANEL (COLLAPSIBLE)                    */}
+        {/* 3D ROTATABLE AQUARIUM CUBOID CONTAINER (TRANSFORM PRESERVE-3D)   */}
         {/* ================================================================= */}
-        <div className="absolute top-3 right-3 z-30 flex flex-col items-end">
-          {isSaltPanelCollapsed ? (
-            <button
-              onClick={() => setIsSaltPanelCollapsed(false)}
-              className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs shadow-xl border-2 border-white transition animate-pulse"
-              title="Mở bảng pha muối"
+        <div
+          ref={tankRef}
+          onPointerDown={handleTankPointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onClick={handlePourSaltIntoTank}
+          style={{
+            width: `${tankW}px`,
+            height: `${tankH}px`,
+            transformStyle: 'preserve-3d',
+            transform: `rotateY(${yaw}deg) rotateX(${pitch}deg)`,
+            transition: isDraggingRotate || isAutoRotating ? 'none' : 'transform 0.25s cubic-bezier(0.2, 0.8, 0.4, 1)'
+          }}
+          className={`relative select-none cursor-${isRotatingMode ? 'grab active:cursor-grabbing' : 'default'} touch-none filter drop-shadow-2xl`}
+        >
+          {/* =============================================================== */}
+          {/* GLASS AQUARIUM FACES (3D OPAL/OPTIWHITE GLASS RECTANGULAR BOX)  */}
+          {/* =============================================================== */}
+
+          {/* 1. BACK GLASS PANEL (translateZ: -depth/2) */}
+          <div
+            style={{
+              transform: `translateZ(${-depth3DPx / 2}px) rotateY(180deg)`,
+              width: `${tankW}px`,
+              height: `${tankH}px`
+            }}
+            className={`absolute inset-0 pointer-events-none ${getShapeClass()} bg-sky-950/20 backdrop-blur-[1px] border-4 border-sky-300/30 dark:border-sky-800/30`}
+          />
+
+          {/* 2. LEFT SIDE GLASS PANEL (rotateY: -90deg, width: depth3DPx) */}
+          <div
+            style={{
+              transform: `translateX(${-depth3DPx / 2}px) translateZ(0px) rotateY(-90deg)`,
+              left: 0,
+              top: 0,
+              width: `${depth3DPx}px`,
+              height: `${tankH}px`
+            }}
+            className="absolute pointer-events-none border-4 border-sky-400/50 bg-gradient-to-r from-sky-400/25 via-blue-500/30 to-sky-400/15 backdrop-blur-[1px]"
+          >
+            {/* Side water cross section */}
+            <div
+              style={{
+                top: `${currentWaterSurfaceY}px`,
+                height: `${tankH - currentWaterSurfaceY}px`
+              }}
+              className="absolute inset-x-0 bottom-0 bg-blue-600/40 border-t-2 border-white/70"
             >
-              <span className="text-base">🧂</span>
-              <span>Độ mặn: {saltSpoons > 0 ? `+${saltSpoons} thìa` : 'Nước ngọt'}</span>
-              <ChevronDown className="w-3.5 h-3.5" />
-            </button>
-          ) : (
-            <div className="p-3 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-amber-300/80 dark:border-amber-700/80 shadow-2xl space-y-2 max-w-[240px]">
-              <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                <span className="font-extrabold text-xs text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
-                  <span>🧂 Hũ Muối Thần Kỳ</span>
-                </span>
-                <button
-                  onClick={() => setIsSaltPanelCollapsed(true)}
-                  className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400"
-                  title="Thu gọn"
-                >
-                  <ChevronUp className="w-3.5 h-3.5" />
-                </button>
-              </div>
+              {/* Side sand bed cross section */}
+              <div className="absolute inset-x-0 bottom-0 h-14 bg-amber-300/80 border-t-2 border-amber-400" />
+            </div>
+          </div>
 
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500 dark:text-slate-400">Đã pha:</span>
-                <span className="font-bold text-amber-600 dark:text-amber-400">{saltSpoons} / 5 thìa muối</span>
-              </div>
+          {/* 3. RIGHT SIDE GLASS PANEL (rotateY: 90deg, width: depth3DPx) */}
+          <div
+            style={{
+              transform: `translateX(${tankW - depth3DPx / 2}px) translateZ(0px) rotateY(90deg)`,
+              left: 0,
+              top: 0,
+              width: `${depth3DPx}px`,
+              height: `${tankH}px`
+            }}
+            className="absolute pointer-events-none border-4 border-sky-400/50 bg-gradient-to-r from-sky-400/15 via-blue-500/30 to-sky-400/25 backdrop-blur-[1px]"
+          >
+            {/* Side water cross section */}
+            <div
+              style={{
+                top: `${currentWaterSurfaceY}px`,
+                height: `${tankH - currentWaterSurfaceY}px`
+              }}
+              className="absolute inset-x-0 bottom-0 bg-blue-600/40 border-t-2 border-white/70"
+            >
+              <div className="absolute inset-x-0 bottom-0 h-14 bg-amber-300/80 border-t-2 border-amber-400" />
+            </div>
+          </div>
 
-              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-amber-400 to-rose-400 transition-all duration-300"
-                  style={{ width: `${(saltSpoons / 5) * 100}%` }}
+          {/* 4. BOTTOM FLOOR / SAND BED (rotateX: 90deg) */}
+          <div
+            style={{
+              transform: `translateY(${tankH - depth3DPx / 2}px) rotateX(90deg)`,
+              top: 0,
+              left: 0,
+              width: `${tankW}px`,
+              height: `${depth3DPx}px`
+            }}
+            className="absolute pointer-events-none bg-gradient-to-b from-amber-200 via-amber-300 to-amber-400 border-2 border-amber-400/80 shadow-2xl"
+          />
+
+          {/* 5. TOP WATER SURFACE 3D PLANE (visible when tilted down) */}
+          <div
+            style={{
+              transform: `translateY(${currentWaterSurfaceY - depth3DPx / 2}px) rotateX(90deg)`,
+              top: 0,
+              left: 0,
+              width: `${tankW}px`,
+              height: `${depth3DPx}px`
+            }}
+            className="absolute pointer-events-none bg-sky-300/40 border-2 border-white/80 shadow-inner"
+          />
+
+          {/* =============================================================== */}
+          {/* MAIN FRONT GLASS CONTAINER (SIMULATION STAGE)                   */}
+          {/* =============================================================== */}
+          <div
+            style={{
+              transform: `translateZ(${depth3DPx / 2}px)`
+            }}
+            className={`absolute inset-0 ${getShapeClass()} overflow-hidden border-4 border-sky-400/80 dark:border-sky-600/80 bg-gradient-to-b from-sky-100/30 via-sky-50/20 to-blue-50/30 dark:from-slate-900/30 dark:via-sky-950/20 dark:to-slate-950/40 shadow-inner`}
+          >
+            {/* OPTIWHITE GLASS SPECULAR GLARE (Dynamic diagonal light sweep) */}
+            <div
+              className="absolute inset-0 pointer-events-none bg-gradient-to-tr from-transparent via-white/20 to-transparent"
+              style={{
+                transform: `rotate(${25 + yaw * 0.15}deg) scale(1.4)`,
+                transition: 'transform 0.1s linear'
+              }}
+            />
+
+            {/* AQUARIUM SILICONE CORNER SEAMS (Realistic Black/Cyan Sealant) */}
+            <div className="absolute inset-0 pointer-events-none rounded-3xl border-2 border-cyan-400/40 shadow-[inset_0_0_18px_rgba(6,182,212,0.25)]" />
+
+            {/* TOP AIR ZONE */}
+            <div
+              className="absolute top-0 left-0 right-0 pointer-events-none overflow-hidden"
+              style={{ height: `${currentWaterSurfaceY}px` }}
+            >
+              <div className="absolute top-6 left-12 w-28 h-10 rounded-full bg-white/35 blur-sm animate-pulse" />
+              <div className="absolute top-10 right-20 w-36 h-12 rounded-full bg-white/30 blur-sm animate-pulse" />
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-white/50 dark:bg-slate-800/50 backdrop-blur-xs text-[11px] font-bold text-sky-800/70 dark:text-sky-200">
+                🌤️ Không gian trên không (Thả hoặc ném từ đây)
+              </div>
+            </div>
+
+            {/* WATER BODY (LOWER HALF) */}
+            <div
+              className="absolute left-0 right-0 bottom-0 pointer-events-none transition-all duration-300"
+              style={{ top: `${currentWaterSurfaceY}px` }}
+            >
+              {/* Dynamic Water Wave SVG */}
+              <svg className="absolute -top-3 left-0 w-full h-7 overflow-visible pointer-events-none">
+                <path
+                  d={waveSprings.reduce((acc, yOffset, idx) => {
+                    const nodeX = (idx / (waveSprings.length - 1)) * tankW;
+                    const nodeY = 12 + yOffset;
+                    return idx === 0 ? `M ${nodeX} ${nodeY}` : `${acc} L ${nodeX} ${nodeY}`;
+                  }, '') + ` L ${tankW} 30 L 0 30 Z`}
+                  fill="rgba(56, 189, 248, 0.45)"
                 />
-              </div>
+                <path
+                  d={waveSprings.reduce((acc, yOffset, idx) => {
+                    const nodeX = (idx / (waveSprings.length - 1)) * tankW;
+                    const nodeY = 10 + yOffset;
+                    return idx === 0 ? `M ${nodeX} ${nodeY}` : `${acc} L ${nodeX} ${nodeY}`;
+                  }, '')}
+                  fill="none"
+                  stroke="rgba(255, 255, 255, 0.85)"
+                  strokeWidth="2.5"
+                />
+              </svg>
 
-              <div className="flex items-center gap-1.5 pt-1">
-                <button
-                  onClick={handleAddSaltSpoon}
-                  disabled={saltSpoons >= 5}
-                  className="flex-1 py-1.5 px-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-xs flex items-center justify-center gap-1 shadow-xs transition"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+1 Thìa</span>
-                </button>
+              {/* Water Gradient */}
+              <div className="w-full h-full bg-gradient-to-b from-sky-400/40 via-blue-500/45 to-indigo-700/60 dark:from-sky-600/35 dark:via-blue-800/45 dark:to-indigo-950/70 backdrop-blur-[1px] relative">
+                <div className="absolute inset-0 opacity-25 bg-[radial-gradient(circle_at_50%_40%,rgba(255,255,255,0.8)_0%,transparent_60%)]" />
+
+                {/* Salinity visual tint */}
                 {saltSpoons > 0 && (
-                  <button
-                    onClick={handleResetSalt}
-                    className="p-1.5 rounded-xl bg-sky-100 hover:bg-sky-200 dark:bg-slate-800 text-sky-700 dark:text-sky-300 text-xs font-semibold"
-                    title="Xả muối về nước ngọt"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                  </button>
+                  <div
+                    className="absolute inset-0 bg-amber-300/10 pointer-events-none transition-opacity duration-500"
+                    style={{ opacity: saltSpoons * 0.18 }}
+                  />
                 )}
               </div>
+
+              {/* Sand Bed (Bottom 55px) */}
+              <div className="absolute bottom-0 left-0 right-0 h-14 bg-gradient-to-t from-amber-300 via-amber-200 to-amber-100 dark:from-amber-950 dark:via-amber-900/60 dark:to-amber-800/40 border-t-2 border-amber-300/80">
+                <div className="absolute top-1 left-16 w-3 h-2 rounded-full bg-stone-400 opacity-60" />
+                <div className="absolute top-2 left-44 w-2.5 h-2 rounded-full bg-stone-500 opacity-50" />
+                <div className="absolute top-1 right-32 w-4 h-2 rounded-full bg-stone-400 opacity-60" />
+                <div className="absolute top-2 right-64 w-2 h-1.5 rounded-full bg-stone-600 opacity-50" />
+              </div>
             </div>
-          )}
-        </div>
 
-        {/* ================================================================= */}
-        {/* RACE OVERLAY BAR (SHOWN WHEN RACE MODE IS ACTIVE)                 */}
-        {/* ================================================================= */}
-        {raceModeActive && (
-          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-2 border-amber-400 shadow-2xl flex items-center gap-3">
-            <span className="text-xs font-bold text-slate-800 dark:text-white">Đua Thả 2 Vật:</span>
-            <select
-              value={raceSlotA}
-              onChange={(e) => setRaceSlotA(e.target.value)}
-              className="text-xs px-2 py-1 rounded-lg bg-sky-50 dark:bg-slate-800 font-bold border border-sky-300"
-            >
-              {items.map((i) => (
-                <option key={i.id} value={i.id}>{i.icon} {i.name}</option>
-              ))}
-            </select>
-            <span className="font-extrabold text-amber-500 text-sm">VS</span>
-            <select
-              value={raceSlotB}
-              onChange={(e) => setRaceSlotB(e.target.value)}
-              className="text-xs px-2 py-1 rounded-lg bg-sky-50 dark:bg-slate-800 font-bold border border-sky-300"
-            >
-              {items.map((i) => (
-                <option key={i.id} value={i.id}>{i.icon} {i.name}</option>
-              ))}
-            </select>
-            <button
-              onClick={handleStartRace}
-              disabled={raceRunning}
-              className="px-3 py-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-extrabold text-xs shadow-xs transition"
-            >
-              {raceRunning ? 'Đang thả...' : 'Bắt Đầu Thả!'}
-            </button>
-          </div>
-        )}
-
-        {/* ================================================================= */}
-        {/* AIR SPACE (UPPER HALF): Cloud accents & Air labels                */}
-        {/* ================================================================= */}
-        <div
-          className="absolute top-0 left-0 right-0 pointer-events-none overflow-hidden"
-          style={{ height: `${currentWaterSurfaceY}px` }}
-        >
-          {/* Subtle floating cloud animations */}
-          <div className="absolute top-8 left-12 w-28 h-10 rounded-full bg-white/40 blur-sm animate-pulse" />
-          <div className="absolute top-14 right-20 w-36 h-12 rounded-full bg-white/35 blur-sm animate-pulse" />
-
-          {/* Air Zone Tag */}
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-white/40 dark:bg-slate-800/40 backdrop-blur-xs text-[11px] font-bold text-sky-800/60 dark:text-sky-300/60">
-            🌤️ Không gian trên không (Thả hoặc ném từ đây)
-          </div>
-        </div>
-
-        {/* ================================================================= */}
-        {/* WATER BODY (LOWER HALF): Fluid gradients, waves, sand bed         */}
-        {/* ================================================================= */}
-        <div
-          className="absolute left-0 right-0 bottom-0 pointer-events-none transition-all duration-300"
-          style={{ top: `${currentWaterSurfaceY}px` }}
-        >
-          {/* Water Surface SVG Dynamic Wave Line */}
-          <svg className="absolute -top-3 left-0 w-full h-7 overflow-visible pointer-events-none">
-            <path
-              d={waveSprings.reduce((acc, yOffset, idx) => {
-                const nodeX = (idx / (waveSprings.length - 1)) * tankW;
-                const nodeY = 12 + yOffset;
-                return idx === 0 ? `M ${nodeX} ${nodeY}` : `${acc} L ${nodeX} ${nodeY}`;
-              }, '') + ` L ${tankW} 30 L 0 30 Z`}
-              fill="rgba(56, 189, 248, 0.45)"
-            />
-            <path
-              d={waveSprings.reduce((acc, yOffset, idx) => {
-                const nodeX = (idx / (waveSprings.length - 1)) * tankW;
-                const nodeY = 10 + yOffset;
-                return idx === 0 ? `M ${nodeX} ${nodeY}` : `${acc} L ${nodeX} ${nodeY}`;
-              }, '')}
-              fill="none"
-              stroke="rgba(255, 255, 255, 0.85)"
-              strokeWidth="2.5"
-            />
-          </svg>
-
-          {/* Translucent water depth gradient */}
-          <div className="w-full h-full bg-gradient-to-b from-sky-400/45 via-blue-500/50 to-indigo-700/65 dark:from-sky-600/40 dark:via-blue-800/50 dark:to-indigo-950/80 backdrop-blur-[1px] relative">
-            {/* Water Caustics Shimmer Effect */}
-            <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_50%_40%,rgba(255,255,255,0.8)_0%,transparent_60%)]" />
-
-            {/* Salinity visual tint if salty */}
-            {saltSpoons > 0 && (
+            {/* PARTICLES */}
+            {/* Ripples */}
+            {surfaceRipples.map((r) => (
               <div
-                className="absolute inset-0 bg-amber-300/10 pointer-events-none transition-opacity duration-500"
-                style={{ opacity: saltSpoons * 0.18 }}
+                key={r.id}
+                style={{
+                  left: `${r.x}px`,
+                  top: `${r.y}px`,
+                  width: `${r.radius * 2}px`,
+                  height: `${r.radius * 0.7}px`,
+                  opacity: r.alpha,
+                  transform: 'translate(-50%, -50%)'
+                }}
+                className="absolute rounded-full border-2 border-white/80 pointer-events-none"
               />
-            )}
-          </div>
+            ))}
 
-          {/* Sand Bed (Bottom 55px) */}
-          <div
-            className="absolute bottom-0 left-0 right-0 h-14 bg-gradient-to-t from-amber-300 via-amber-200 to-amber-100 dark:from-amber-950 dark:via-amber-900/60 dark:to-amber-800/40 border-t-2 border-amber-300/80"
-          >
-            {/* Tiny pebbles along bottom */}
-            <div className="absolute top-1 left-16 w-3 h-2 rounded-full bg-stone-400 opacity-60" />
-            <div className="absolute top-2 left-44 w-2.5 h-2 rounded-full bg-stone-500 opacity-50" />
-            <div className="absolute top-1 right-32 w-4 h-2 rounded-full bg-stone-400 opacity-60" />
-            <div className="absolute top-2 right-64 w-2 h-1.5 rounded-full bg-stone-600 opacity-50" />
-          </div>
-        </div>
-
-        {/* ================================================================= */}
-        {/* PARTICLES & EFFECTS: Ripples, Splash Droplets, Bubbles, Sand      */}
-        {/* ================================================================= */}
-        {/* 1. Concentric Water Surface Ripples */}
-        {surfaceRipples.map((r) => (
-          <div
-            key={r.id}
-            style={{
-              left: `${r.x}px`,
-              top: `${r.y}px`,
-              width: `${r.radius * 2}px`,
-              height: `${r.radius * 0.7}px`,
-              opacity: r.alpha,
-              transform: 'translate(-50%, -50%)'
-            }}
-            className="absolute rounded-full border-2 border-white/80 pointer-events-none"
-          />
-        ))}
-
-        {/* 2. Splash Droplets (Water fountain droplets flying in air) */}
-        {splashDroplets.map((d) => (
-          <div
-            key={d.id}
-            style={{
-              left: `${d.x}px`,
-              top: `${d.y}px`,
-              width: `${d.radius * 2}px`,
-              height: `${d.radius * 2}px`,
-              backgroundColor: d.color,
-              opacity: d.alpha,
-              transform: 'translate(-50%, -50%)'
-            }}
-            className="absolute rounded-full shadow-xs pointer-events-none"
-          />
-        ))}
-
-        {/* 3. Underwater Cavitation Bubbles */}
-        {bubbles.map((b) => (
-          <div
-            key={b.id}
-            style={{
-              left: `${b.x}px`,
-              top: `${b.y}px`,
-              width: `${b.size}px`,
-              height: `${b.size}px`,
-              opacity: b.alpha,
-              transform: 'translate(-50%, -50%)'
-            }}
-            className="absolute rounded-full bg-white/80 border border-sky-200/90 pointer-events-none shadow-xs"
-          />
-        ))}
-
-        {/* 4. Sand dust puffs */}
-        {sandDust.map((d) => (
-          <div
-            key={d.id}
-            style={{
-              left: `${d.x}px`,
-              top: `${d.y}px`,
-              width: `${d.size * 2}px`,
-              height: `${d.size * 2}px`,
-              opacity: d.alpha,
-              transform: 'translate(-50%, -50%)'
-            }}
-            className="absolute rounded-full bg-amber-200/60 blur-[2px] pointer-events-none"
-          />
-        ))}
-
-        {/* 5. Salt crystals pouring */}
-        {saltParticles.map((s) => (
-          <div
-            key={s.id}
-            style={{
-              left: `${s.x}px`,
-              top: `${s.y}px`,
-              width: `${s.size}px`,
-              height: `${s.size}px`,
-              opacity: s.alpha,
-              transform: 'translate(-50%, -50%)'
-            }}
-            className="absolute rounded-full bg-white shadow-xs pointer-events-none"
-          />
-        ))}
-
-        {/* ================================================================= */}
-        {/* TANK OBJECTS RENDER (LARGE, HIGH RESOLUTION 3D TRANSPARENT SPRITES)*/}
-        {/* ================================================================= */}
-        {items.map((item) => {
-          if (!item.inTank || item.id === holdingItemId) return null;
-
-          const currentDensity = item.weightGrams / item.volumeMl;
-          const willFloat = currentDensity < waterDensity;
-
-          return (
-            <div
-              key={item.id}
-              onPointerDown={(e) => handleStartHold(item, e)}
-              style={{
-                left: `${item.x}px`,
-                top: `${item.y}px`,
-                width: `${item.size}px`,
-                height: `${item.size}px`,
-                transform: `translate(-50%, -50%) rotate(${item.angle}deg)`,
-                transition: item.status === 'pushed' ? 'top 0.15s ease-out' : 'none'
-              }}
-              className="absolute z-20 cursor-grab active:cursor-grabbing flex flex-col items-center justify-center group hover:scale-105 transition-transform"
-            >
-              {/* Realistic 3D Object Image */}
-              <img
-                src={item.image}
-                alt={item.name}
-                className="w-full h-full object-contain filter drop-shadow-lg select-none pointer-events-none"
-                draggable={false}
+            {/* Splash Droplets */}
+            {splashDroplets.map((d) => (
+              <div
+                key={d.id}
+                style={{
+                  left: `${d.x}px`,
+                  top: `${d.y}px`,
+                  width: `${d.radius * 2}px`,
+                  height: `${d.radius * 2}px`,
+                  backgroundColor: d.color,
+                  opacity: d.alpha,
+                  transform: 'translate(-50%, -50%)'
+                }}
+                className="absolute rounded-full shadow-xs pointer-events-none"
               />
+            ))}
 
-              {/* X-Ray Air Pocket Badge */}
-              {showXRay && (
-                <div className="absolute -top-6 px-1.5 py-0.5 rounded-md bg-purple-900/90 text-[10px] text-purple-200 font-bold whitespace-nowrap shadow-md pointer-events-none">
-                  {willFloat ? 'Chứa túi khí 🫧' : 'Đặc ruột 🧱'}
-                </div>
-              )}
+            {/* Bubbles */}
+            {bubbles.map((b) => (
+              <div
+                key={b.id}
+                style={{
+                  left: `${b.x}px`,
+                  top: `${b.y}px`,
+                  width: `${b.size}px`,
+                  height: `${b.size}px`,
+                  opacity: b.alpha,
+                  transform: 'translate(-50%, -50%)'
+                }}
+                className="absolute rounded-full bg-white/80 border border-sky-200/90 pointer-events-none shadow-xs"
+              />
+            ))}
 
-              {/* Push down button for floating objects (to shoot upward like rocket) */}
-              {willFloat && item.status === 'floating' && (
-                <button
-                  onPointerDown={(e) => handlePushDownItem(item, e)}
-                  onPointerUp={handleReleaseSubmergedItem}
-                  className="absolute -bottom-5 px-1.5 py-0.5 rounded-full bg-sky-500 hover:bg-sky-600 text-white text-[10px] font-bold shadow-md opacity-80 group-hover:opacity-100 transition whitespace-nowrap"
-                  title="Ấn dìm xuống đáy để xem nó bắn vọt lên!"
+            {/* Sand dust */}
+            {sandDust.map((d) => (
+              <div
+                key={d.id}
+                style={{
+                  left: `${d.x}px`,
+                  top: `${d.y}px`,
+                  width: `${d.size * 2}px`,
+                  height: `${d.size * 2}px`,
+                  opacity: d.alpha,
+                  transform: 'translate(-50%, -50%)'
+                }}
+                className="absolute rounded-full bg-amber-200/60 blur-[2px] pointer-events-none"
+              />
+            ))}
+
+            {/* Falling Salt crystals */}
+            {saltParticles.map((s) => (
+              <div
+                key={s.id}
+                style={{
+                  left: `${s.x}px`,
+                  top: `${s.y}px`,
+                  width: `${s.size}px`,
+                  height: `${s.size}px`,
+                  opacity: s.alpha,
+                  transform: 'translate(-50%, -50%)'
+                }}
+                className="absolute rounded-full bg-white shadow-xs pointer-events-none animate-spin"
+              />
+            ))}
+
+            {/* TANK OBJECTS (RENDERED IN 3D DEPTH) */}
+            {items.map((item) => {
+              if (!item.inTank || item.id === holdingItemId) return null;
+
+              const currentDensity = item.weightGrams / item.volumeMl;
+              const willFloat = currentDensity < waterDensity;
+
+              return (
+                <div
+                  key={item.id}
+                  onPointerDown={(e) => handleStartHold(item, e)}
+                  style={{
+                    left: `${item.x}px`,
+                    top: `${item.y}px`,
+                    width: `${item.size}px`,
+                    height: `${item.size}px`,
+                    transform: `translate(-50%, -50%) translateZ(${item.z}px) rotate(${item.angle}deg)`,
+                    transition: item.status === 'pushed' ? 'top 0.15s ease-out' : 'none'
+                  }}
+                  className="absolute z-20 cursor-grab active:cursor-grabbing flex flex-col items-center justify-center group hover:scale-105 transition-transform"
                 >
-                  👇 Dìm
-                </button>
-              )}
-            </div>
-          );
-        })}
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="w-full h-full object-contain filter drop-shadow-lg select-none pointer-events-none"
+                    draggable={false}
+                  />
 
-        {/* ================================================================= */}
-        {/* CURRENTLY DRAGGED OBJECT (WITH BUOYANCY SPRING STRAIN AURA)        */}
-        {/* ================================================================= */}
-        {holdingItem && (
-          <div
-            style={{
-              left: `${activeDisplayX}px`,
-              top: `${activeDisplayY}px`,
-              width: `${holdingItem.size}px`,
-              height: `${holdingItem.size}px`,
-              transform: 'translate(-50%, -50%) scale(1.12)'
-            }}
-            className="absolute z-40 pointer-events-none flex flex-col items-center justify-center filter drop-shadow-2xl"
-          >
-            {/* Visual Buoyant Strain Resistance Glow */}
-            {isUnderBuoyantStrain && (
-              <div className="absolute inset-0 rounded-full border-4 border-sky-300 animate-ping opacity-75" />
-            )}
+                  {showXRay && (
+                    <div className="absolute -top-6 px-1.5 py-0.5 rounded-md bg-purple-900/90 text-[10px] text-purple-200 font-bold whitespace-nowrap shadow-md pointer-events-none">
+                      {willFloat ? 'Chứa túi khí 🫧' : 'Đặc ruột 🧱'}
+                    </div>
+                  )}
 
-            <img
-              src={holdingItem.image}
-              alt={holdingItem.name}
-              className="w-full h-full object-contain select-none"
-              draggable={false}
-            />
-
-            {/* Elastic string indicator between mouse and object if resisting buoyancy */}
-            {isUnderBuoyantStrain && (
-              <div className="absolute -top-7 px-2 py-0.5 rounded-full bg-sky-500 text-white text-[10px] font-extrabold shadow-md whitespace-nowrap animate-bounce">
-                🫧 Lực Đẩy Đang Chống Lại!
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ================================================================= */}
-        {/* BOTTOM FLOATING TOY TRAY (COLLAPSIBLE CAROUSEL DOCK)              */}
-        {/* ================================================================= */}
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 w-full max-w-4xl px-3 flex flex-col items-center">
-          {isToyTrayCollapsed ? (
-            <button
-              onClick={() => setIsToyTrayCollapsed(false)}
-              className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs sm:text-sm shadow-2xl border-2 border-white transition transform hover:scale-105"
-            >
-              <span>🧺</span>
-              <span>Khay Đồ Chơi (10 Món)</span>
-              <ChevronUp className="w-4 h-4" />
-            </button>
-          ) : (
-            <div className="w-full p-2.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-2 border-amber-300 dark:border-amber-700 shadow-2xl space-y-1.5">
-              <div className="flex items-center justify-between px-2">
-                <span className="text-xs font-extrabold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
-                  <span>🧺 Khay Đồ Chơi: Bé hãy bấm hoặc kéo đồ vật thả vào bể nước</span>
-                </span>
-                <button
-                  onClick={() => setIsToyTrayCollapsed(true)}
-                  className="flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 px-2 py-0.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                >
-                  <span>Thu nhỏ khay</span>
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* Horizontal Scrollable/Flex Toy Shelf */}
-              <div className="flex items-center justify-start sm:justify-center gap-2 overflow-x-auto py-1 px-1 scrollbar-thin">
-                {items.map((item) => {
-                  return (
+                  {willFloat && item.status === 'floating' && (
                     <button
-                      key={item.id}
-                      onClick={() => handleDropItemFromShelf(item)}
-                      onPointerDown={(e) => handleStartHold(item, e)}
-                      disabled={item.inTank}
-                      className={`relative flex flex-col items-center justify-center p-1.5 rounded-xl border transition-all duration-200 flex-shrink-0 ${
-                        item.inTank
-                          ? 'opacity-35 bg-slate-100 dark:bg-slate-800 border-dashed border-slate-300 dark:border-slate-700 cursor-not-allowed'
-                          : 'bg-gradient-to-b from-white to-amber-50 dark:from-slate-800 dark:to-slate-850 hover:to-amber-100 border-amber-200 dark:border-slate-700 hover:border-amber-400 shadow-xs hover:shadow-md hover:-translate-y-1 cursor-grab active:cursor-grabbing'
-                      }`}
-                      style={{ width: '68px', height: '78px' }}
-                      title={`Bấm hoặc kéo "${item.name}" thả vào bể`}
+                      onPointerDown={(e) => handlePushDownItem(item, e)}
+                      onPointerUp={handleReleaseSubmergedItem}
+                      className="absolute -bottom-5 px-1.5 py-0.5 rounded-full bg-sky-500 hover:bg-sky-600 text-white text-[10px] font-bold shadow-md opacity-80 group-hover:opacity-100 transition whitespace-nowrap"
+                      title="Ấn dìm xuống đáy để xem nó bắn vọt lên!"
                     >
-                      <div className="w-10 h-10 flex items-center justify-center">
-                        <img
-                          src={item.image}
-                          alt={item.name}
-                          className="w-full h-full object-contain filter drop-shadow select-none pointer-events-none"
-                          draggable={false}
-                        />
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-800 dark:text-slate-200 mt-1 truncate max-w-[62px]">
-                        {item.name}
-                      </span>
-
-                      {/* In-tank status dot */}
-                      {item.inTank && (
-                        <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-500 shadow-xs" />
-                      )}
+                      👇 Dìm
                     </button>
-                  );
-                })}
+                  )}
+                </div>
+              );
+            })}
+
+            {/* CURRENTLY DRAGGED OBJECT */}
+            {holdingItem && (
+              <div
+                style={{
+                  left: `${activeDisplayX}px`,
+                  top: `${activeDisplayY}px`,
+                  width: `${holdingItem.size}px`,
+                  height: `${holdingItem.size}px`,
+                  transform: 'translate(-50%, -50%) scale(1.12)'
+                }}
+                className="absolute z-40 pointer-events-none flex flex-col items-center justify-center filter drop-shadow-2xl"
+              >
+                {isUnderBuoyantStrain && (
+                  <div className="absolute inset-0 rounded-full border-4 border-sky-300 animate-ping opacity-75" />
+                )}
+                <img
+                  src={holdingItem.image}
+                  alt={holdingItem.name}
+                  className="w-full h-full object-contain select-none"
+                  draggable={false}
+                />
+                {isUnderBuoyantStrain && (
+                  <div className="absolute -top-7 px-2 py-0.5 rounded-full bg-sky-500 text-white text-[10px] font-extrabold shadow-md whitespace-nowrap animate-bounce">
+                    🫧 Lực Đẩy Đang Chống Lại!
+                  </div>
+                )}
               </div>
+            )}
+          </div>
+
+          {/* TOP TOOLS DOCK INSIDE TANK */}
+          <div className="absolute top-3 left-3 z-30 flex items-center gap-1.5 p-1.5 rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-white/60 dark:border-slate-700/60 shadow-lg">
+            <button
+              onClick={handleResetAllTank}
+              className="p-2 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-slate-800 text-sky-700 dark:text-sky-300 font-bold text-xs flex items-center gap-1 transition shadow-xs"
+              title="Vớt sạch đồ vật trong bể về khay"
+            >
+              <RotateCcw className="w-4 h-4 text-sky-600" />
+              <span className="hidden sm:inline">Dọn Bể</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTool(activeTool === 'hand' ? 'net' : 'hand')}
+              className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition ${
+                activeTool === 'net'
+                  ? 'bg-emerald-500 text-white shadow-md'
+                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
+              }`}
+              title={activeTool === 'net' ? 'Đang dùng Vợt Lưới. Bấm để dùng Tay' : 'Đang dùng Tay. Bấm để dùng Vợt Lưới'}
+            >
+              <span>{activeTool === 'net' ? '🕸️ Vợt' : '🖐️ Tay'}</span>
+            </button>
+
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition"
+              title={soundEnabled ? 'Tắt âm thanh hiệu ứng' : 'Bật âm thanh hiệu ứng'}
+            >
+              <span className="text-xs">{soundEnabled ? '🔊' : '🔇'}</span>
+            </button>
+
+            <button
+              onClick={() => setRaceModeActive(!raceModeActive)}
+              className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition ${
+                raceModeActive
+                  ? 'bg-amber-500 text-slate-950 shadow-md'
+                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
+              }`}
+              title="Đua thả 2 vật cùng lúc từ trên cao"
+            >
+              <span>🏁</span>
+              <span className="hidden sm:inline">Đua Thả</span>
+            </button>
+
+            <button
+              onClick={() => setShowXRay(!showXRay)}
+              className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1 transition ${
+                showXRay
+                  ? 'bg-purple-600 text-white shadow-md'
+                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
+              }`}
+              title="Kính lúp soi túi khí và ruột đồ vật"
+            >
+              <Search className="w-4 h-4" />
+              <span className="hidden sm:inline">Soi Khí</span>
+            </button>
+
+            <button
+              onClick={handleToggleFullscreen}
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition"
+              title={isFullscreen ? 'Thu nhỏ màn hình' : 'Mở toàn màn hình'}
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+          </div>
+
+          {/* TOP-RIGHT BUTTON TO OPEN BIG SALT JAR WORKFLOW */}
+          <div className="absolute top-3 right-3 z-30">
+            <button
+              onClick={handleOpenBigSaltJar}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs shadow-xl border-2 border-white transition transform hover:scale-105"
+              title="Mở hũ muối to để xúc muối vào bể"
+            >
+              <span className="text-lg">🧂</span>
+              <span>Đổ Muối ({saltSpoons}/5 thìa)</span>
+            </button>
+          </div>
+
+          {/* RACE OVERLAY BAR (SHOWN WHEN RACE MODE IS ACTIVE) */}
+          {raceModeActive && (
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 px-4 py-2.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-2 border-amber-400 shadow-2xl flex items-center gap-3">
+              <span className="text-xs font-bold text-slate-800 dark:text-white">Đua Thả 2 Vật:</span>
+              <select
+                value={raceSlotA}
+                onChange={(e) => setRaceSlotA(e.target.value)}
+                className="text-xs px-2 py-1 rounded-lg bg-sky-50 dark:bg-slate-800 font-bold border border-sky-300"
+              >
+                {items.map((i) => (
+                  <option key={i.id} value={i.id}>{i.icon} {i.name}</option>
+                ))}
+              </select>
+              <span className="font-extrabold text-amber-500 text-sm">VS</span>
+              <select
+                value={raceSlotB}
+                onChange={(e) => setRaceSlotB(e.target.value)}
+                className="text-xs px-2 py-1 rounded-lg bg-sky-50 dark:bg-slate-800 font-bold border border-sky-300"
+              >
+                {items.map((i) => (
+                  <option key={i.id} value={i.id}>{i.icon} {i.name}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleStartRace}
+                disabled={raceRunning}
+                className="px-3 py-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-extrabold text-xs shadow-xs transition"
+              >
+                {raceRunning ? 'Đang thả...' : 'Bắt Đầu Thả!'}
+              </button>
             </div>
           )}
+        </div>
+
+        {/* 360-DEGREE ROTATION SLIDER BAR */}
+        <div className="w-full max-w-md mx-auto mt-4 px-4 py-2 rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-md flex items-center gap-3 z-20">
+          <span className="text-xs font-bold text-slate-500 whitespace-nowrap">🔄 Xoay 360°:</span>
+          <input
+            type="range"
+            min="-180"
+            max="180"
+            value={Math.round(yaw)}
+            onChange={(e) => {
+              setYaw(Number(e.target.value));
+              setIsAutoRotating(false);
+            }}
+            className="w-full h-2 bg-sky-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-sky-500"
+          />
+          <span className="text-xs font-mono font-bold text-sky-700 dark:text-sky-300 w-12 text-right">
+            {Math.round(yaw)}°
+          </span>
         </div>
       </div>
 
       {/* ===================================================================== */}
-      {/* 3. GUIDE MODAL FOR PRESCHOOLERS, TEACHERS & PARENTS                  */}
+      {/* 3. REALISTIC BIG SALT JAR MODAL & HAND-SPOON WORKFLOW                 */}
+      {/* ===================================================================== */}
+      {bigJarOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-md p-6 rounded-3xl bg-white dark:bg-slate-900 border-4 border-amber-300 dark:border-amber-600 shadow-2xl space-y-4 flex flex-col items-center">
+            <button
+              onClick={() => { setBigJarOpen(false); setSaltInteractionMode('idle'); }}
+              className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-500"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="text-center space-y-1">
+              <span className="text-xs font-extrabold uppercase text-amber-600 tracking-wider">Thí Nghiệm Hòa Tan Muối</span>
+              <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">
+                Hũ Muối Thần Kỳ 🧂
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Bé hãy di chuột đưa chiếc thìa vào miệng hũ để xúc một thìa muối trắng nhé!
+              </p>
+            </div>
+
+            {/* THE BIG GLASS SALT JAR (INTERACTIVE CLICK/HOVER TARGET) */}
+            <div
+              onClick={handleScoopSaltFromBigJar}
+              className="relative w-48 h-64 cursor-pointer group flex flex-col items-center justify-end transform hover:scale-105 transition-all"
+            >
+              {/* Glass Jar Lid */}
+              <div className="w-36 h-9 rounded-t-2xl bg-amber-800 border-2 border-amber-700 shadow-md flex items-center justify-center">
+                <div className="w-10 h-3 rounded-full bg-amber-900 opacity-60" />
+              </div>
+              <div className="w-28 h-4 bg-slate-300 border-x-2 border-slate-400" />
+
+              {/* Glass Jar Body filled with white granulated salt */}
+              <div className="w-48 h-48 rounded-b-3xl border-4 border-sky-300/80 bg-gradient-to-b from-sky-100/40 via-white/80 to-slate-100 relative overflow-hidden shadow-2xl flex flex-col justify-end p-3">
+                {/* Granulated Salt Mound inside */}
+                <div className="w-full h-36 rounded-t-3xl bg-gradient-to-b from-white via-slate-50 to-slate-200 border-t-2 border-slate-200 shadow-inner flex flex-col items-center justify-center p-2 relative">
+                  {/* Salt Jar Label */}
+                  <div className="px-3 py-1.5 rounded-xl bg-amber-100 border border-amber-300 text-amber-900 font-extrabold text-xs shadow-xs text-center">
+                    MUỐI TINH KHIẾT<br/>
+                    <span className="text-[10px] text-amber-700 font-medium">Bấm để xúc 1 thìa</span>
+                  </div>
+                </div>
+
+                {/* Glass reflection sheen */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/40 to-transparent pointer-events-none" />
+              </div>
+
+              {/* Pulsing prompt banner */}
+              <div className="absolute -bottom-4 px-3 py-1 rounded-full bg-amber-500 text-slate-950 font-extrabold text-xs shadow-lg animate-bounce">
+                👇 Bấm Vào Đây Để Xúc Muối!
+              </div>
+            </div>
+
+            {saltSpoons > 0 && (
+              <button
+                onClick={handleResetSalt}
+                className="mt-2 text-xs font-bold text-rose-500 hover:underline flex items-center gap-1"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Xả hết muối về nước ngọt (0 thìa)</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* FLOATING HAND HOLDING SPOON (WHEN SCOOPING / POURING SALT) */}
+      {(saltInteractionMode === 'scoopMode' || saltInteractionMode === 'holdingSpoon') && (
+        <RealisticHandSpoon
+          x={spoonScreenPos.x}
+          y={spoonScreenPos.y}
+          hasSalt={spoonSaltPile}
+          isPouring={isPouringSpoon}
+        />
+      )}
+
+      {/* FLOATING HAND HOLDING GLASS STIRRING ROD (DURING STIRRING STEP) */}
+      {saltInteractionMode === 'stirring' && (
+        <RealisticStirringHand
+          x={stirScreenPos.x}
+          y={stirScreenPos.y}
+          angle={stirWobbleAngle}
+        />
+      )}
+
+      {/* ===================================================================== */}
+      {/* 4. BOTTOM FLOATING TOY TRAY (COLLAPSIBLE CAROUSEL DOCK)               */}
+      {/* ===================================================================== */}
+      <div className="w-full max-w-4xl mx-auto px-2 flex flex-col items-center">
+        {isToyTrayCollapsed ? (
+          <button
+            onClick={() => setIsToyTrayCollapsed(false)}
+            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs sm:text-sm shadow-2xl border-2 border-white transition transform hover:scale-105"
+          >
+            <span>🧺</span>
+            <span>Khay Đồ Chơi (10 Món)</span>
+            <ChevronUp className="w-4 h-4" />
+          </button>
+        ) : (
+          <div className="w-full p-2.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-2 border-amber-300 dark:border-amber-700 shadow-2xl space-y-1.5">
+            <div className="flex items-center justify-between px-2">
+              <span className="text-xs font-extrabold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                <span>🧺 Khay Đồ Chơi: Bé hãy bấm hoặc kéo đồ vật thả vào bể nước</span>
+              </span>
+              <button
+                onClick={() => setIsToyTrayCollapsed(true)}
+                className="flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 px-2 py-0.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                <span>Thu nhỏ khay</span>
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-start sm:justify-center gap-2 overflow-x-auto py-1 px-1 scrollbar-thin">
+              {items.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleDropItemFromShelf(item)}
+                  onPointerDown={(e) => handleStartHold(item, e)}
+                  disabled={item.inTank}
+                  className={`relative flex flex-col items-center justify-center p-1.5 rounded-xl border transition-all duration-200 flex-shrink-0 ${
+                    item.inTank
+                      ? 'opacity-35 bg-slate-100 dark:bg-slate-800 border-dashed border-slate-300 dark:border-slate-700 cursor-not-allowed'
+                      : 'bg-gradient-to-b from-white to-amber-50 dark:from-slate-800 dark:to-slate-850 hover:to-amber-100 border-amber-200 dark:border-slate-700 hover:border-amber-400 shadow-xs hover:shadow-md hover:-translate-y-1 cursor-grab active:cursor-grabbing'
+                  }`}
+                  style={{ width: '68px', height: '78px' }}
+                  title={`Bấm hoặc kéo "${item.name}" thả vào bể`}
+                >
+                  <div className="w-10 h-10 flex items-center justify-center">
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      className="w-full h-full object-contain filter drop-shadow select-none pointer-events-none"
+                      draggable={false}
+                    />
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-800 dark:text-slate-200 mt-1 truncate max-w-[62px]">
+                    {item.name}
+                  </span>
+
+                  {item.inTank && (
+                    <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-500 shadow-xs" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ===================================================================== */}
+      {/* 5. GUIDE MODAL FOR PRESCHOOLERS                                       */}
       {/* ===================================================================== */}
       {showGuideModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fadeIn">
@@ -1638,7 +2209,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
               </div>
             </div>
 
-            {/* 3 Step Cards */}
             <div className="space-y-2.5 pt-2">
               <div className="p-3 rounded-2xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 flex items-start gap-3">
                 <span className="text-2xl">🧸</span>
@@ -1668,11 +2238,11 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
                 <span className="text-2xl">🚀</span>
                 <div>
                   <h4 className="font-extrabold text-xs sm:text-sm text-emerald-900 dark:text-emerald-200">
-                    3. Thử thách thú vị: Dìm bóng &amp; Rắc muối
+                    3. Xoay 360 độ &amp; Đổ muối quấy tan
                   </h4>
                   <p className="text-xs text-emerald-800 dark:text-emerald-300 mt-0.5 leading-relaxed">
-                    - Kéo dìm quả bóng bàn xuống đáy rồi buông tay để nó phóng vọt lên mặt nước!<br/>
-                    - Thêm 3 thìa muối vào bể để xem quả trứng đang chìm tự động nổi lên!
+                    - Kéo thanh trượt hoặc bấm 🎠 để xoay bể cá 360 độ từ mọi phía!<br/>
+                    - Bấm hũ muối để xúc muối đổ vào bể, sau đó dùng đũa quấy đều xem quả trứng nổi lên nhé!
                   </p>
                 </div>
               </div>
@@ -1681,7 +2251,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ isStandalone = false }) => 
             <div className="flex items-center justify-between pt-2">
               <button
                 onClick={() => {
-                  speechEngine.speak('Chào bé! Bước một: hãy chọn một đồ vật trong khay. Bước hai: thả hoặc ném vào bể nước. Bước ba: thử dìm quả bóng xuống đáy xem nó phóng vọt lên nhé!');
+                  speechEngine.speak('Chào bé! Hãy chọn đồ vật thả vào bể nước, bấm hũ muối để xúc muối quấy tan hoặc bấm tự xoay 360 độ để ngắm nhìn bể cá nhé!');
                 }}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 font-bold text-xs hover:bg-amber-200 transition"
               >
