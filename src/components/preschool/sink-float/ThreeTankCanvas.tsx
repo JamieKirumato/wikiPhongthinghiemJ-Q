@@ -112,9 +112,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     const waterMeshRef = useRef<THREE.Mesh | null>(null);
     const waterSurfaceMeshRef = useRef<THREE.Mesh | null>(null);
     const waterlineRef = useRef<THREE.LineSegments | null>(null);
-    const selectionRef = useRef<THREE.BoxHelper | null>(null);
-    const hoveredItemRef = useRef<string | null>(null);
-    hoveredItemRef.current = hoveredItemId;
     const objectsGroupRef = useRef<THREE.Group | null>(null);
     const itemMeshesRef = useRef<Map<string, THREE.Group>>(new Map());
     const rippleEffectsRef = useRef<Array<{mesh: THREE.Mesh; age: number; strength: number}>>([]);
@@ -609,9 +606,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         splashEffectsRef.current.forEach(effect => disposeItemModel(effect.mesh));
         rippleEffectsRef.current = []; splashEffectsRef.current = [];
         itemMeshesRef.current.forEach(disposeItemModel);
-        selectionRef.current?.geometry.dispose();
-        (selectionRef.current?.material as THREE.Material | undefined)?.dispose();
-        selectionRef.current = null;
         saltGeom.dispose(); saltMat.dispose();
         floor.geometry.dispose(); floor.material.dispose(); grid.dispose();
         renderer.dispose();
@@ -1060,20 +1054,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         if (waterlineRef.current && waterSurfaceMeshRef.current) {
           waterlineRef.current.position.y = waterSurfaceMeshRef.current.position.y + 0.006;
         }
-        const selectedMesh = itemMeshesRef.current.get(heldIdRef.current || hoveredItemRef.current || '');
-        if (selectedMesh && scene) {
-          if (!selectionRef.current) {
-            selectionRef.current = new THREE.BoxHelper(selectedMesh, 0xf4b400);
-            const material = selectionRef.current.material as THREE.LineBasicMaterial;
-            material.depthTest = false;
-            material.depthWrite = false;
-            selectionRef.current.renderOrder = 10;
-            scene.add(selectionRef.current);
-          }
-          selectionRef.current.visible = true;
-          selectionRef.current.setFromObject(selectedMesh);
-        } else if (selectionRef.current) selectionRef.current.visible = false;
-
         rippleEffectsRef.current = rippleEffectsRef.current.filter(effect => {
           effect.age += dt;
           effect.mesh.scale.setScalar(1 + effect.age * (4 + effect.strength));
