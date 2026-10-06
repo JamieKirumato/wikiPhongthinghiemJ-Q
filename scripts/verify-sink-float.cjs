@@ -233,13 +233,13 @@ assert.ok(guide.introPose('pick',.5,fillDims,3).y>guide.introPose('pick',.8,fill
 assert.ok(guide.introPose('dip',.5,fillDims,3).y<guide.introPose('dip',.1,fillDims,3).y);
 assert.ok(guide.introPose('pour',.8,fillDims,3).waterOffset>guide.introPose('pour',.1,fillDims,3).waterOffset);
 assert.ok(guide.introPose('scoop',.6,fillDims,3).waterOffset<guide.introPose('scoop',.1,fillDims,3).waterOffset);
-let introEffect,introAudio,introFinished=0,introCleanup=0,introCalls=[];
-let introFrameId=0;const introFrames=new Map();
-class IntroAudioMock{constructor(src){this.src=src;this.currentTime=0;this.duration=10;this.readyState=4;this.paused=false;introAudio=this;}play(){this.paused=false;return Promise.resolve();}pause(){this.paused=true;}}
+let introEffect,introAudio,introFinished=0,introCleanup=0,introCalls=[],blockIntroPlayback=false,introPlayAttempts=0;
+let introFrameId=0;const introFrames=new Map();const introListeners=new Map();
+class IntroAudioMock{constructor(src){this.src=src;this.currentTime=0;this.duration=10;this.readyState=4;this.paused=false;introAudio=this;}play(){introPlayAttempts++;this.paused=blockIntroPlayback;return blockIntroPlayback?Promise.reject(new Error('NotAllowedError')):Promise.resolve();}pause(){this.paused=true;}}
 const introReact={...fakeReact,useState:value=>[value,()=>{}],useEffect:fn=>{introEffect=fn;}};
 const introModule={exports:{}};
 const introCode=ts.transpileModule(fs.readFileSync('src/components/preschool/sink-float/ChildIntro.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.React}}).outputText;
-vm.runInNewContext(introCode,{module:introModule,exports:introModule.exports,React:introReact,require:name=>name==='react'?introReact:name==='./introGuide'?guide:name==='./teacherExperience'?{introAudioSources:()=>({then:fn=>fn({sources:guide.INTRO_GUIDE.map(s=>`/audio/vi/${s.audio}.mp3`),release(){}})})}:{},Audio:IntroAudioMock,requestAnimationFrame:fn=>{introFrames.set(++introFrameId,fn);return introFrameId;},cancelAnimationFrame:id=>introFrames.delete(id)});
+vm.runInNewContext(introCode,{module:introModule,exports:introModule.exports,React:introReact,require:name=>name==='react'?introReact:name==='./introGuide'?guide:name==='./teacherExperience'?{introAudioSources:()=>({then:fn=>fn({sources:guide.INTRO_GUIDE.map(s=>`/audio/vi/${s.audio}.mp3`),release(){}})})}:{unlockImpactAudio(){}},window:{addEventListener:(name,fn)=>introListeners.set(name,fn),removeEventListener:name=>introListeners.delete(name)},Audio:IntroAudioMock,requestAnimationFrame:fn=>{introFrames.set(++introFrameId,fn);return introFrameId;},cancelAnimationFrame:id=>introFrames.delete(id)});
 introModule.exports.ChildIntro({onComplete:()=>introFinished++,onCleanup:()=>introCleanup++,onFrame:(action,p)=>{introCalls.push({action,p});return null;}});
 const disposeIntro=introEffect();
 function introTick(time){const [id,fn]=introFrames.entries().next().value;introFrames.delete(id);fn(time);}
@@ -252,7 +252,7 @@ for(let i=0;i<guide.INTRO_GUIDE.length;i++){
   assert.equal(introFinished,0);introAudio.onended();
 }
 assert.equal(introFinished,1);assert.equal(introCleanup,1);
-disposeIntro();assert.equal(introFrames.size,0);assert.equal(introAudio.paused,true);assert.equal(introAudio.onended,null);
+disposeIntro();assert.equal(introListeners.size,0);assert.equal(introFrames.size,0);assert.equal(introAudio.paused,true);assert.equal(introAudio.onended,null);
 console.log('Passed: demo follows audio clock, freezes on pause/buffering, covers ten clips, unlocks only at end and cleans up on unmount.');
 
 nativeImpact.setImpactEffectsVolume(.5);nativeImpact.playImpact('water',4);
@@ -268,6 +268,11 @@ assert.ok(prefs.defaultIntroText('intro-0').startsWith('Chào'));
 console.log('Passed: teacher defaults, persistent disabled intro, bounded effect volume, and muted native/water playback.');
 
 (async()=>{
+  blockIntroPlayback=true;introModule.exports.ChildIntro({onComplete:()=>introFinished++,onCleanup:()=>introCleanup++,onFrame:()=>null});const stopBlockedIntro=introEffect();
+  await Promise.resolve();assert.equal(introAudio.paused,true);assert.equal(introFinished,1);const triesBefore=introPlayAttempts;
+  blockIntroPlayback=false;introListeners.get('pointerdown')();await Promise.resolve();assert.equal(introAudio.paused,false);assert.equal(introPlayAttempts,triesBefore+1);
+  introListeners.get('pointerdown')();assert.equal(introPlayAttempts,triesBefore+1);stopBlockedIntro();assert.equal(introListeners.size,0);
+  console.log('Passed: blocked autoplay resumes from natural screen contact without a play button, duplicate playback or premature unlock.');
   let record={},revoked=0,urlCount=0;
   const db={createObjectStore(){},close(){},transaction(){const tx={objectStore:()=>({get(){const req={result:record};setImmediate(()=>req.onsuccess?.());return req;},put(value){record=value;setImmediate(()=>tx.oncomplete?.());}})};return tx;}};
   const indexedDB={open(){const req={result:db};setImmediate(()=>req.onsuccess?.());return req;}};
