@@ -4,6 +4,13 @@ The user requests collaboration with the installed Antigravity CLI for project i
 
 Standing user instruction: after completing each change, commit and push the verified changes to this project's GitHub repository, deploy the updated project to Vercel production, verify deployment completion, and report the latest updated Vercel URL in the final response. This instruction authorizes these routine publishing steps without asking again. If authentication or deployment is blocked, report the actual blocker and do not claim publication succeeded.
 
+## Prototype iteration speed
+
+- This is an experimental project. Prioritize an early visible preview so the user can judge the direction before extensive refinement.
+- For routine changes, use a quick build/type check and a focused smoke check of the changed interaction. Do not broaden testing without a concrete failure or user request.
+- The user will explicitly request a thorough test pass before leaving work, around 17:40. Do not automatically schedule or run that pass on every change.
+- Continue the authorized GitHub and production publishing workflow after the quick checks.
+
 ## Default educational experience criteria
 
 Apply these user-defined criteria to all future experiments:
