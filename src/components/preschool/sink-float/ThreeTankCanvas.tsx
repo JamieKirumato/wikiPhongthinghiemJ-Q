@@ -579,8 +579,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     holdingItemRef.current = holdingItemId;
     const inputLockedRef = useRef(inputLocked);
     inputLockedRef.current = inputLocked;
-    const floorRef = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial> | null>(null);
-    const floorGridRef = useRef<THREE.GridHelper | null>(null);
+    const floorRef = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null>(null);
+    const contactShadowRef = useRef<THREE.Mesh | null>(null);
 
     // Exact mesh hits first, then a generous screen-space hand target for small objects.
     const pickItemAtScreenPoint = (screenX: number, screenY: number) => {
@@ -663,10 +663,22 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       scene.add(objectsGroup);
       objectsGroupRef.current = objectsGroup;
 
-      // Visible tiled floor: missed throws remain part of the experiment.
-      const floor = new THREE.Mesh(new THREE.PlaneGeometry(32,32), new THREE.MeshStandardMaterial({color:0xe5f0f5,roughness:0.85,toneMapped:false}));
+      // A quiet worktop still catches objects thrown outside the tank.
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(32,32), new THREE.MeshBasicMaterial({color:0xe6eee8,toneMapped:false}));
       floor.rotation.x = -Math.PI/2; floor.position.y = -0.61; scene.add(floor); floorRef.current = floor;
-      const grid = new THREE.GridHelper(32,32,0xb5d0dd,0xc9dee8); grid.position.y=-0.6; for (const material of [grid.material].flat()) { material.transparent = true; material.opacity = .18; } scene.add(grid); floorGridRef.current = grid;
+      // Soft contact shadow, outside the tank group so it never becomes a picking target.
+      const shadowCanvas = document.createElement('canvas');
+      shadowCanvas.width = shadowCanvas.height = 128;
+      const shadowContext = shadowCanvas.getContext('2d')!;
+      const shadowGradient = shadowContext.createRadialGradient(64,64,12,64,64,64);
+      shadowGradient.addColorStop(0, 'rgba(29,67,57,.25)');
+      shadowGradient.addColorStop(.55, 'rgba(29,67,57,.14)');
+      shadowGradient.addColorStop(1, 'rgba(29,67,57,0)');
+      shadowContext.fillStyle = shadowGradient; shadowContext.fillRect(0,0,128,128);
+      const shadowTexture = new THREE.CanvasTexture(shadowCanvas);
+      const contactShadow = new THREE.Mesh(new THREE.PlaneGeometry(1,1), new THREE.MeshBasicMaterial({map:shadowTexture,transparent:true,depthWrite:false,toneMapped:false}));
+      contactShadow.rotation.x = -Math.PI/2; contactShadow.position.y = -.595;
+      scene.add(contactShadow); contactShadowRef.current = contactShadow;
       // Hạt muối rơi 3D
       const maxSaltCount = 200;
       const saltGeom = new THREE.BufferGeometry();
@@ -718,7 +730,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         if(overflowRef.current){disposeItemModel(overflowRef.current);overflowRef.current=null;}
         sandTextureRef.current?.dispose();
         saltGeom.dispose(); saltMat.dispose();
-        floor.geometry.dispose(); floor.material.dispose(); grid.dispose();
+        floor.geometry.dispose(); floor.material.dispose();
+        contactShadow.geometry.dispose(); contactShadow.material.dispose(); shadowTexture.dispose();
+        contactShadowRef.current = null;
         renderer.dispose();
         itemMeshesRef.current.clear();
         scene.clear();
@@ -726,8 +740,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     }, []);
 
     useEffect(() => {
-      floorRef.current?.material.color.setHex(sceneSetting === 'laboratory' ? 0xe5f0f5 : 0xffedc7);
-      if (floorGridRef.current) floorGridRef.current.visible = sceneSetting === 'laboratory';
+      floorRef.current?.material.color.setHex(sceneSetting === 'laboratory' ? 0xe6eee8 : 0xffedc7);
     }, [sceneSetting]);
 
     // 2. DỰNG HÌNH HỌC BỂ KÍNH VÀ NƯỚC (RENDER ORDER & PALE CYAN TRANSPARENCY)
@@ -750,10 +763,11 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       }
 
       const { width: W, height: H, depth: D } = dims;
+      contactShadowRef.current?.scale.set(W * 1.7, D * 1.9, 1);
 
       // Kính trong suốt tinh khiết
       const glassMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0xe0f2fe,
+        color: 0xd8eee8,
         transmission: 0.95,
         opacity: 0.12,
         transparent: true,
@@ -764,15 +778,14 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         depthWrite: false
       });
 
-      const whiteFrameMat = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        roughness: 0.25,
-        metalness: 0.1,
+      const whiteFrameMat = new THREE.MeshBasicMaterial({
+        color: 0xfafcf7,
         toneMapped: false
       });
+      const rimMaterial = new THREE.MeshBasicMaterial({color:0xc5d8d0,toneMapped:false});
 
       const siliconeSealMat = new THREE.MeshStandardMaterial({
-        color: 0x38bdf8,
+        color: 0x539a91,
         roughness: 0.2,
         metalness: 0.15
       });
@@ -793,7 +806,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
       // Khối nước PALE CYAN trong suốt, không ám tối
       const waterVolumeMat = new THREE.MeshBasicMaterial({
-        color: 0xa5edf5,
+        color: 0x99ddd7,
         transparent: true,
         opacity: 0.25,
         toneMapped: false,
@@ -803,7 +816,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
       // Mặt trên nước trong suốt nhấp nhô nhẹ
       const waterSurfaceMat = new THREE.MeshPhongMaterial({
-        color: 0x9de5f0,
+        color: 0x96ded8,
         specular: 0xe9ffff,
         shininess: 100,
         transparent: true,
@@ -853,8 +866,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         rightGlass.renderOrder = 4;
         tankGroup.add(rightGlass);
 
-        // Viền trắng
-        const rimFront = new THREE.Mesh(new THREE.BoxGeometry(W + 0.12, 0.08, 0.08), whiteFrameMat);
+        // Pale green glass edges stay readable against the bright surroundings.
+        const rimFront = new THREE.Mesh(new THREE.BoxGeometry(W + 0.12, 0.08, 0.08), rimMaterial);
         rimFront.position.set(0, H, D / 2);
         rimFront.renderOrder = 4;
         tankGroup.add(rimFront);
@@ -863,7 +876,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         rimBack.position.set(0, H, -D / 2);
         tankGroup.add(rimBack);
 
-        const rimLeft = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, D + 0.12), whiteFrameMat);
+        const rimLeft = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, D + 0.12), rimMaterial);
         rimLeft.position.set(-W / 2, H, 0);
         rimLeft.renderOrder = 4;
         tankGroup.add(rimLeft);
@@ -913,7 +926,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         glassMesh.renderOrder = 4;
         tankGroup.add(glassMesh);
 
-        const rimMesh = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.04, 16, 64), whiteFrameMat);
+        const rimMesh = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.04, 16, 64), rimMaterial);
         rimMesh.rotation.x = Math.PI / 2;
         rimMesh.position.set(0, H, 0);
         rimMesh.renderOrder = 4;
@@ -982,7 +995,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           tankGroup.add(wall);
           const direction = new THREE.Vector3().subVectors(end, start);
           for (const level of [0.04, H]) {
-            const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, direction.length(), 8), whiteFrameMat);
+            const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, direction.length(), 8), rimMaterial);
             rim.position.copy(start).add(end).multiplyScalar(0.5);
             rim.position.y = level;
             rim.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
