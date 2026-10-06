@@ -1,3 +1,5 @@
+import { StartScreen } from './sink-float/StartScreen';
+import { STUDENT_GUIDE, STUDENT_PROMPT } from './sink-float/introGuide';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
 import {
@@ -501,12 +503,15 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const dragCleanupRef = useRef<(() => void) | null>(null);
   const [experience,setExperience]=useState(readExperience);
   const [showExperienceSettings,setShowExperienceSettings]=useState(false);
-  const [introComplete, setIntroComplete] = useState(()=>!experience.introEnabled||!selectedIntroGuide(experience).length);
+  const [started, setStarted] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
+  const [previewIntro, setPreviewIntro] = useState(false);
+  const [introComplete, setIntroComplete] = useState(true);
   useEffect(()=>{
     setImpactEffectsVolume(experience.effectsVolume/100);soundEngine.setVolume(experience.effectsVolume/100);
     return ()=>{setImpactEffectsVolume(1);soundEngine.setVolume(1);};
   },[experience.effectsVolume]);
-  const introLocked = !introComplete;
+  const introLocked = started && !introComplete;
   const gestureAllowedRef = useRef(false);
   gestureAllowedRef.current = !introLocked && !pouringWater && interactionMode === 'interact' && workflowStep === 'idle';
 
@@ -603,6 +608,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     setActiveStirProgress(0);
     setHoldingItemId(null);
     setActivityMode(mode);
+    if(mode!=='discovery')setAdvanced(true);
     setSelectedTrayItem(null);
     setDraggingTrayItem(null);
 
@@ -1008,6 +1014,21 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
 
   const observedCount = Object.keys(observations).length;
 
+  const startSession = (mode: 'student' | 'teacher') => {
+    speechEngine.stop();speechEngine.setVoiceEnabled(mode==='student');setVoiceEnabled(mode==='student');
+    setIsTeacherMode(mode==='teacher');setShowAdultPanel(mode==='teacher');
+    setAdvanced(false);setPreviewIntro(false);setActivityMode('discovery');
+    setMessage(STUDENT_PROMPT);setIntroComplete(mode==='teacher');setStarted(true);
+  };
+  const switchExploration = (next:boolean) => {
+    if(pouringWater||holdingItemId||selectedTrayItem||draggingTrayItem||workflowStep!=='idle')return;
+    threeTankRef.current?.cancelActiveGesture();handleResetSalt();handleResetAllTank();
+    setAddedWaterMl(0);addedWaterRef.current=0;setBucketWater({ml:0,grams:0});bucketWaterRef.current={ml:0,grams:0};
+    setFloorSpills([]);setAdvanced(next);setActivityMode('discovery');
+    setMessage(next?'Con thử thay đổi nước rồi quan sát đồ vật nhé.':STUDENT_PROMPT);
+  };
+  if(!started)return <StartScreen onStart={startSession}/>;
+
   return (
     <div
       ref={containerRef}
@@ -1019,14 +1040,14 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           : 'relative h-full min-h-0 rounded-3xl overflow-hidden border border-sky-200 dark:border-slate-800 shadow-xl'
       }`}
     >
-      {introLocked&&<button aria-label="Mở cài đặt hướng dẫn giáo viên" onClick={()=>{setIntroComplete(true);setIsTeacherMode(true);setShowAdultPanel(true);setShowExperienceSettings(true);}} className="absolute right-4 top-4 z-[110] min-w-[52px] min-h-[52px] rounded-2xl border border-amber-200 bg-white text-2xl">🧑‍🏫</button>}
-      {showExperienceSettings&&<TeacherExperienceSettings settings={experience} onChange={setExperience} onClose={()=>setShowExperienceSettings(false)} onPreview={()=>{setShowExperienceSettings(false);setIsTeacherMode(false);setIntroComplete(!selectedIntroGuide(experience).length);}}/>}
-      {introLocked && <ChildIntro guide={selectedIntroGuide(experience)}
+      {introLocked&&<div className="absolute top-3 left-3 right-3 z-[110] flex items-center gap-2 rounded-2xl bg-white/95 p-3 shadow"><p className="flex-1 text-sm font-bold">{previewIntro?'Xem thử hướng dẫn':STUDENT_PROMPT}</p><button className="min-h-[48px] px-3 rounded-xl bg-sky-100" onClick={()=>setIntroComplete(true)}>Tự thử ngay</button></div>}
+      {showExperienceSettings&&<TeacherExperienceSettings settings={experience} onChange={setExperience} onClose={()=>setShowExperienceSettings(false)} onPreview={()=>{setShowExperienceSettings(false);setPreviewIntro(true);setAdvanced(true);setIntroComplete(!selectedIntroGuide(experience).length);}}/>}
+      {introLocked && <ChildIntro guide={previewIntro?selectedIntroGuide(experience):STUDENT_GUIDE}
         onCleanup={()=>threeTankRef.current?.showIntroFrame(null,0)}
         onFrame={(action,p)=>{
           const frame=threeTankRef.current?.showIntroFrame(action,p);if(!frame)return null;
           const container=containerRef.current;
-          const label=action==='outside'?'Cầm Quả táo đỏ':action==='pick'?'Cầm Quả táo đỏ':action==='pour'?'Cầm bình nước để rót vào bể':action==='scoop'?'Cầm gáo để múc nước ra khỏi bể':'Mở hũ muối';
+          const label=action==='outside'?'Cầm Quả táo đỏ':(action==='pick'||action==='student-drop')?'Cầm Quả táo đỏ':action==='pour'?'Cầm bình nước để rót vào bể':action==='scoop'?'Cầm gáo để múc nước ra khỏi bể':'Mở hũ muối';
           const source=container?.querySelector(`[aria-label="${label}"]`)?.getBoundingClientRect();
           const scene=playSceneRef.current?.getBoundingClientRect();
           if((action==='welcome'||action==='ready')&&scene){frame.x=scene.left+scene.width*.48;frame.y=scene.top+scene.height*.3;}
@@ -1110,8 +1131,9 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
         <aside className="w-[148px] sm:w-[220px] lg:w-[252px] flex-shrink-0 flex flex-col h-full overflow-y-auto space-y-2 p-1 pb-5 [&>*]:shrink-0">
           <div className="flex items-center justify-between gap-2 sticky top-0 z-30 bg-sky-50/95 rounded-2xl p-1">
             <button aria-label={voiceEnabled ? 'Tắt âm thanh hướng dẫn' : 'Bật âm thanh hướng dẫn'} aria-pressed={voiceEnabled} onClick={handleToggleVoice} className="min-h-[52px] min-w-[52px] rounded-2xl bg-white border border-sky-200 flex items-center justify-center text-sky-700">{voiceEnabled ? <Volume2 className="w-7 h-7"/> : <VolumeX className="w-7 h-7"/>}</button>
-            <button aria-label={isTeacherMode ? 'Chuyển sang khám phá của trẻ' : 'Mở chế độ giáo viên'} aria-pressed={isTeacherMode} onClick={()=>{
-              const next=!isTeacherMode;setIsTeacherMode(next);setShowAdultPanel(next);
+            <button aria-label={isTeacherMode ? 'Chuyển sang khám phá của trẻ' : 'Mở chế độ giáo viên'} aria-pressed={isTeacherMode} disabled={pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle'} onClick={()=>{
+              switchExploration(false);
+              const next=!isTeacherMode;setIsTeacherMode(next);setShowAdultPanel(next);speechEngine.stop();speechEngine.setVoiceEnabled(!next);setVoiceEnabled(!next);setPreviewIntro(false);setIntroComplete(next);setAdvanced(false);
               if(!next){setActivityMode('discovery');setShowObservationBoard(false);setShowGuideModal(false);setShowTeacherObjectives(false);setShowConclusionPicker(false);setShowDemoHand(false);setRaceModeActive(false);setRaceRunning(false);actionTimersRef.current.forEach(clearTimeout);actionTimersRef.current.clear();dragCleanupRef.current?.();activeDragItemRef.current=null;setSelectedTrayItem(null);setDraggingTrayItem(null);threeTankRef.current?.cancelActiveGesture();setInteractionMode('interact');}
             }} className="min-h-[52px] min-w-[52px] rounded-2xl bg-white border border-amber-200 flex items-center justify-center gap-2 px-2 font-bold">{isTeacherMode ? '👶' : '🧑‍🏫'}{isTeacherMode && <span className="text-xs">Khám phá của trẻ</span>}</button>
           </div>
@@ -1121,9 +1143,12 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               onKeyboardPick={item=>{if(!gestureAllowedRef.current)return;const fresh=item.damage?{...item,inTank:false,outsideTank:false,damage:undefined,status:'basket' as const}:item;if(item.damage)setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));setSelectedTrayItem(fresh);markUserInteracted();setMessage('Con đang cầm vật. Đưa tay đến chỗ muốn thả nhé.');}}
             />
           </div>}
+          {isTeacherMode&&<button aria-expanded={showGuideModal} onClick={()=>setShowGuideModal(!showGuideModal)} className="min-h-[48px] rounded-2xl bg-amber-100 font-bold">📖 Hướng dẫn</button>}
+          <button disabled={pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle'} aria-pressed={advanced} onClick={()=>switchExploration(!advanced)} className="min-h-[52px] rounded-2xl bg-sky-100 px-2 font-bold disabled:opacity-50">{advanced?'🧺 Thả đồ vật':'🔎 Khám phá thêm'}</button>
+          {advanced&&<p className="text-sm px-2 text-sky-800">Thêm nước, thêm muối rồi khuấy. Con thấy điều gì thay đổi?</p>}
           {isTeacherMode&&<button onClick={()=>setShowExperienceSettings(true)} className="min-h-[48px] w-full rounded-2xl border border-sky-200 bg-white font-bold text-sm">Hướng dẫn và âm thanh</button>}
           {isTeacherMode && <div className="text-sm px-2 text-sky-800">Lượng nước trong bể: {Math.round(waterVolumeMl(tankShape,dimensions)+addedWaterMl)} ml</div>}
-          {(activityMode==='discovery'||activityMode==='egg-challenge') && <WaterPitcher
+          {advanced && (activityMode==='discovery'||activityMode==='egg-challenge') && <WaterPitcher
             disabled={introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}
             teacher={isTeacherMode} onActive={setPouringWater}
             flowRate={waterVolumeMl(tankShape,dimensions)*.1}
@@ -1140,7 +1165,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               return amount;
             }}/>
           }
-          {(activityMode==='discovery'||activityMode==='egg-challenge') && <WaterLadle
+          {advanced && (activityMode==='discovery'||activityMode==='egg-challenge') && <WaterLadle
             disabled={introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}
             teacher={isTeacherMode} capacity={waterVolumeMl(tankShape,dimensions)*.2}
             onActive={active=>{setPouringWater(active);setLadleActive(active);}}
@@ -1180,7 +1205,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               setItems(prev=>prev.filter(item=>!(item.outsideTank&&item.damage==='broken'&&Math.hypot(item.x-point.x,item.z-point.z)<1)));
             }}/>
           }
-          {(activityMode==='discovery'||activityMode==='egg-challenge') && (
+          {advanced && (activityMode==='discovery'||activityMode==='egg-challenge') && (
           <SaltWorkflow key="salt-workflow" visualOnly={!isTeacherMode}
             disabled={interactionMode === 'orbit' || pouringWater}
             saltSpoons={saltSpoons}
@@ -1867,6 +1892,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border-4 border-amber-300 dark:border-amber-600 shadow-2xl p-5 space-y-3.5 relative">
             <button
               onClick={() => setShowGuideModal(false)}
+              aria-label="Đóng hướng dẫn"
               className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-500 transition"
             >
               <X className="w-5 h-5" />
@@ -1878,60 +1904,20 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               </div>
               <div>
                 <h3 className="text-lg font-black text-slate-900 dark:text-white">
-                  Hướng Dẫn Khám Phá Thí Nghiệm
+                  Hướng dẫn cho giáo viên
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Dành cho bé mầm non &amp; Giáo viên
+                  Dự đoán · thử · quan sát · so sánh
                 </p>
               </div>
             </div>
 
-            <div className="space-y-2 pt-1 text-xs">
-              <div className="p-2.5 rounded-2xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 flex items-start gap-2.5">
-                <span className="text-xl">1️⃣</span>
-                <div>
-                  <h4 className="font-black text-sky-900 dark:text-sky-200">
-                    Cầm và Ném đồ vật vào bể:
-                  </h4>
-                  <p className="text-sky-700 dark:text-sky-300 mt-0.5 leading-relaxed">
-                    Giữ một món đồ trong khay rồi kéo đến chỗ muốn thả. Buông nhẹ để thả, kéo nhanh rồi buông để ném. Vật có thể rơi vào nước hoặc ra sàn. Khi tay trống, giữ thành bể rồi kéo để xoay; lăn chuột để nhìn gần hoặc xa. Nhấn Esc để đặt vật đang cầm lại khay.
-                  </p>
-                </div>
-              </div>
-
-              <div className="p-2.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-start gap-2.5">
-                <span className="text-xl">2️⃣</span>
-                <div>
-                  <h4 className="font-black text-amber-900 dark:text-amber-200">
-                    Xúc muối &amp; Khuấy tan:
-                  </h4>
-                  <p className="text-amber-800 dark:text-amber-300 mt-0.5 leading-relaxed">
-                    Mở hũ muối, đưa thìa vào hũ rồi kéo để xúc. Đưa thìa tới miệng bể, giữ và kéo để nghiêng thìa. Khuấy đũa trong nước rồi quan sát điều thay đổi. Con có thể chọn nửa thìa hoặc đầy thìa.
-                  </p>
-                </div>
-              </div>
-
-              <div className="p-2.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 flex items-start gap-2.5">
-                <span className="text-xl">3️⃣</span>
-                <div>
-                  <h4 className="font-black text-indigo-900 dark:text-indigo-200">
-                    Xoay bể 360 độ &amp; Góc nhìn ngang:
-                  </h4>
-                  <p className="text-indigo-800 dark:text-indigo-300 mt-0.5 leading-relaxed">
-                    Bấm <b>Xoay bể</b> để ngắm nhìn bể kính từ mọi phía. Bấm <b>Góc Ngang</b> để ngắm sát mặt nước xem vật nổi nhô lên như thế nào!
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end pt-2">
-              <button
-                onClick={() => setShowGuideModal(false)}
-                className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md transition"
-              >
-                Bé Đã Hiểu Rồi! ✨
-              </button>
-            </div>
+            <ol className="space-y-3 text-sm list-decimal pl-5">
+              <li>Cho trẻ chọn vật và dự đoán: “Con nghĩ vật sẽ chìm hay nổi?”</li>
+              <li>Giữ vật trong khay, kéo đến bể rồi buông. Để trẻ quan sát và thử lại.</li>
+              <li>Mở “Khám phá thêm” để thêm nước, xúc muối và khuấy; so sánh cùng một vật trước và sau.</li>
+            </ol>
+            <p className="text-sm text-sky-800">Gợi mở: “Con thấy điều gì?” rồi cho trẻ tự nêu nhận xét.</p>
           </div>
         </div>
       )}

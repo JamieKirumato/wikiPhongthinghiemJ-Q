@@ -1,5 +1,7 @@
 import {TankDimensions} from './types';
-export type IntroAction='welcome'|'pick'|'outside'|'dip'|'rotate'|'salt'|'stir'|'pour'|'scoop'|'ready';
+export type IntroAction='welcome'|'student-drop'|'pick'|'outside'|'dip'|'rotate'|'salt'|'stir'|'pour'|'scoop'|'ready';
+export const STUDENT_PROMPT='Con hãy lấy 1 đồ vật, thả vào bể nước xem vật đó sẽ chìm hay nổi nhé';
+export const STUDENT_GUIDE:Array<{action:IntroAction;audio:string;icon:string}>=[{action:'student-drop',audio:'student-drop',icon:'🖐️ 🍎'}];
 export const INTRO_GUIDE:Array<{action:IntroAction;audio:string;icon:string}>=[
   {action:'welcome',audio:'intro-0',icon:'👋'},
   {action:'pick',audio:'intro-1',icon:'🖐️ 🍎'},
@@ -19,12 +21,12 @@ export function introPose(action:IntroAction,progress:number,dims:TankDimensions
   let x=0,y=water+.35,z=0,waterOffset=0;
   let item:'item-apple'|'item-egg'|'item-duck'|null=null;
   let carrying=false,fromTray=0,tool='',toolFill=0;
-  if(action==='pick'||action==='outside'){
+  if(action==='pick'||action==='outside'||action==='student-drop'){
     item='item-apple';fromTray=1-phase(p,.14,.43);carrying=p<.56;
     if(action==='outside'){x=-dims.width*.3;z=dims.depth*.63;y=top-(top+.42)*phase(p,.58,.79)**2;}
     else {
       y=top-(top-water-.35)*phase(p,.56,.76)**2;
-      if(p>.8){const arc=phase(p,.8,.99);x=Math.sin(arc*Math.PI)*1.5;y=water+.35+Math.sin(arc*Math.PI)*1.8;carrying=p<.85;}
+      if(action==='pick'&&p>.8){const arc=phase(p,.8,.99);x=Math.sin(arc*Math.PI)*1.5;y=water+.35+Math.sin(arc*Math.PI)*1.8;carrying=p<.85;}
     }
   }
   if(action==='dip'){item='item-duck';carrying=p>.13&&p<.72;y=water+.35-1.3*phase(p,.3,.52)+1.3*phase(p,.72,.95);}

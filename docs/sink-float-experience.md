@@ -48,3 +48,9 @@ Nhấn giữ vật trong khay hoặc vật còn nguyên trong cảnh để cầm
 Vị trí thả giữ tọa độ không gian dưới con trỏ, không tự kéo về tâm bể; tốc độ cử chỉ nhanh thêm vận tốc ném. Vật rơi ngoài bể chạm sàn gạch, có thể nhặt lại hoặc dọn về khay. Muốn kéo vật qua thành kính cần nâng cao hơn mép bể. Trứng nứt/vỡ và táo dập theo tốc độ va chạm, có nút lấy vật mới; các ngưỡng là quy ước minh họa, không phải dự báo độ bền của vật thật.
 
 Tiếng nước, kính, sàn, trứng và táo được tổng hợp bằng Web Audio, phát tại va chạm và thay đổi cường độ theo lực rơi; không phải bản ghi hiện trường. Antigravity CLI hỗ trợ mô-đun âm thanh, Codex tích hợp và kiểm tra. Lỗi E2E thanh bên bị cắt đã được sửa bằng cách giữ chiều cao các nhóm công cụ và cho phép cuộn đầy đủ.
+
+## Màn hình bắt đầu và hai mức khám phá
+
+Chọn Học sinh hoặc Giáo viên để vào thẳng chế độ tương ứng. Học sinh xem đúng một mẫu lấy–thả vật với câu hướng dẫn tiếng Việt; sau đó tự thao tác. Nút “Tự thử ngay” cho phép bỏ qua mẫu, kể cả khi thiết bị chặn âm thanh. Giáo viên vào thẳng màn chơi, giọng đọc mặc định tắt; nút Hướng dẫn mở ba bước gợi mở bằng chữ.
+
+Mức đầu “Thả đồ vật” chỉ có khay vật và bể nước ngọt. “Khám phá thêm” mở bình nước, gáo, muối và khuấy. Chuyển mức trả vật về khay và bể về nước ngọt để bắt đầu điều kiện mới; lịch sử quan sát vẫn giữ. Không chuyển khi đang cầm vật hoặc thao tác dụng cụ. Nên cho trẻ 3–4 tuổi thử mức đầu trước, trẻ 5–6 tuổi thử thay đổi một điều kiện rồi so sánh cùng vật. Đây là đề xuất sư phạm, chưa được xác nhận qua thử nghiệm trực tiếp với trẻ.

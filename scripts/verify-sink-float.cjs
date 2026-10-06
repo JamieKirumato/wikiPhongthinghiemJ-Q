@@ -255,6 +255,21 @@ for(let i=0;i<guide.INTRO_GUIDE.length;i++){
 assert.equal(introFinished,1);assert.equal(introCleanup,1);
 disposeIntro();assert.equal(introListeners.size,0);assert.equal(introFrames.size,0);assert.equal(introAudio.paused,true);assert.equal(introAudio.onended,null);
 console.log('Passed: demo follows audio clock, freezes on pause/buffering, covers ten clips, unlocks only at end and cleans up on unmount.');
+assert.equal(guide.STUDENT_GUIDE.length,1);
+assert.equal(guide.STUDENT_GUIDE[0].action,'student-drop');
+assert.ok(fs.statSync('public/audio/vi/student-drop.mp3').size>1000);
+const simpleEnd=guide.introPose('student-drop',1,fillDims,3);
+assert.equal(simpleEnd.carrying,false);assert.equal(simpleEnd.fromTray,0);
+assert.equal(simpleEnd.y,3.35);assert.equal(simpleEnd.x,0);assert.equal(simpleEnd.waterOffset,0);
+introFinished=0;introCleanup=0;introCalls=[];
+introModule.exports.ChildIntro({guide:guide.STUDENT_GUIDE,onComplete:()=>introFinished++,onCleanup:()=>introCleanup++,onFrame:(action,p)=>{introCalls.push({action,p});return null;}});
+const disposeStudentIntro=introEffect();
+assert.ok(introAudio.src.endsWith('student-drop.mp3'));
+introAudio.currentTime=8;introTick(240);assert.equal(introCalls.at(-1).action,'student-drop');assert.equal(introFinished,0);
+introAudio.onended();assert.equal(introFinished,1);assert.equal(introCleanup,1);
+disposeStudentIntro();assert.equal(introListeners.size,0);assert.equal(introFrames.size,0);
+console.log('Passed: student guide demonstrates one drop into water, unlocks after one clip and leaves water conditions unchanged.');
+
 
 nativeImpact.setImpactEffectsVolume(.5);nativeImpact.playImpact('water',4);
 assert.equal(nativePlayed,6);
