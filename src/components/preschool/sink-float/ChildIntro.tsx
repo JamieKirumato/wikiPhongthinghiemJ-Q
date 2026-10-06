@@ -8,18 +8,18 @@ import {introAudioSources} from './teacherExperience';
 export type IntroFrame={x:number;y:number;carrying:boolean;fromTray:number;tool:string;toolFill:number;item:string|null};
 
 export function ChildIntro({onComplete,onFrame,onCleanup}:{onComplete:()=>void;onFrame:(action:IntroAction,p:number)=>IntroFrame|null;onCleanup:()=>void}) {
-  const audioRef=useRef<HTMLAudioElement|null>(null),indexRef=useRef(0);
+  const indexRef=useRef(0);
   const [step,setStep]=useState(0),[waiting,setWaiting]=useState(false),[progress,setProgress]=useState(0);
   const [frame,setFrame]=useState<IntroFrame|null>(null);
   const callbacks=useRef({onComplete,onFrame,onCleanup});callbacks.current={onComplete,onFrame,onCleanup};
   useEffect(()=>{
-    let active=true,raf=0,lastUpdate=0;
+    let active=true,raf=0,lastUpdate=0,blocked=false;
     let audio:HTMLAudioElement|null=null,release=()=>{};
     const start=(bundle:{sources:string[];release:()=>void})=>{
     if(!active){bundle.release();return;}
     release=bundle.release;
-    const media=new Audio(bundle.sources[0]);media.preload='auto';audio=media;audioRef.current=media;
-    const play=()=>{setWaiting(false);void media.play().catch(()=>{if(active)setWaiting(true);});};
+    const media=new Audio(bundle.sources[0]);media.preload='auto';audio=media;
+    const play=()=>{blocked=false;setWaiting(false);void media.play().catch(()=>{if(active){blocked=true;setWaiting(true);}});};
     media.onended=()=>{
       if(!active)return;
       const next=++indexRef.current;
@@ -37,10 +37,13 @@ export function ChildIntro({onComplete,onFrame,onCleanup}:{onComplete:()=>void;o
       }
       raf=requestAnimationFrame(tick);
     };
-    media.onerror=()=>{if(active)setWaiting(true);};play();raf=requestAnimationFrame(tick);
+    media.onerror=()=>{if(active){blocked=true;setWaiting(true);}};play();raf=requestAnimationFrame(tick);
     };
+    // A browser may require user activation: any natural contact starts the guide, no media toolbar.
+    const activate=()=>{if(!active||!blocked||!audio||indexRef.current>=INTRO_GUIDE.length)return;blocked=false;unlockImpactAudio();if(audio.error)audio.load();void audio.play().then(()=>{if(active)setWaiting(false);}).catch(()=>{if(active)blocked=true;});};
+    window.addEventListener('pointerdown',activate,true);window.addEventListener('keydown',activate,true);
     void introAudioSources().then(start,()=>start({sources:INTRO_GUIDE.map(s=>`/audio/vi/${s.audio}.mp3`),release:()=>{}}));
-    return ()=>{active=false;cancelAnimationFrame(raf);if(audio){audio.pause();audio.onended=null;audio.onerror=null;}release();audioRef.current=null;indexRef.current=0;callbacks.current.onCleanup();};
+    return ()=>{active=false;window.removeEventListener('pointerdown',activate,true);window.removeEventListener('keydown',activate,true);cancelAnimationFrame(raf);if(audio){audio.pause();audio.onended=null;audio.onerror=null;}release();indexRef.current=0;callbacks.current.onCleanup();};
   },[]);
   const action=INTRO_GUIDE[step].action;
   const phaseProgress=progress/100*INTRO_GUIDE.length-step;
@@ -58,12 +61,6 @@ export function ChildIntro({onComplete,onFrame,onCleanup}:{onComplete:()=>void;o
       {frame.tool==='🥄'?<RealisticHandSpoon x={frame.x} y={frame.y} hasSalt={frame.toolFill>0} isPouring={phaseProgress>.7&&phaseProgress<.85}/>:
         <RealisticStirringHand x={frame.x} y={frame.y} angle={phaseProgress*1080} isInWater/>}
     </div>}
-    <div data-child-intro role="region" aria-label="Hướng dẫn ngay trong màn chơi" className="absolute bottom-5 left-5 right-[168px] sm:right-[240px] lg:right-[272px] z-[100] rounded-3xl border-2 border-sky-200 bg-white/95 shadow-lg p-3 sm:p-4 flex flex-wrap items-center justify-center gap-3">
-      <div aria-hidden="true" className="text-3xl sm:text-4xl select-none">{INTRO_GUIDE[step].icon}</div>
-      {waiting?<button autoFocus aria-label="Bắt đầu nghe hướng dẫn" className="rounded-full min-w-[64px] min-h-[64px] bg-amber-400 border-4 border-white shadow-md text-3xl" onClick={()=>{
-        unlockImpactAudio();const audio=audioRef.current;if(!audio)return;setWaiting(false);if(audio.error)audio.load();void audio.play().catch(()=>setWaiting(true));
-      }}>▶</button>:<div aria-label="Đang đọc hướng dẫn" className="text-3xl">🔊</div>}
-      <div role="progressbar" aria-label="Tiến trình hướng dẫn" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)} className="flex-1 min-w-[48px] max-w-64 h-3 rounded-full bg-sky-200 overflow-hidden"><div className="h-full bg-sky-500 rounded-full" style={{width:`${progress}%`}}/></div>
-    </div>
+    <span data-child-intro role="status" className="sr-only">{waiting?'Hướng dẫn sẽ phát khi chạm vào màn chơi.':'Đang hướng dẫn cách chơi.'}</span>
   </>;
 }
