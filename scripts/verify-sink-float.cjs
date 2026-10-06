@@ -40,14 +40,14 @@ assert.equal(150-returned.grams+returned.grams,150);
 assert.ok(salt.brineDensity(150,1200)<salt.brineDensity(150,1000));
 console.log('Passed: ladle lowers water, bounds empty tanks, preserves brine concentration and returns carried salt.');
 // Exercise the real ladle pointer/animation handlers, including cancellation and water return.
-let ladleVolume=1000,ladleSalt=150,ladleActive=false,ladleHand=null;
+let ladleVolume=1000,ladleSalt=150,ladleActive=false,ladleHand=null,disposedMl=0,disposedSalt=0;
 let ladleFrame=0;const ladleFrames=new Map(),ladleListeners=new Map();
 const fakeReact={useRef:value=>({current:value}),useEffect(){},useState:()=>[null,value=>{ladleHand=value;}],createElement:(type,props,...children)=>({type,props:props||{},children}),Fragment:'fragment'};
 fakeReact.default=fakeReact;
 const ladleModule={exports:{}};
 const ladleCode=ts.transpileModule(fs.readFileSync('src/components/preschool/sink-float/WaterLadle.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.React}}).outputText;
 vm.runInNewContext(ladleCode,{module:ladleModule,exports:ladleModule.exports,require:name=>name==='react'?fakeReact:{playWaterSwish(){},unlockImpactAudio(){}},performance:{now:()=>0},requestAnimationFrame:fn=>{ladleFrames.set(++ladleFrame,fn);return ladleFrame;},cancelAnimationFrame:id=>ladleFrames.delete(id),window:{addEventListener:(name,fn)=>ladleListeners.set(name,fn),removeEventListener:name=>ladleListeners.delete(name)}});
-function startLadle(){const tree=ladleModule.exports.WaterLadle({disabled:false,teacher:false,capacity:200,onActive:active=>{ladleActive=active;},checkWater:(x,y)=>x===100&&y===100,checkMouth:(x,y)=>x===100&&y===50,onFlow(){},onTake:ml=>{const taken=waterPhysics.scoopWater(ladleVolume,ladleSalt,ml);ladleVolume-=taken.ml;ladleSalt-=taken.grams;return taken;},onReturn:water=>{ladleVolume+=water.ml;ladleSalt+=water.grams;}});tree.children[0].props.onPointerDown({button:0,pointerId:1,clientX:500,clientY:500,preventDefault(){}});}
+function startLadle(){const tree=ladleModule.exports.WaterLadle({disabled:false,teacher:false,capacity:200,onActive:active=>{ladleActive=active;},checkWater:(x,y)=>x===100&&y===100,checkMouth:(x,y)=>x===100&&y===50,onFlow(){},getTarget:()=>null,onDispose:(x,y,water)=>{disposedMl+=water.ml;disposedSalt+=water.grams;},onTake:ml=>{const taken=waterPhysics.scoopWater(ladleVolume,ladleSalt,ml);ladleVolume-=taken.ml;ladleSalt-=taken.grams;return taken;},onReturn:water=>{ladleVolume+=water.ml;ladleSalt+=water.grams;}});tree.children[0].props.onPointerDown({button:0,pointerId:1,clientX:500,clientY:500,preventDefault(){}});}
 function ladleTick(time){const [id,fn]=ladleFrames.entries().next().value;ladleFrames.delete(id);fn(time);}
 startLadle();assert.equal(ladleActive,true);
 ladleListeners.get('pointermove')({pointerId:2,clientX:100,clientY:100});ladleTick(100);assert.equal(ladleVolume,1000);
@@ -57,8 +57,9 @@ ladleListeners.get('pointerup')({pointerId:2});assert.equal(ladleActive,true);
 ladleListeners.get('pointerup')({pointerId:1});assert.equal(ladleVolume,1000);assert.equal(ladleSalt,150);assert.equal(ladleActive,false);assert.equal(ladleFrames.size,0);
 startLadle();ladleListeners.get('pointermove')({pointerId:1,clientX:100,clientY:100});for(let t=100;t<=1000;t+=100)ladleTick(t);
 ladleListeners.get('pointermove')({pointerId:1,clientX:500,clientY:500});for(let t=1100;t<=1500;t+=100)ladleTick(t);
-assert.equal(ladleVolume,800);assert.ok(ladleHand.fill<1);ladleListeners.get('pointerup')({pointerId:1});assert.equal(ladleVolume,800);assert.equal(ladleSalt,120);
+assert.equal(ladleVolume,800);assert.ok(ladleHand.fill<1);ladleListeners.get('pointerup')({pointerId:1});assert.equal(ladleVolume,800);assert.equal(ladleSalt,120);assert.ok(Math.abs(disposedMl-200)<1e-8);assert.ok(Math.abs(disposedSalt-30)<1e-8);
 startLadle();ladleListeners.get('pointermove')({pointerId:1,clientX:100,clientY:100});ladleTick(100);ladleListeners.get('blur')();assert.equal(ladleVolume,800);assert.equal(ladleSalt,120);assert.equal(ladleActive,false);
+startLadle();ladleListeners.get('pointerup')({pointerId:1});assert.equal(ladleActive,true);ladleListeners.get('keydown')({key:'Escape'});assert.equal(ladleActive,false);assert.equal(ladleFrames.size,0);assert.equal(ladleVolume,800);
 console.log('Passed: actual ladle handlers fill, empty outside, return inside, ignore second pointer and restore carried water on blur.');
 const lowStone=waterPhysics.displacedWaterLevel(3,'rectangle',fillDims,[{y:.9,radius:.5,volume:80}]);
 const liftedStone=waterPhysics.displacedWaterLevel(3,'rectangle',fillDims,[{y:2,radius:.5,volume:80}]);
@@ -336,3 +337,35 @@ console.log('Passed: selected guidance migrates settings, filters unknown action
   }finally{global.fetch=fetchOriginal;}
   console.log('Passed: custom MP3 storage, source selection and cleanup, script reset, Vietnamese generation chunks and endpoint validation.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+const transfer=source('src/components/preschool/sink-float/waterTransfer.ts');
+for(const shape of ['rectangle','square','cylinder','triangle']){
+ const d=geometry.getTankDimensions(shape,'normal'),sand=waterPhysics.sandHeight(d);
+ const capacity=transfer.waterCapacity(shape,d,[],sand);
+ const capStone=transfer.waterCapacity(shape,d,[{y:1,radius:.5,volume:80}],sand);
+ assert.ok(Math.abs(capacity-capStone-80)<1e-7);
+ const above=transfer.waterCapacity(shape,d,[{y:d.height+2,radius:.5,volume:80}],sand);
+ assert.equal(above,capacity);
+ const result=transfer.splitOverflow(capacity+120,180,capacity);
+ assert.ok(Math.abs(result.kept+result.spilled-capacity-120)<1e-8);
+ assert.ok(Math.abs((180-result.grams)/result.kept-180/(capacity+120))<1e-8);
+ assert.equal(transfer.splitOverflow(capacity-10,20,capacity).spilled,0);
+}
+const near=[{id:'small',x:100,y:100,radius:38},{id:'large',x:145,y:100,radius:90}];
+assert.equal(transfer.nearestHandTarget(near,102,100),'small');
+assert.equal(transfer.nearestHandTarget(near,143,100),'large');
+assert.equal(transfer.nearestHandTarget(near,300,100),undefined);
+let puddles=transfer.mergeSpill([],3,4,100);puddles=transfer.mergeSpill(puddles,3.1,4.1,50);assert.equal(puddles.length,1);assert.equal(puddles[0].ml,150);
+assert.equal(guide.introPose('outside',.9,fillDims,3).item,'item-apple');
+assert.ok(!JSON.parse(fs.readFileSync('public/audio/vi/transcripts.json','utf8'))['intro-2'].includes('vỡ'));
+assert.ok(fs.statSync('public/audio/vi/intro-2-discovery.mp3').size>1000);
+console.log('Passed: nearest separate hand targets, overflow displacement and salt conservation in all shapes, merged floor spills, tutorial without egg spoiler.');
+
+const floorEgg={id:'item-egg#floor',outsideTank:true,status:'grounded',x:0,y:-.075,z:7};
+const fallingStone={id:'item-pebble',inTank:true,outsideTank:true,x:0,y:.9,z:7,vy:-7,weightGrams:50};
+assert.equal(impact.floorEggDamage(floorEgg,fallingStone,.1,.525,.5),'broken');
+assert.equal(impact.floorEggDamage(floorEgg,{...fallingStone,vy:-1},.1,.525,.5),undefined);
+assert.equal(impact.floorEggDamage(floorEgg,{...fallingStone,id:'item-foam',weightGrams:5},.1,.525,.5),undefined);
+assert.equal(impact.floorEggDamage(floorEgg,{...fallingStone,x:4},.1,.525,.5),undefined);
+assert.equal(impact.floorEggDamage({...floorEgg,status:'floating',outsideTank:false},fallingStone,.1,.525,.5),undefined);
+console.log('Passed: strong released floor collision breaks egg; gentle, soft, distant and underwater contacts do not.');

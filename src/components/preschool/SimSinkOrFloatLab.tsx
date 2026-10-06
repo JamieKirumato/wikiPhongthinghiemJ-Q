@@ -31,12 +31,14 @@ import {
   ItemObserved
 } from './sink-float/types';
 import { getTankDimensions, clampToTankBoundary } from './sink-float/tankGeometry';
-import { ThreeTankCanvas, ThreeTankCanvasHandle } from './sink-float/ThreeTankCanvas';
+import { ThreeTankCanvas, ITEM_WORLD_SCALES, ThreeTankCanvasHandle } from './sink-float/ThreeTankCanvas';
 import { brineDensity, waterVolumeMl, SALT_GRAMS_PER_SPOON, MAX_SALT_SPOONS } from './sink-float/salinity';
 import { SaltWorkflow } from './sink-float/SaltWorkflow';
 import { WaterPitcher } from './sink-float/WaterPitcher';
+import {FloorMop} from './sink-float/FloorMop';
+import {FloorSpill,mergeSpill,splitOverflow,waterCapacity} from './sink-float/waterTransfer';
 import { WaterLadle } from './sink-float/WaterLadle';
-import { addedWaterHeight, maximumAddedWater, sandHeight, scoopWater } from './sink-float/waterPhysics';
+import { addedWaterHeight, sandHeight, scoopWater } from './sink-float/waterPhysics';
 import { BoatChallenge } from './sink-float/BoatChallenge';
 import { RealLifeActivityCards } from './sink-float/RealLifeActivityCards';
 import { basketSlots, replenishBasket } from './sink-float/basketInventory';
@@ -406,6 +408,14 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   // 3. HÌNH DẠNG VÀ KÍCH THƯỚC BỂ NƯỚC (Bể nhỏ bằng 50% mỗi chiều)
   const [tankShape, setTankShape] = useState<TankShape>('rectangle');
   const [tankScale, setTankScale] = useState<TankScale>('normal');
+  const [overflowAt,setOverflowAt]=useState(0);
+  const [floorSpills,setFloorSpills]=useState<FloorSpill[]>([]);
+  const [bucketWater,setBucketWater]=useState({ml:0,grams:0});
+  const bucketWaterRef=useRef(bucketWater);bucketWaterRef.current=bucketWater;
+  const [ladleActive,setLadleActive]=useState(false);
+  const bucketRef=useRef<HTMLDivElement|null>(null);
+  const addFloorWater=(x:number,z:number,ml:number)=>setFloorSpills(prev=>mergeSpill(prev,x,z,ml));
+  const overBucket=(x:number,y:number)=>{const r=bucketRef.current?.getBoundingClientRect();return !!r&&x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom;};
   const [addedWaterMl,setAddedWaterMl]=useState(0);
   const addedWaterRef=useRef(0);
   const [removedSaltGrams,setRemovedSaltGrams]=useState(0);
@@ -445,10 +455,22 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
 
   // Khối lượng riêng cập nhật LIÊN TỤC theo lượng muối tan (D >= 1.0)
   const dissolvedFraction = saltSpoons + (workflowStep === 'stirring' ? activeStirProgress / 100 * spoonFraction : 0);
+  const [items, setItems] = useState<TankObject[]>(PLAY_ITEMS_PRESETS);
+  const tankCapacity=waterCapacity(tankShape,dimensions,items.filter(i=>i.inTank&&!i.outsideTank).map(i=>({y:i.y,radius:ITEM_WORLD_SCALES[i.id.split('#')[0]]?.radius||i.size/2,volume:i.volumeMl})),sandHeight(dimensions));
+  const capRef=useRef(tankCapacity);capRef.current=tankCapacity;
+  const overflowSalt=(amount:number,volume:number)=>{
+    const grams=volume>0?Math.max(0,dissolvedFraction*SALT_GRAMS_PER_SPOON-removedSaltRef.current)*amount/volume:0;
+    removedSaltRef.current+=grams;setRemovedSaltGrams(removedSaltRef.current);
+  };
+  // Displacement by a newly immersed object can overflow a previously full tank too.
+  useEffect(()=>{
+    const total=waterVolumeMl(tankShape,dimensions)+addedWaterRef.current;
+    const overflow=splitOverflow(total,0,tankCapacity).spilled;
+    if(overflow>.01){overflowSalt(overflow,total);addedWaterRef.current-=overflow;setAddedWaterMl(addedWaterRef.current);addFloorWater(0,dimensions.depth*.7,overflow);setOverflowAt(performance.now());}
+  },[tankCapacity,tankShape,dimensions]);
   const waterDensity = brineDensity(Math.max(0,dissolvedFraction * SALT_GRAMS_PER_SPOON-removedSaltGrams), waterVolumeMl(tankShape, dimensions)+addedWaterMl);
 
   // 5. DANH SÁCH ĐỒ VẬT VÀ LỨA TUỔI
-  const [items, setItems] = useState<TankObject[]>(PLAY_ITEMS_PRESETS);
   const [holdingItemId, setHoldingItemId] = useState<string | null>(null);
   const [ageGroup, setAgeGroup] = useState<AgeGroup>('3-4');
 
@@ -1004,7 +1026,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
         onFrame={(action,p)=>{
           const frame=threeTankRef.current?.showIntroFrame(action,p);if(!frame)return null;
           const container=containerRef.current;
-          const label=action==='outside'?'Cầm Quả trứng':action==='pick'?'Cầm Quả táo đỏ':action==='pour'?'Cầm bình nước để rót vào bể':action==='scoop'?'Cầm gáo để múc nước ra khỏi bể':'Mở hũ muối';
+          const label=action==='outside'?'Cầm Quả táo đỏ':action==='pick'?'Cầm Quả táo đỏ':action==='pour'?'Cầm bình nước để rót vào bể':action==='scoop'?'Cầm gáo để múc nước ra khỏi bể':'Mở hũ muối';
           const source=container?.querySelector(`[aria-label="${label}"]`)?.getBoundingClientRect();
           const scene=playSceneRef.current?.getBoundingClientRect();
           if((action==='welcome'||action==='ready')&&scene){frame.x=scene.left+scene.width*.48;frame.y=scene.top+scene.height*.3;}
@@ -1052,6 +1074,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                 ref={threeTankRef}
                 shape={tankShape}
                 sceneSetting={sceneSetting}
+                floorSpills={floorSpills}
+                overflowAt={overflowAt}
                 inputLocked={introLocked || pouringWater}
                 waterLevel={dimensions.waterHeight+sandHeight(dimensions)+addedWaterHeight(addedWaterMl,tankShape,dimensions)}
                 scale={tankScale}
@@ -1071,8 +1095,10 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                 showXRay={showXRay}
                 onItemObserved={handleItemObserved}
               />
-
-
+              {(ladleActive||bucketWater.ml>0)&&<div ref={bucketRef} data-water-bucket aria-label="Chậu đựng nước đã múc" className="absolute bottom-5 left-5 z-30 pointer-events-none w-28 h-28">
+                <svg viewBox="0 0 120 120" width="112" height="112" aria-hidden="true"><path d="M17 43 Q60 27 103 43 L93 99 Q60 115 27 99Z" fill="#ffd59c" stroke="#b87838" strokeWidth="4"/><ellipse cx="60" cy="43" rx="43" ry="15" fill="#fff0cf" stroke="#b87838" strokeWidth="4"/>{bucketWater.ml>0&&<ellipse cx="60" cy={56-Math.min(12,bucketWater.ml/60)} rx="35" ry="10" fill="#86dcea" stroke="#d6fbff" strokeWidth="3"/>}<path d="M23 38 C15 5 105 5 97 38" fill="none" stroke="#d09450" strokeWidth="5"/></svg>
+                {isTeacherMode&&<span className="absolute bottom-0 left-2 text-xs font-bold bg-white/90 rounded px-1">{Math.round(bucketWater.ml)} ml</span>}
+              </div>}
             </div>
           )}
 
@@ -1101,23 +1127,39 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             disabled={introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}
             teacher={isTeacherMode} onActive={setPouringWater}
             flowRate={waterVolumeMl(tankShape,dimensions)*.1}
+            getTarget={(x,y)=>threeTankRef.current?.flowTarget(x,y)||null}
+            onSpill={addFloorWater}
             onFlow={(x,y)=>threeTankRef.current?.stirAtScreenPoint(x,y,.6)}
             checkMouth={(x,y)=>threeTankRef.current?.checkPointOverTankMouth(x,y).isOver ?? false}
             onAdd={amount=>{
-              const occupied=items.filter(i=>i.inTank&&!i.outsideTank).reduce((sum,i)=>sum+i.volumeMl,0);
-              const cap=maximumAddedWater(occupied,tankShape,{...dimensions,waterHeight:dimensions.waterHeight+sandHeight(dimensions)});
-              const next=Math.min(cap,addedWaterRef.current+amount);
-              const actual=Math.max(0,next-addedWaterRef.current);if(actual<=0)return 0;
-              addedWaterRef.current=next;setAddedWaterMl(next);return actual;
+              const base=waterVolumeMl(tankShape,dimensions),total=base+addedWaterRef.current+amount;
+              const result=splitOverflow(total,0,capRef.current);
+              overflowSalt(result.spilled,total);
+              addedWaterRef.current=result.kept-base;setAddedWaterMl(addedWaterRef.current);
+              if(result.spilled>0){addFloorWater(0,dimensions.depth*.7,result.spilled);setOverflowAt(performance.now());}
+              return amount;
             }}/>
           }
           {(activityMode==='discovery'||activityMode==='egg-challenge') && <WaterLadle
             disabled={introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}
             teacher={isTeacherMode} capacity={waterVolumeMl(tankShape,dimensions)*.2}
-            onActive={setPouringWater}
+            onActive={active=>{setPouringWater(active);setLadleActive(active);}}
             checkWater={(x,y)=>waterVolumeMl(tankShape,dimensions)+addedWaterRef.current>.01 && (threeTankRef.current?.checkPointInWater(x,y) ?? false)}
             checkMouth={(x,y)=>threeTankRef.current?.checkPointOverTankMouth(x,y).isOver ?? false}
             onFlow={(x,y)=>threeTankRef.current?.stirAtScreenPoint(x,y,.5)}
+            getTarget={(x,y)=>{
+              if(overBucket(x,y)){const r=bucketRef.current!.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height*.4,worldX:0,worldZ:0,inside:false};}
+              return threeTankRef.current?.flowTarget(x,y)||null;
+            }}
+            onDispose={(x,y,water)=>{
+              if(overBucket(x,y)){
+                const total=bucketWaterRef.current.ml+water.ml,salt=bucketWaterRef.current.grams+water.grams;
+                const result=splitOverflow(total,salt,600);
+                const next={ml:result.kept,grams:salt-result.grams};bucketWaterRef.current=next;setBucketWater(next);
+                if(result.spilled>0){const floor=threeTankRef.current?.floorPoint(x,y);addFloorWater(floor?.x??-dimensions.width*.65,floor?.z??dimensions.depth*.65,result.spilled);}
+              }
+              else {const target=threeTankRef.current?.flowTarget(x,y);if(target)addFloorWater(target.worldX,target.worldZ,water.ml);else {addedWaterRef.current+=water.ml;removedSaltRef.current=Math.max(0,removedSaltRef.current-water.grams);setAddedWaterMl(addedWaterRef.current);setRemovedSaltGrams(removedSaltRef.current);}}
+            }}
             onTake={amount=>{
               const taken=scoopWater(waterVolumeMl(tankShape,dimensions)+addedWaterRef.current,Math.max(0,dissolvedFraction*SALT_GRAMS_PER_SPOON-removedSaltRef.current),amount);
               addedWaterRef.current-=taken.ml;removedSaltRef.current+=taken.grams;
@@ -1127,6 +1169,15 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             onReturn={water=>{
               addedWaterRef.current+=water.ml;removedSaltRef.current=Math.max(0,removedSaltRef.current-water.grams);
               setAddedWaterMl(addedWaterRef.current);setRemovedSaltGrams(removedSaltRef.current);
+            }}/>
+          }
+          {(floorSpills.length>0||items.some(i=>i.inTank&&i.outsideTank&&i.damage==='broken'))&&<FloorMop
+            disabled={introLocked||pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle'||interactionMode==='orbit'}
+            teacher={isTeacherMode} onActive={setPouringWater}
+            onClean={(x,y)=>{
+              const point=threeTankRef.current?.floorPoint(x,y);if(!point)return;
+              setFloorSpills(prev=>prev.map(spill=>Math.hypot(spill.x-point.x,spill.z-point.z)<Math.max(1,Math.sqrt(spill.ml/180))?{...spill,ml:Math.max(0,spill.ml-80)}:spill).filter(spill=>spill.ml>.01));
+              setItems(prev=>prev.filter(item=>!(item.outsideTank&&item.damage==='broken'&&Math.hypot(item.x-point.x,item.z-point.z)<1)));
             }}/>
           }
           {(activityMode==='discovery'||activityMode==='egg-challenge') && (

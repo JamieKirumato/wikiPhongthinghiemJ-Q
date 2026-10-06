@@ -43,7 +43,7 @@ export function ChildIntro({onComplete,onFrame,onCleanup,guide=INTRO_GUIDE}:{gui
     // A browser may require user activation: any natural contact starts the guide, no media toolbar.
     const activate=()=>{if(!active||!blocked||!audio||indexRef.current>=guide.length)return;blocked=false;unlockImpactAudio();if(audio.error)audio.load();void audio.play().then(()=>{if(active)setWaiting(false);}).catch(()=>{if(active)blocked=true;});};
     window.addEventListener('pointerdown',activate,true);window.addEventListener('keydown',activate,true);
-    void introAudioSources(guide).then(start,()=>start({sources:guide.map(s=>`/audio/vi/${s.audio}.mp3`),release:()=>{}}));
+    void introAudioSources(guide).then(start,()=>start({sources:guide.map(s=>`/audio/vi/${s.audio==='intro-2'?'intro-2-discovery':s.audio}.mp3`),release:()=>{}}));
     return ()=>{active=false;window.removeEventListener('pointerdown',activate,true);window.removeEventListener('keydown',activate,true);cancelAnimationFrame(raf);if(audio){audio.pause();audio.onended=null;audio.onerror=null;}release();indexRef.current=0;callbacks.current.onCleanup();};
   },[]);
   const action=guide[step]?.action||'ready';

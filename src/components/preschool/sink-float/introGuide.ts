@@ -3,7 +3,7 @@ export type IntroAction='welcome'|'pick'|'outside'|'dip'|'rotate'|'salt'|'stir'|
 export const INTRO_GUIDE:Array<{action:IntroAction;audio:string;icon:string}>=[
   {action:'welcome',audio:'intro-0',icon:'👋'},
   {action:'pick',audio:'intro-1',icon:'🖐️ 🍎'},
-  {action:'outside',audio:'intro-2',icon:'🥚 💦'},
+  {action:'outside',audio:'intro-2',icon:'🖐️ 💦'},
   {action:'dip',audio:'intro-3',icon:'🖐️ 🦆'},
   {action:'rotate',audio:'intro-4',icon:'🔄 🔍'},
   {action:'salt',audio:'intro-5',icon:'🧂 🥄'},
@@ -20,7 +20,7 @@ export function introPose(action:IntroAction,progress:number,dims:TankDimensions
   let item:'item-apple'|'item-egg'|'item-duck'|null=null;
   let carrying=false,fromTray=0,tool='',toolFill=0;
   if(action==='pick'||action==='outside'){
-    item=action==='pick'?'item-apple':'item-egg';fromTray=1-phase(p,.14,.43);carrying=p<.56;
+    item='item-apple';fromTray=1-phase(p,.14,.43);carrying=p<.56;
     if(action==='outside'){x=-dims.width*.3;z=dims.depth*.63;y=top-(top+.42)*phase(p,.58,.79)**2;}
     else {
       y=top-(top-water-.35)*phase(p,.56,.76)**2;

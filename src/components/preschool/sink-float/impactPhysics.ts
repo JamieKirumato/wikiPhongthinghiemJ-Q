@@ -16,3 +16,11 @@ export function gestureVelocity(dx: number, dy: number, seconds: number) {
   if (speed < 250) return {vx: 0, vy: 0};
   return {vx: Math.max(-1200, Math.min(1200, dx / seconds)), vy: Math.max(-1200, Math.min(1200, dy / seconds))};
 }
+
+export function floorEggDamage(egg:TankObject,other:TankObject,dt:number,radius:number,otherRadius:number){
+  if(itemKind(egg.id)!=='item-egg'||!egg.outsideTank||egg.status!=='grounded'||egg.damage==='broken'||!other.inTank||!other.outsideTank||other.vy>=-2.2)return egg.damage;
+  if(Math.hypot(other.x-egg.x,other.z-egg.z)>=radius+otherRadius||other.y<=egg.y||other.y+other.vy*dt>egg.y+radius+otherRadius)return egg.damage;
+  const soft=['item-duck','item-foam','item-leaf','item-pingpong'].includes(itemKind(other.id))?.2:1;
+  const effectiveSpeed=Math.abs(other.vy)*Math.sqrt(Math.max(0,other.weightGrams)/50)*soft;
+  return damageFromImpact(egg.id,effectiveSpeed,egg.damage);
+}
