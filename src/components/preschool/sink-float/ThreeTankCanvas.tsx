@@ -15,7 +15,7 @@ import {FloorSpill,FlowTarget,nearestHandTarget} from './waterTransfer';
 import {IntroAction,introPose} from './introGuide';
 
 export interface ThreeTankCanvasHandle {
-  flowTarget: (x:number,y:number)=>FlowTarget|null;
+  flowTarget: (x:number,y:number,sourceHeight?:number)=>FlowTarget|null;
   floorPoint: (x:number,y:number)=>{x:number;z:number}|null;
   showIntroFrame: (action:IntroAction|null,progress:number)=>{x:number;y:number;carrying:boolean;fromTray:number;tool:string;toolFill:number;item:string|null}|null;
   checkPointInWater: (screenX: number, screenY: number) => boolean;
@@ -106,7 +106,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     },
     ref
   ) => {
-    const [grabHand,setGrabHand]=useState<{x:number;y:number;holding:boolean}|null>(null);
+    const [,setGrabHand]=useState<{x:number;y:number;holding:boolean}|null>(null);
     const [dropPreview,setDropPreview]=useState<{x:number;y:number;inside:boolean}|null>(null);
     const overflowRef=useRef<THREE.Mesh|null>(null);
     const overflowTimeRef=useRef(overflowAt);overflowTimeRef.current=overflowAt;
@@ -274,13 +274,13 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((x-rect.left)/rect.width*2-1,-(y-rect.top)/rect.height*2+1),cameraRef.current);
       const hit=new THREE.Vector3();return ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),.6),hit)?{x:hit.x,z:hit.z}:null;
     };
-    const flowTarget=(x:number,y:number):FlowTarget|null=>{
+    const flowTarget=(x:number,y:number,sourceHeight?:number):FlowTarget|null=>{
       if(!mountRef.current||!cameraRef.current)return null;
       const rect=mountRef.current.getBoundingClientRect(),camera=cameraRef.current;
       if(x<rect.left||x>rect.right||y<rect.top||y>rect.bottom)return null;
       const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((x-rect.left)/rect.width*2-1,-(y-rect.top)/rect.height*2+1),camera);
       const point=new THREE.Vector3(),d=dimsRef.current,shape=shapeRef.current;
-      const atRim=ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-d.height),point);
+      const atRim=ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-(sourceHeight??d.height)),point);
       const inside=!!atRim&&isPointInsideFootprint(point.x,point.z,shape,d,.4);
       if(!inside){if(!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),.6),point)||isPointInsideFootprint(point.x,point.z,shape,d,0))return null;}
       const target=new THREE.Vector3(point.x,inside?Math.max(sandHeight(d),displayedWaterLevelRef.current):-.585,point.z);
@@ -1731,7 +1731,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
               : 'cursor-default'
           }`}
         />
-        {grabHand&&<div data-grab-hand aria-hidden="true" className="absolute z-30 pointer-events-none text-4xl drop-shadow-md" style={{left:grabHand.x+8,top:grabHand.y+8}}>{grabHand.holding?'✊':'🖐️'}</div>}
         {dropPreview&&<div data-drop-preview aria-hidden="true" className={`absolute z-20 pointer-events-none w-12 h-5 rounded-[50%] border-[3px] border-dashed ${dropPreview.inside?'border-sky-600 bg-sky-200/40':'border-amber-600 bg-amber-200/40'}`} style={{left:dropPreview.x,top:dropPreview.y,transform:'translate(-50%,-50%)'}}/>}
         {waterHand && <div aria-hidden="true" className="absolute z-20 pointer-events-none text-4xl" style={{left:waterHand.x-20,top:waterHand.y-20}}>🖐️</div>}
       </div>

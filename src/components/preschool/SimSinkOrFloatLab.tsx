@@ -1,3 +1,4 @@
+import { ComparisonTank } from './sink-float/ComparisonTank';
 import { StartScreen } from './sink-float/StartScreen';
 import { STUDENT_GUIDE, STUDENT_PROMPT } from './sink-float/introGuide';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -346,33 +347,7 @@ const ToddlerHandPreview: React.FC<{
         className="absolute left-0 top-0 z-10 w-14 h-14 object-contain filter drop-shadow-md transform -rotate-12 pointer-events-none"
         draggable={false}
       />
-      {/* Bàn tay trẻ em mũm mĩm cầm đồ vật */}
-      <svg
-        className="absolute left-5 top-5 w-24 h-24 pointer-events-none"
-        viewBox="0 0 100 100"
-        fill="none"
-      >
-        <path
-          d="M 18 84 C 22 70 32 56 46 50 C 60 45 74 52 82 64 C 85 74 80 84 70 88 C 52 94 32 94 18 84 Z"
-          fill="#fcd34d"
-          stroke="#f59e0b"
-          strokeWidth="3.5"
-          strokeLinejoin="round"
-        />
-        <ellipse
-          cx="38"
-          cy="42"
-          rx="9"
-          ry="14"
-          fill="#fde68a"
-          stroke="#f59e0b"
-          strokeWidth="2.5"
-          transform="rotate(-25 38 42)"
-        />
-        <circle cx="56" cy="38" r="7.5" fill="#fde68a" stroke="#f59e0b" strokeWidth="2.5" />
-        <circle cx="70" cy="46" r="7" fill="#fde68a" stroke="#f59e0b" strokeWidth="2.5" />
-        <circle cx="76" cy="58" r="6.5" fill="#fde68a" stroke="#f59e0b" strokeWidth="2.5" />
-      </svg>
+
     </div>
   </div>
 );
@@ -524,6 +499,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const [showGuideModal, setShowGuideModal] = useState<boolean>(false);
   const [showTeacherObjectives, setShowTeacherObjectives] = useState<boolean>(false);
   const [isTeacherMode,setIsTeacherMode] = useState(false);
+  const [showSecondTank,setShowSecondTank] = useState(false);
   const [sceneSetting, setSceneSetting] = useState<SceneSetting>('laboratory');
   const basketBatchRef = useRef(0);
   const [showAdultPanel, setShowAdultPanel] = useState<boolean>(false);
@@ -1067,7 +1043,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       {/* ======================================================== */}
       <div {...(introLocked||showExperienceSettings ? {inert: ''} : {})} aria-hidden={introLocked||showExperienceSettings || undefined} className="flex-1 min-h-0 flex flex-row items-stretch p-2 gap-2 overflow-hidden">
         {/* CỘT TRÁI: KHU VỰC CHƠI CHÍNH (75-80%) */}
-        <main className="flex-1 min-w-0 flex flex-col h-full overflow-hidden space-y-1.5">
+        <main className={`flex-1 min-w-0 flex h-full overflow-hidden gap-2 ${showSecondTank&&isTeacherMode?'flex-col lg:flex-row':'flex-col'}`}>
           {/* HIỂN THỊ THEO ACTIVITY MODE */}
           {activityMode === 'boat-challenge' ? (
             /* THỬ THÁCH THUYỀN CHỞ HÀNG MỚI */
@@ -1123,6 +1099,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             </div>
           )}
 
+          {isTeacherMode&&<div className={showSecondTank?'flex flex-1 min-w-0 min-h-0':'hidden'}><ComparisonTank presets={basketPresets} sceneSetting={sceneSetting}/></div>}
         </main>
 
         {/* ======================================================== */}
@@ -1143,6 +1120,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               onKeyboardPick={item=>{if(!gestureAllowedRef.current)return;const fresh=item.damage?{...item,inTank:false,outsideTank:false,damage:undefined,status:'basket' as const}:item;if(item.damage)setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));setSelectedTrayItem(fresh);markUserInteracted();setMessage('Con đang cầm vật. Đưa tay đến chỗ muốn thả nhé.');}}
             />
           </div>}
+          {isTeacherMode&&<button aria-pressed={showSecondTank} onClick={()=>setShowSecondTank(!showSecondTank)} className="min-h-[48px] rounded-2xl bg-violet-100 font-bold">{showSecondTank?'Ẩn bể 2':'Thêm bể 2'}</button>}
           {isTeacherMode&&<button aria-expanded={showGuideModal} onClick={()=>setShowGuideModal(!showGuideModal)} className="min-h-[48px] rounded-2xl bg-amber-100 font-bold">📖 Hướng dẫn</button>}
           <button disabled={pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle'} aria-pressed={advanced} onClick={()=>switchExploration(!advanced)} className="min-h-[52px] rounded-2xl bg-sky-100 px-2 font-bold disabled:opacity-50">{advanced?'🧺 Thả đồ vật':'🔎 Khám phá thêm'}</button>
           {advanced&&<p className="text-sm px-2 text-sky-800">Thêm nước, thêm muối rồi khuấy. Con thấy điều gì thay đổi?</p>}
@@ -1152,7 +1130,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             disabled={introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}
             teacher={isTeacherMode} onActive={setPouringWater}
             flowRate={waterVolumeMl(tankShape,dimensions)*.1}
-            getTarget={(x,y)=>threeTankRef.current?.flowTarget(x,y)||null}
+            getTarget={(x,y)=>threeTankRef.current?.flowTarget(x,y,dimensions.height+.9)||null}
             onSpill={addFloorWater}
             onFlow={(x,y)=>threeTankRef.current?.stirAtScreenPoint(x,y,.6)}
             checkMouth={(x,y)=>threeTankRef.current?.checkPointOverTankMouth(x,y).isOver ?? false}
@@ -1574,7 +1552,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                         : 'text-slate-600 dark:text-slate-300'
                     }`}
                   >
-                    3 - 4 Tuổi (4 Món)
+                    4 món
                   </button>
                   <button
                     onClick={() => setAgeGroup('5-6')}
@@ -1584,7 +1562,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                         : 'text-slate-600 dark:text-slate-300'
                     }`}
                   >
-                    5 - 6 Tuổi (10 Món)
+                    10 món
                   </button>
                 </div>
 
