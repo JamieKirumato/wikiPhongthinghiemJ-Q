@@ -369,3 +369,23 @@ assert.equal(impact.floorEggDamage(floorEgg,{...fallingStone,id:'item-foam',weig
 assert.equal(impact.floorEggDamage(floorEgg,{...fallingStone,x:4},.1,.525,.5),undefined);
 assert.equal(impact.floorEggDamage({...floorEgg,status:'floating',outsideTank:false},fallingStone,.1,.525,.5),undefined);
 console.log('Passed: strong released floor collision breaks egg; gentle, soft, distant and underwater contacts do not.');
+// Camera framing must fill the viewport without cutting any tank corner at any orientation.
+const framing=source('src/components/preschool/sink-float/cameraFraming.ts');
+for(const shape of ['rectangle','square','cylinder','triangle']) {
+  const dims=geometry.getTankDimensions(shape,'normal');
+  for(const aspect of [327/480,390/600,1,844/280,1366/680]) for(const yaw of [0,.56,1.57,2.5]) for(const pitch of [.08,.35,.7]) {
+    const distance=framing.tankCameraDistance(dims,aspect,yaw,pitch);
+    assert.ok(Number.isFinite(distance)&&distance>0);
+    const camera=new THREE.PerspectiveCamera(40,aspect,.1,100);
+    camera.position.set(distance*Math.sin(yaw)*Math.cos(pitch),dims.height*.4+distance*Math.sin(pitch),distance*Math.cos(yaw)*Math.cos(pitch));
+    camera.lookAt(0,dims.height*.4,0);camera.updateMatrixWorld();
+    let occupied=0;
+    for(const x of [-dims.width/2,dims.width/2]) for(const y of [0,dims.height]) for(const z of [-dims.depth/2,dims.depth/2]) {
+      const p=new THREE.Vector3(x,y,z).project(camera);
+      assert.ok(Math.abs(p.x)<=.881&&Math.abs(p.y)<=.881,`${shape} corner clipped at ${aspect}, ${yaw}, ${pitch}`);
+      occupied=Math.max(occupied,Math.abs(p.x),Math.abs(p.y));
+    }
+    assert.ok(occupied>.65,`${shape} tank too small`);
+  }
+}
+console.log('Passed: camera fills portrait, landscape and desktop frames without clipping all four tank shapes at multiple angles.');

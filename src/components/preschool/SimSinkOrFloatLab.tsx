@@ -50,6 +50,7 @@ import {eggComparison} from './sink-float/reflectionHistory';
 import {TeacherExperienceSettings} from './sink-float/TeacherExperienceSettings';
 import {readExperience,selectedIntroGuide} from './sink-float/teacherExperience';
 import { ObjectBasket } from './sink-float/ObjectBasket';
+import './sink-float/labExperience.css';
 import { GuidedDemoHand } from './sink-float/GuidedDemoHand';
 import { TeacherObjectivesModal } from './sink-float/TeacherObjectivesModal';
 
@@ -320,7 +321,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
 const AGE_3_4_ITEM_IDS = ['item-pebble', 'item-duck', 'item-apple', 'item-egg'];
 
 // Bàn tay trẻ em cầm đồ vật di chuyển theo chuột khi kéo từ khay
-const ToddlerHandPreview: React.FC<{
+const HeldObjectPreview: React.FC<{
   x: number;
   y: number;
   image: string;
@@ -330,13 +331,13 @@ const ToddlerHandPreview: React.FC<{
     style={{
       left: `${x}px`,
       top: `${y}px`,
-      transform: 'translate(-35px, -45px)',
+      transform: 'translate(-50%, -65%)',
       pointerEvents: 'none',
       zIndex: 9999
     }}
     className="fixed select-none filter drop-shadow-2xl"
   >
-    <div className="relative w-24 h-24 flex items-center justify-center">
+    <div className="relative w-16 h-16 flex items-center justify-center">
       {/* Hình đồ vật bé đang cầm */}
       <img
         src={image}
@@ -344,33 +345,6 @@ const ToddlerHandPreview: React.FC<{
         className="absolute left-0 top-0 z-10 w-14 h-14 object-contain filter drop-shadow-md transform -rotate-12 pointer-events-none"
         draggable={false}
       />
-      {/* Bàn tay trẻ em mũm mĩm cầm đồ vật */}
-      <svg
-        className="absolute left-5 top-5 w-24 h-24 pointer-events-none"
-        viewBox="0 0 100 100"
-        fill="none"
-      >
-        <path
-          d="M 18 84 C 22 70 32 56 46 50 C 60 45 74 52 82 64 C 85 74 80 84 70 88 C 52 94 32 94 18 84 Z"
-          fill="#fcd34d"
-          stroke="#f59e0b"
-          strokeWidth="3.5"
-          strokeLinejoin="round"
-        />
-        <ellipse
-          cx="38"
-          cy="42"
-          rx="9"
-          ry="14"
-          fill="#fde68a"
-          stroke="#f59e0b"
-          strokeWidth="2.5"
-          transform="rotate(-25 38 42)"
-        />
-        <circle cx="56" cy="38" r="7.5" fill="#fde68a" stroke="#f59e0b" strokeWidth="2.5" />
-        <circle cx="70" cy="46" r="7" fill="#fde68a" stroke="#f59e0b" strokeWidth="2.5" />
-        <circle cx="76" cy="58" r="6.5" fill="#fde68a" stroke="#f59e0b" strokeWidth="2.5" />
-      </svg>
     </div>
   </div>
 );
@@ -1011,12 +985,14 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   return (
     <div
       ref={containerRef}
+      data-lab-experience
+      data-teacher-mode={isTeacherMode}
       onPointerMove={(event) => { if (selectedTrayItem) {setDragCursorPos({ x: event.clientX, y: event.clientY });threeTankRef.current?.previewDropAtScreenPos(selectedTrayItem,event.clientX,event.clientY);} }}
       onClick={markUserInteracted}
-      className={`select-none transition-all duration-300 w-full flex flex-col font-sans bg-gradient-to-b from-sky-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-sky-950 text-slate-800 dark:text-slate-100 ${
+      className={`lab-experience select-none w-full flex flex-col font-sans text-slate-800 dark:text-slate-100 ${
         isFullscreen
           ? 'fixed inset-0 z-50 p-2 lg:p-3 overflow-hidden h-screen'
-          : 'relative h-full min-h-0 rounded-3xl overflow-hidden border border-sky-200 dark:border-slate-800 shadow-xl'
+          : 'relative h-full min-h-0 overflow-hidden'
       }`}
     >
       {introLocked&&<button aria-label="Mở cài đặt hướng dẫn giáo viên" onClick={()=>{setIntroComplete(true);setIsTeacherMode(true);setShowAdultPanel(true);setShowExperienceSettings(true);}} className="absolute right-4 top-4 z-[110] min-w-[52px] min-h-[52px] rounded-2xl border border-amber-200 bg-white text-2xl">🧑‍🏫</button>}
@@ -1044,9 +1020,13 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       {/* ======================================================== */}
       {/* 2. CHÍNH: 2 CỘT (TRÁI: BỂ 3D 75-80% | PHẢI: BẢNG ~240px) */}
       {/* ======================================================== */}
-      <div {...(introLocked||showExperienceSettings ? {inert: ''} : {})} aria-hidden={introLocked||showExperienceSettings || undefined} className="flex-1 min-h-0 flex flex-row items-stretch p-2 gap-2 overflow-hidden">
+      <div {...(introLocked||showExperienceSettings ? {inert: ''} : {})} aria-hidden={introLocked||showExperienceSettings || undefined} className="lab-workspace">
+        <header className="lab-heading">
+          <span className="lab-mark" aria-hidden="true">◉</span>
+          <div><span className="lab-eyebrow">PHÒNG KHÁM PHÁ</span><h2>Vật chìm, vật nổi</h2></div>
+        </header>
         {/* CỘT TRÁI: KHU VỰC CHƠI CHÍNH (75-80%) */}
-        <main className="flex-1 min-w-0 flex flex-col h-full overflow-hidden space-y-1.5">
+        <main className="lab-main">
           {/* HIỂN THỊ THEO ACTIVITY MODE */}
           {activityMode === 'boat-challenge' ? (
             /* THỬ THÁCH THUYỀN CHỞ HÀNG MỚI */
@@ -1068,7 +1048,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                   if (rect) {threeTankRef.current?.dropOrThrowItemAtScreenPos(selectedTrayItem, rect.left+rect.width/2, rect.top+rect.height*0.18); setSelectedTrayItem(null);}
                 }
               }}
-              className="flex-1 min-h-0 relative rounded-3xl overflow-hidden border-2 border-sky-300/80 shadow-inner flex flex-col bg-sky-50"
+              className="lab-scene"
             >
               <ThreeTankCanvas
                 ref={threeTankRef}
@@ -1095,7 +1075,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                 showXRay={showXRay}
                 onItemObserved={handleItemObserved}
               />
-              {(ladleActive||bucketWater.ml>0)&&<div ref={bucketRef} data-water-bucket aria-label="Chậu đựng nước đã múc" className="absolute bottom-5 left-5 z-30 pointer-events-none w-28 h-28">
+              {(ladleActive||bucketWater.ml>0)&&<div ref={bucketRef} data-water-bucket aria-label="Chậu đựng nước đã múc" className="lab-bucket absolute bottom-5 left-5 z-30 pointer-events-none w-28 h-28">
                 <svg viewBox="0 0 120 120" width="112" height="112" aria-hidden="true"><path d="M17 43 Q60 27 103 43 L93 99 Q60 115 27 99Z" fill="#ffd59c" stroke="#b87838" strokeWidth="4"/><ellipse cx="60" cy="43" rx="43" ry="15" fill="#fff0cf" stroke="#b87838" strokeWidth="4"/>{bucketWater.ml>0&&<ellipse cx="60" cy={56-Math.min(12,bucketWater.ml/60)} rx="35" ry="10" fill="#86dcea" stroke="#d6fbff" strokeWidth="3"/>}<path d="M23 38 C15 5 105 5 97 38" fill="none" stroke="#d09450" strokeWidth="5"/></svg>
                 {isTeacherMode&&<span className="absolute bottom-0 left-2 text-xs font-bold bg-white/90 rounded px-1">{Math.round(bucketWater.ml)} ml</span>}
               </div>}
@@ -1107,22 +1087,23 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
         {/* ======================================================== */}
         {/* CỘT PHẢI: BẢNG ĐIỀU KHIỂN HỢP NHẤT (~240px - 260px)       */}
         {/* ======================================================== */}
-        <aside className="w-[148px] sm:w-[220px] lg:w-[252px] flex-shrink-0 flex flex-col h-full overflow-y-auto space-y-2 p-1 pb-5 [&>*]:shrink-0">
-          <div className="flex items-center justify-between gap-2 sticky top-0 z-30 bg-sky-50/95 rounded-2xl p-1">
+        <aside aria-label="Đồ vật và dụng cụ khám phá" className="lab-dock">
+          <div className="lab-utilities">
             <button aria-label={voiceEnabled ? 'Tắt âm thanh hướng dẫn' : 'Bật âm thanh hướng dẫn'} aria-pressed={voiceEnabled} onClick={handleToggleVoice} className="min-h-[52px] min-w-[52px] rounded-2xl bg-white border border-sky-200 flex items-center justify-center text-sky-700">{voiceEnabled ? <Volume2 className="w-7 h-7"/> : <VolumeX className="w-7 h-7"/>}</button>
             <button aria-label={isTeacherMode ? 'Chuyển sang khám phá của trẻ' : 'Mở chế độ giáo viên'} aria-pressed={isTeacherMode} onClick={()=>{
               const next=!isTeacherMode;setIsTeacherMode(next);setShowAdultPanel(next);
               if(!next){setActivityMode('discovery');setShowObservationBoard(false);setShowGuideModal(false);setShowTeacherObjectives(false);setShowConclusionPicker(false);setShowDemoHand(false);setRaceModeActive(false);setRaceRunning(false);actionTimersRef.current.forEach(clearTimeout);actionTimersRef.current.clear();dragCleanupRef.current?.();activeDragItemRef.current=null;setSelectedTrayItem(null);setDraggingTrayItem(null);threeTankRef.current?.cancelActiveGesture();setInteractionMode('interact');}
             }} className="min-h-[52px] min-w-[52px] rounded-2xl bg-white border border-amber-200 flex items-center justify-center gap-2 px-2 font-bold">{isTeacherMode ? '👶' : '🧑‍🏫'}{isTeacherMode && <span className="text-xs">Khám phá của trẻ</span>}</button>
           </div>
-          {(activityMode==='discovery'||activityMode==='egg-challenge') && <div ref={trayRef}>
+          {(activityMode==='discovery'||activityMode==='egg-challenge') && <div className="lab-object-tray" ref={trayRef}>
             <ObjectBasket items={displayItems} selectedId={selectedTrayItem?.id||null} showLabels={isTeacherMode}
               onPick={(event,item)=>{if(item.damage){const fresh:TankObject={...item,inTank:false,outsideTank:false,damage:undefined,x:0,y:0.45,z:0,vx:0,vy:0,vz:0,status:'basket',settled:false};setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));handleTrayItemPointerDown(event,fresh);}else handleTrayItemPointerDown(event,item);}}
-              onKeyboardPick={item=>{if(!gestureAllowedRef.current)return;const fresh=item.damage?{...item,inTank:false,outsideTank:false,damage:undefined,status:'basket' as const}:item;if(item.damage)setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));setSelectedTrayItem(fresh);markUserInteracted();setMessage('Con đang cầm vật. Đưa tay đến chỗ muốn thả nhé.');}}
+              onKeyboardPick={item=>{if(!gestureAllowedRef.current)return;const fresh=item.damage?{...item,inTank:false,outsideTank:false,damage:undefined,status:'basket' as const}:item;if(item.damage)setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));const scene=playSceneRef.current?.getBoundingClientRect();if(scene)setDragCursorPos({x:scene.left+scene.width/2,y:scene.top+scene.height*.18});setSelectedTrayItem(fresh);markUserInteracted();setMessage('Con đang cầm vật. Đưa tay đến chỗ muốn thả nhé.');}}
             />
           </div>}
           {isTeacherMode&&<button onClick={()=>setShowExperienceSettings(true)} className="min-h-[48px] w-full rounded-2xl border border-sky-200 bg-white font-bold text-sm">Hướng dẫn và âm thanh</button>}
           {isTeacherMode && <div className="text-sm px-2 text-sky-800">Lượng nước trong bể: {Math.round(waterVolumeMl(tankShape,dimensions)+addedWaterMl)} ml</div>}
+          <div className="lab-tools" aria-label="Dụng cụ thí nghiệm">
           {(activityMode==='discovery'||activityMode==='egg-challenge') && <WaterPitcher
             disabled={introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}
             teacher={isTeacherMode} onActive={setPouringWater}
@@ -1203,6 +1184,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             onMessageUpdate={setMessage}
           />
           )}
+          </div>
           {isTeacherMode && <>
               {/* Banner khi ở chế độ thử thách quả trứng */}
               {isTeacherMode && activityMode === 'egg-challenge' && (
@@ -1954,7 +1936,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       {/* 9. CON TRỎ BÀN TAY BÉ CẦM ĐỒ VẬT KHI KÉO TỪ KHAY         */}
       {/* ======================================================== */}
       {(draggingTrayItem || selectedTrayItem) && (
-        <ToddlerHandPreview
+        <HeldObjectPreview
           x={dragCursorPos.x}
           y={dragCursorPos.y}
           image={(draggingTrayItem || selectedTrayItem)!.image}

@@ -61,6 +61,6 @@ export function WaterLadle(props:Props) {
       <LadleIcon/>{props.teacher&&<span className="text-sm text-amber-900">Giữ gáo, nhúng vào nước để múc; đưa ra ngoài để đổ. Buông trong bể để trả nước.</span>}
     </button>
     {hand?.emptying&&hand.target&&<WaterStream from={{x:hand.x-13,y:hand.y+7}} to={hand.target}/>}
-    {hand&&<div aria-hidden="true" className="fixed pointer-events-none z-50" style={{left:hand.x-28,top:hand.y-40}}><div style={{transform:hand.emptying?'rotate(-55deg)':undefined}}><LadleIcon fill={hand.fill}/></div><div className="absolute left-10 top-2 text-3xl">🖐️</div></div>}
+    {hand&&<div aria-hidden="true" className="fixed pointer-events-none z-50" style={{left:hand.x-28,top:hand.y-40}}><div style={{transform:hand.emptying?'rotate(-55deg)':undefined}}><LadleIcon fill={hand.fill}/></div></div>}
   </>;
 }

@@ -41,6 +41,6 @@ export function WaterPitcher({disabled,onActive,onAdd,checkMouth,teacher,onFlow,
       {teacher&&<span className="text-sm">Giữ và đưa bình lên miệng bể để rót; buông để dừng</span>}
     </button>
     {hand?.pouring&&hand.target&&<WaterStream from={{x:hand.x-30,y:hand.y-12}} to={hand.target}/>}
-    {hand&&<div aria-hidden="true" className="fixed pointer-events-none z-50" style={{left:hand.x-35,top:hand.y-65}}><div style={{transform:hand.pouring?'rotate(-65deg)':'rotate(-15deg)'}}><PitcherIcon/></div><div className="absolute left-12 top-9 text-3xl">🖐️</div></div>}
+    {hand&&<div aria-hidden="true" className="fixed pointer-events-none z-50" style={{left:hand.x-35,top:hand.y-65}}><div style={{transform:hand.pouring?'rotate(-65deg)':'rotate(-15deg)'}}><PitcherIcon/></div></div>}
   </>;
 }
