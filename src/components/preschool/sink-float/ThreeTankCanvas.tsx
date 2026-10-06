@@ -2,7 +2,7 @@ import {freshComparisonItem} from './comparisonTrial';
 import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import * as THREE from 'three';
 import { TankDimensions, TankObject, TankScale, TankShape, InteractionMode, SaltWorkflowStep } from './types';
-import { clampToTankBoundary, isPointInsideFootprint, getTankDimensions } from './tankGeometry';
+import { resolveTankWall, clampToTankBoundary, isPointInsideFootprint, getTankDimensions } from './tankGeometry';
 import { floatingCenterY } from './buoyancy';
 import { createItemModel, disposeItemModel, applyItemDamage } from './itemModels';
 import { damageFromImpact, gestureVelocity, floorEggDamage } from './impactPhysics';
@@ -489,7 +489,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
         // Clamp footprint để vật rơi vào trong thành bể
         const clampedPos = { x: worldPos.x, z: worldPos.z };
-        const startsOutside = !isPointInsideFootprint(worldPos.x, worldPos.z, s, d, -itemR);
+        const startsOutside = !isPointInsideFootprint(worldPos.x, worldPos.z, s, d);
+        if(dropY-itemR<d.height)Object.assign(clampedPos,resolveTankWall(worldPos.x,worldPos.z,itemR,s,d,!startsOutside));
         if (startsOutside) onMessageUpdate('Vật đang ở ngoài miệng bể. Con thử ném vào bể hoặc kéo vật lại nhé!');
 
         // Vận tốc ném cử chỉ từ cử chỉ tay (gesture velocity)
@@ -1248,7 +1249,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           const scaleCfg = ITEM_WORLD_SCALES[itemKind(item.id)] || { size: 0.8, radius: 0.4 };
           const itemR = scaleCfg.radius;
 
-          const inside = isPointInsideFootprint(item.x, item.z, s, d, -itemR);
+          const inside = !item.outsideTank || isPointInsideFootprint(item.x,item.z,s,d,-itemR);
           if (!inside) {
             let nx = item.x + item.vx*dt, nz = item.z + item.vz*dt;
             let nextVx = item.vx, nextVz = item.vz;
@@ -1256,6 +1257,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
               nx=item.x; nz=item.z; nextVx *= -0.35; nextVz *= -0.35;
               if (soundEnabled && Math.hypot(item.vx,item.vz)>0.6) playImpact('glass',Math.hypot(item.vx,item.vz));
             }
+            const safe=resolveTankWall(nx,nz,itemR,s,d,false);
+            if(item.y-itemR<d.height){nx=safe.x;nz=safe.z;}
             const floorY=item.damage==='broken' ? -0.42 : itemR-0.6;
             const falling = advanceAirFall(item.y, item.vy, dt);
             let nextVy=falling.vy;
@@ -1637,11 +1640,11 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
           const clampedPos = {x:Math.max(-12,Math.min(12,intersectionPoint.x)),z:Math.max(-12,Math.min(12,intersectionPoint.z))};
           const previous = itemsRef.current.find(i=>i.id===holdingItemId);
-          const wasInside = previous && isPointInsideFootprint(previous.x,previous.z,s,d,-itemR);
+          const wasInside = previous && !previous.outsideTank;
           const nowInside = isPointInsideFootprint(clampedPos.x,clampedPos.z,s,d,-itemR);
-          if (clampedY-itemR < d.height && wasInside !== nowInside) {
+          if (clampedY-itemR < d.height) {
             if (wasInside) Object.assign(clampedPos,clampToTankBoundary(clampedPos.x,clampedPos.z,itemR,s,d));
-            else if (previous) {clampedPos.x=previous.x;clampedPos.z=previous.z;}
+            else Object.assign(clampedPos,resolveTankWall(clampedPos.x,clampedPos.z,itemR,s,d,false));
           }
           if (isPointInsideFootprint(clampedPos.x,clampedPos.z,s,d,-itemR)) {
             clampedY=Math.max(itemR+sandHeight(d),clampedY);

@@ -15,6 +15,16 @@ function source(relative, context = {}) {
   return module.exports;
 }
 const geometry = source('src/components/preschool/sink-float/tankGeometry.ts');
+for(const shape of ['rectangle','square','cylinder','triangle']){
+  const dims=geometry.getTankDimensions(shape,'normal');
+  for(const radius of [.33,.45,.525]){
+    const inside=geometry.resolveTankWall(dims.width/2,0,radius,shape,dims,true);
+    assert.ok(geometry.isPointInsideFootprint(inside.x,inside.z,shape,dims,-radius));
+    const outside=geometry.resolveTankWall(0,dims.depth/2+.01,radius,shape,dims,false);
+    assert.ok(!geometry.isPointInsideFootprint(outside.x,outside.z,shape,dims,radius));
+  }
+}
+console.log('Passed: inside and outside wall clearance across all tank shapes.');
 const salt = source('src/components/preschool/sink-float/salinity.ts');
 const buoyancy = source('src/components/preschool/sink-float/buoyancy.ts');
 const impact = source('src/components/preschool/sink-float/impactPhysics.ts');

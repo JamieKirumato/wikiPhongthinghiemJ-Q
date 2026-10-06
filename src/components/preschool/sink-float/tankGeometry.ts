@@ -133,6 +133,16 @@ export function isPointInsideFootprint(
  * bên trong thành bể kính theo đúng hình học 3D thực tế của từng loại bể.
  * Đối với lăng trụ tam giác, thực hiện INSET CHÍNH XÁC cả 3 cạnh theo bán kính + padding.
  */
+export function resolveTankWall(x:number,z:number,radius:number,shape:TankShape,dims:TankDimensions,inside:boolean):{x:number;z:number} {
+  if(inside)return clampToTankBoundary(x,z,radius,shape,dims);
+  if(!isPointInsideFootprint(x,z,shape,dims,radius+.08))return {x,z};
+  const edge=clampToTankBoundary(x,z,0,shape,dims);
+  const dx=x-edge.x,dz=z-edge.z,length=Math.hypot(dx,dz);
+  if(length<1e-8)return {x,z:dims.depth/2+radius+.08};
+  const clearance=radius+.16;
+  return {x:edge.x+dx/length*clearance,z:edge.z+dz/length*clearance};
+}
+
 export function clampToTankBoundary(
   x: number,
   z: number,
