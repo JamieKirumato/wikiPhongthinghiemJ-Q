@@ -267,6 +267,24 @@ assert.equal(prefs.normalizeExperience({effectsVolume:120}).effectsVolume,100);a
 assert.ok(prefs.defaultIntroText('intro-0').startsWith('Chào'));
 console.log('Passed: teacher defaults, persistent disabled intro, bounded effect volume, and muted native/water playback.');
 
+const reflection=source('src/components/preschool/sink-float/reflectionHistory.ts');
+const recorded=(itemId,result,waterDensity,timestamp)=>({id:itemId+'-'+timestamp,itemId,itemName:itemId,itemIcon:'',itemImage:'',result,waterDensity,saltAmount:0,timestamp});
+const appleTrial=recorded('item-apple','floating',1,1),freshEgg=recorded('item-egg#1','sunk',1,2),saltyEgg=recorded('item-egg#1','floating',1.1,3);
+assert.equal(reflection.reflectionObservations([]).length,0);
+assert.equal(reflection.reflectionObservations([appleTrial]).length,1);
+assert.equal(reflection.eggComparison([appleTrial]),null);
+assert.equal(reflection.eggComparison([freshEgg]),null);
+assert.equal(reflection.eggComparison([saltyEgg]),null);
+assert.equal(reflection.eggComparison([freshEgg,recorded('item-egg#2','floating',1.1,3)]),null);
+assert.equal(reflection.eggComparison([saltyEgg,freshEgg]),null);
+let eggPair=reflection.eggComparison([appleTrial,freshEgg,saltyEgg]);assert.equal(eggPair.before.id,freshEgg.id);assert.equal(eggPair.after.id,saltyEgg.id);
+assert.equal(reflection.eggComparison([freshEgg,saltyEgg],'item-apple'),null);
+assert.equal(reflection.eggComparison([freshEgg,saltyEgg,recorded('item-egg#1','sunk',1,4)]),null);
+eggPair=reflection.eggComparison([freshEgg,recorded('item-egg#1','sunk',1.03,3)]);assert.equal(eggPair.after.result,'sunk');
+const repeatApple=recorded('item-apple#2','floating',1,4);
+assert.equal(reflection.reflectionObservations([appleTrial,freshEgg,saltyEgg,repeatApple]).length,2);
+assert.equal(reflection.reflectionObservations([appleTrial,repeatApple])[0].id,repeatApple.id);
+console.log('Passed: reflection uses actual recent observations; egg comparisons require ordered trials of the same physical egg and retain actual results.');
 (async()=>{
   blockIntroPlayback=true;introModule.exports.ChildIntro({onComplete:()=>introFinished++,onCleanup:()=>introCleanup++,onFrame:()=>null});const stopBlockedIntro=introEffect();
   await Promise.resolve();assert.equal(introAudio.paused,true);assert.equal(introFinished,1);const triesBefore=introPlayAttempts;

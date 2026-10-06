@@ -43,6 +43,8 @@ import { basketSlots, replenishBasket } from './sink-float/basketInventory';
 import { itemKind } from './sink-float/playPhysics';
 import { SceneSetting } from './sink-float/SceneBackdrop';
 import { ChildIntro } from './sink-float/ChildIntro';
+import {ReflectionPanel} from './sink-float/ReflectionPanel';
+import {eggComparison} from './sink-float/reflectionHistory';
 import {TeacherExperienceSettings} from './sink-float/TeacherExperienceSettings';
 import {readExperience} from './sink-float/teacherExperience';
 import { ObjectBasket } from './sink-float/ObjectBasket';
@@ -453,7 +455,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   // 6. VÒNG LẶP HỌC TẬP (LEARNING LOOP): DỰ ĐOÁN & QUAN SÁT
   const [predictions, setPredictions] = useState<Record<string, ItemPrediction>>({});
   const [observations, setObservations] = useState<Record<string, ItemObserved>>({});
-  const [eggFreshObserved, setEggFreshObserved] = useState<ItemObserved>('untested');
+
   const [eggSaltObserved, setEggSaltObserved] = useState<ItemObserved>('untested');
 
   // Lịch sử thử nghiệm bất biến (Immutable trial history mà không bị spam per-frame)
@@ -461,7 +463,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
 
   // Bé chọn kết luận bằng tranh ảnh trước khi nghe giải thích
   const [showConclusionPicker, setShowConclusionPicker] = useState<boolean>(false);
-  const [chosenConclusion, setChosenConclusion] = useState<string | null>(null);
+  const observedEggPair = eggComparison(trialHistory);
 
   // Thử thách quả trứng (Egg challenge state & attempts)
   const [eggChallengeAttempts, setEggChallengeAttempts] = useState<number>(0);
@@ -685,10 +687,10 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           setEggSaltObserved(result);
           if (result === 'floating') {
             // Khi quả trứng thực sự nổi sau khi thêm muối: gợi ý bé chọn kết luận bằng tranh ảnh!
-            setMessage('Con thấy trứng khác lúc đầu thế nào? Con có thể mở bảng để so sánh nhé.');
+            setMessage('Con vừa thấy trứng nổi ở mặt nước. Con có thể mở bảng để nhìn lại nhé.');
           }
         } else {
-          setEggFreshObserved(result);
+
         }
 
         // Tăng đếm số lần thử của thử thách quả trứng
@@ -1344,7 +1346,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                   <span>Bảng Quan Sát ({observedCount})</span>
                 </button>
 
-          {trialHistory.length > 1 && <button onClick={() => {setChosenConclusion(null);setShowConclusionPicker(true);}} className="min-h-[48px] w-full rounded-2xl bg-amber-100 text-amber-900 font-bold">🤔 Con kể lại điều đã thấy</button>}
+          {trialHistory.length > 0 && <button onClick={() => setShowConclusionPicker(true)} className="min-h-[48px] w-full rounded-2xl bg-amber-100 text-amber-900 font-bold">🤔 Con kể lại điều đã thấy</button>}
           </>}
 <details className="rounded-2xl bg-white p-2"><summary className="min-h-[44px] flex items-center font-bold text-sm cursor-pointer">🎧 Nghe và trợ giúp</summary>        {/* Nút hỗ trợ & Giọng nói */}
         <div className="grid grid-cols-2 gap-2">
@@ -1647,7 +1649,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             </div>
 
             {/* So sánh đặc biệt: Quả trứng trước và sau khi cho muối */}
-            <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-50 to-sky-50 dark:from-amber-950/40 dark:to-sky-950/40 border-2 border-amber-300 dark:border-amber-700 space-y-2">
+            {observedEggPair && <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-50 to-sky-50 dark:from-amber-950/40 dark:to-sky-950/40 border-2 border-amber-300 dark:border-amber-700 space-y-2">
               <div className="flex items-center gap-2">
                 <span className="text-xl">🥚</span>
                 <span className="text-xs font-black text-amber-900 dark:text-amber-200 uppercase tracking-wide">
@@ -1658,19 +1660,19 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                 <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center space-y-1">
                   <span className="text-[10px] font-bold text-slate-500">Trong Nước Ngọt Ban Đầu:</span>
                   <span className="font-extrabold text-blue-700 dark:text-blue-300">
-                    {eggFreshObserved !== 'untested' ? (eggFreshObserved === 'sunk' ? '⚓ Đã chìm' : '🫧 Đã nổi') : 'Chưa quan sát'}
+                    {observedEggPair.before.result === 'sunk' ? '⚓ Đã chìm' : '🫧 Đã nổi'}
                   </span>
-                  <span className="text-[9px] text-slate-500">Trứng ở dưới đáy bể</span>
+                  <span className="text-[9px] text-slate-500">{observedEggPair.before.result === 'sunk' ? 'Trứng ở dưới đáy bể' : 'Trứng ở mặt nước'}</span>
                 </div>
                 <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 flex flex-col items-center text-center space-y-1">
                   <span className="text-[10px] font-bold text-amber-600">Khi Hòa Tan Thêm Muối:</span>
                   <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
-                    {eggSaltObserved !== 'untested' ? (eggSaltObserved === 'floating' ? '🫧 Đã nổi bồng bềnh!' : '⚓ Đang chìm') : 'Hãy thêm muối quấy đều'}
+                    {observedEggPair.after.result === 'floating' ? '🫧 Đã nổi' : '⚓ Đã chìm'}
                   </span>
-                  <span className="text-[9px] text-slate-500">Trứng ở gần mặt nước</span>
+                  <span className="text-[9px] text-slate-500">{observedEggPair.after.result === 'floating' ? 'Trứng ở mặt nước' : 'Trứng ở dưới đáy bể'}</span>
                 </div>
               </div>
-            </div>
+            </div>}
 
             {/* 2 cột đồ vật đã quan sát: Chìm vs Nổi */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1772,10 +1774,10 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                   handleResetSalt();
                   setTrialHistory([]);
                   setEggChallengeAttempts(0);
-                  setChosenConclusion(null);
+
                   setObservations({});
                   setPredictions({});
-                  setEggFreshObserved('untested');
+
                   setEggSaltObserved('untested');
                   setOnboardingStep(1);
                 }}
@@ -1797,22 +1799,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       {/* ======================================================== */}
       {/* 5. MODAL CHỌN KẾT LUẬN BẰNG TRANH ẢNH CHO BÉ             */}
       {/* ======================================================== */}
-      {showConclusionPicker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60">
-          <div role="dialog" aria-modal="true" aria-label="Con kể lại điều đã thấy" className="w-full max-w-lg rounded-3xl bg-white border-4 border-amber-300 p-5 space-y-4">
-            <div className="flex justify-between gap-3"><h3 className="text-lg font-black">🤔 Con thấy trứng thay đổi thế nào?</h3><button aria-label="Đóng phần kể lại" onClick={() => setShowConclusionPicker(false)} className="min-h-[44px] min-w-[44px] rounded-xl bg-slate-100">✕</button></div>
-            <p>Cùng một quả trứng, mình đã thay đổi nước. Con chọn điều mình thấy nhé.</p>
-            <div className="grid grid-cols-2 gap-3">
-              {[{key:'changed', label:'Trứng từ đáy nổi lên',y:24},{key:'same',label:'Trứng vẫn ở đáy',y:90}].map(option => <button key={option.key} onClick={() => {setChosenConclusion(option.key);speechEngine.speak(eggFreshObserved === 'sunk' && eggSaltObserved === 'floating' ? 'Lúc đầu trứng ở đáy. Sau khi thêm muối, trứng nổi lên. Nước muối nâng đỡ quả trứng tốt hơn.' : 'Mình cùng nhìn lại hai lần thử nhé.');}} aria-pressed={chosenConclusion === option.key} className={`rounded-2xl border-2 p-3 font-bold ${chosenConclusion === option.key ? 'bg-amber-100 border-amber-500' : 'border-slate-200'}`}>
-                <svg viewBox="0 0 120 120" className="w-full h-28" aria-hidden="true"><rect x="12" y="12" width="96" height="96" rx="6" fill="#e5faff" stroke="#75ccdc" strokeWidth="3"/><path d="M14 35H106" stroke="#56bbd1" strokeWidth="3"/><ellipse cx="60" cy={option.y} rx="11" ry="15" fill="#f1dbb8" stroke="#c5a77f"/></svg>{option.label}
-              </button>)}
-            </div>
-            {chosenConclusion && <p className="rounded-2xl bg-sky-50 p-3 text-sm">{eggFreshObserved === 'sunk' && eggSaltObserved === 'floating' ? chosenConclusion === 'changed' ? 'Đúng với hai lần mình đã quan sát: trứng chìm trong nước ngọt và nổi sau khi thêm muối. Nước muối nâng đỡ quả trứng tốt hơn. Con thử thay nước ngọt xem điều gì xảy ra nhé!' : 'Mình nhìn lại nhé: lúc đầu trứng ở đáy, sau đó trứng đã nổi lên. Con có muốn thử lại để kiểm tra không?' : 'Mình chưa quan sát đủ cả hai lần. Con thử trứng trong nước ngọt, rồi thay đổi nước và nhìn lại nhé.'}</p>}
-            <button onClick={() => {setShowConclusionPicker(false);setShowObservationBoard(true);}} className="min-h-[48px] w-full rounded-2xl bg-sky-100 font-bold">📋 Xem hai lần thử</button>
-            <button onClick={() => setShowConclusionPicker(false)} className="min-h-[44px] w-full rounded-2xl bg-amber-300 font-bold">Con muốn thử tiếp</button>
-          </div>
-        </div>
-      )}
+      {showConclusionPicker && <ReflectionPanel history={trialHistory} onClose={()=>setShowConclusionPicker(false)} onBoard={()=>{setShowConclusionPicker(false);setShowObservationBoard(true);}}/>}
 
       {/* ======================================================== */}
       {/* 6. MODAL HƯỚNG DẪN THÍ NGHIỆM                            */}
