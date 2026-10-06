@@ -1,12 +1,14 @@
 import transcripts from '../../../../public/audio/vi/transcripts.json';
-import {INTRO_GUIDE} from './introGuide';
-export type ExperienceSettings={introEnabled:boolean;effectsVolume:number};
+import {INTRO_GUIDE,IntroAction} from './introGuide';
+export const INTRO_ACTIONS=INTRO_GUIDE.filter(s=>s.action!=='welcome'&&s.action!=='ready').map(s=>s.action);
+export type ExperienceSettings={introEnabled:boolean;effectsVolume:number;introActions:IntroAction[]};
 export const SETTINGS_KEY='sink-float-teacher-experience-v1';
-export const DEFAULT_EXPERIENCE:ExperienceSettings={introEnabled:true,effectsVolume:100};
+export const DEFAULT_EXPERIENCE:ExperienceSettings={introEnabled:true,effectsVolume:100,introActions:[...INTRO_ACTIONS]};
 export function normalizeExperience(value:unknown):ExperienceSettings{
   const raw=value as Partial<ExperienceSettings>|null;
-  return {introEnabled:typeof raw?.introEnabled==='boolean'?raw.introEnabled:true,effectsVolume:typeof raw?.effectsVolume==='number'&&Number.isFinite(raw.effectsVolume)?Math.max(0,Math.min(100,raw.effectsVolume)):100};
+  return {introEnabled:typeof raw?.introEnabled==='boolean'?raw.introEnabled:true,effectsVolume:typeof raw?.effectsVolume==='number'&&Number.isFinite(raw.effectsVolume)?Math.max(0,Math.min(100,raw.effectsVolume)):100,introActions:Array.isArray(raw?.introActions)?INTRO_ACTIONS.filter(a=>raw.introActions!.includes(a)):[...INTRO_ACTIONS]};
 }
+export function selectedIntroGuide(settings:ExperienceSettings){return settings.introActions.length?INTRO_GUIDE.filter(s=>s.action==='welcome'||s.action==='ready'||settings.introActions.includes(s.action)):[];}
 export function readExperience():ExperienceSettings{try{return normalizeExperience(JSON.parse(localStorage.getItem(SETTINGS_KEY)||'null'));}catch{return {...DEFAULT_EXPERIENCE};}}
 export function saveExperience(settings:ExperienceSettings){localStorage.setItem(SETTINGS_KEY,JSON.stringify(normalizeExperience(settings)));}
 export const defaultIntroText=(key:string)=>(transcripts as Record<string,string>)[key]||'';
@@ -35,10 +37,10 @@ export async function createNarration(text:string,signal?:AbortSignal){
   if(!response.ok)throw new Error(await response.text());
   const audio=await response.blob();if(!audio.type.includes('audio')||audio.size<1000)throw new Error('Bản giọng chưa tải hoàn chỉnh.');return audio;
 }
-export async function introAudioSources(){
+export async function introAudioSources(guide=INTRO_GUIDE){
   let saved:NarrationRecord={};try{saved=await readNarration();}catch{/* Bundled guidance works without browser storage. */}
   const urls:string[]=[];
-  const sources=INTRO_GUIDE.map(step=>{
+  const sources=guide.map(step=>{
     const record=saved[step.audio];
     if(record?.audio instanceof Blob&&record.audio.size>1000){const url=URL.createObjectURL(record.audio);urls.push(url);return url;}
     return `/audio/vi/${step.audio}.mp3`;

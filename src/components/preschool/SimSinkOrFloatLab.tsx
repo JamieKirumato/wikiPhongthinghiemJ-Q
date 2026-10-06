@@ -46,7 +46,7 @@ import { ChildIntro } from './sink-float/ChildIntro';
 import {ReflectionPanel} from './sink-float/ReflectionPanel';
 import {eggComparison} from './sink-float/reflectionHistory';
 import {TeacherExperienceSettings} from './sink-float/TeacherExperienceSettings';
-import {readExperience} from './sink-float/teacherExperience';
+import {readExperience,selectedIntroGuide} from './sink-float/teacherExperience';
 import { ObjectBasket } from './sink-float/ObjectBasket';
 import { GuidedDemoHand } from './sink-float/GuidedDemoHand';
 import { TeacherObjectivesModal } from './sink-float/TeacherObjectivesModal';
@@ -479,7 +479,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const dragCleanupRef = useRef<(() => void) | null>(null);
   const [experience,setExperience]=useState(readExperience);
   const [showExperienceSettings,setShowExperienceSettings]=useState(false);
-  const [introComplete, setIntroComplete] = useState(()=>!experience.introEnabled);
+  const [introComplete, setIntroComplete] = useState(()=>!experience.introEnabled||!selectedIntroGuide(experience).length);
   useEffect(()=>{
     setImpactEffectsVolume(experience.effectsVolume/100);soundEngine.setVolume(experience.effectsVolume/100);
     return ()=>{setImpactEffectsVolume(1);soundEngine.setVolume(1);};
@@ -753,6 +753,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
 
     pointerVelocityRef.current = [{ x: startX, y: startY, t: startTime }];
     activeDragItemRef.current = item;
+    setDraggingTrayItem(item);
     isDraggingRef.current = false;
 
     const onWindowPointerMove = (moveEvt: PointerEvent) => {
@@ -771,6 +772,9 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
 
       if (isDraggingRef.current) {
         setDragCursorPos({ x: curX, y: curY });
+        const samples=pointerVelocityRef.current,first=samples[0];
+        const velocity=first?gestureVelocity(curX-first.x,curY-first.y,(curT-first.t)/1000):{vx:0,vy:0};
+        threeTankRef.current?.previewDropAtScreenPos(item,curX,curY,velocity);
         const history = pointerVelocityRef.current;
         history.push({ x: curX, y: curY, t: curT });
         while (history.length > 1 && curT - history[0].t > 150) {
@@ -780,6 +784,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     };
 
     const onWindowPointerUp = (upEvt: PointerEvent) => {
+      threeTankRef.current?.clearDropPreview();
       window.removeEventListener('pointermove', onWindowPointerMove);
       window.removeEventListener('pointerup', onWindowPointerUp);
       window.removeEventListener('pointercancel', onWindowPointerUp);
@@ -838,6 +843,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
         }
       }
 
+      setDraggingTrayItem(null);
       activeDragItemRef.current = null;
     };
 
@@ -845,6 +851,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     window.addEventListener('pointerup', onWindowPointerUp);
     window.addEventListener('pointercancel', onWindowPointerUp);
     dragCleanupRef.current = () => {
+      threeTankRef.current?.clearDropPreview();
       window.removeEventListener('pointermove', onWindowPointerMove);
       window.removeEventListener('pointerup', onWindowPointerUp);
       window.removeEventListener('pointercancel', onWindowPointerUp);
@@ -982,7 +989,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   return (
     <div
       ref={containerRef}
-      onPointerMove={(event) => { if (selectedTrayItem) setDragCursorPos({ x: event.clientX, y: event.clientY }); }}
+      onPointerMove={(event) => { if (selectedTrayItem) {setDragCursorPos({ x: event.clientX, y: event.clientY });threeTankRef.current?.previewDropAtScreenPos(selectedTrayItem,event.clientX,event.clientY);} }}
       onClick={markUserInteracted}
       className={`select-none transition-all duration-300 w-full flex flex-col font-sans bg-gradient-to-b from-sky-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-sky-950 text-slate-800 dark:text-slate-100 ${
         isFullscreen
@@ -991,8 +998,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       }`}
     >
       {introLocked&&<button aria-label="Mở cài đặt hướng dẫn giáo viên" onClick={()=>{setIntroComplete(true);setIsTeacherMode(true);setShowAdultPanel(true);setShowExperienceSettings(true);}} className="absolute right-4 top-4 z-[110] min-w-[52px] min-h-[52px] rounded-2xl border border-amber-200 bg-white text-2xl">🧑‍🏫</button>}
-      {showExperienceSettings&&<TeacherExperienceSettings settings={experience} onChange={setExperience} onClose={()=>setShowExperienceSettings(false)} onPreview={()=>{setShowExperienceSettings(false);setIsTeacherMode(false);setIntroComplete(false);}}/>}
-      {introLocked && <ChildIntro
+      {showExperienceSettings&&<TeacherExperienceSettings settings={experience} onChange={setExperience} onClose={()=>setShowExperienceSettings(false)} onPreview={()=>{setShowExperienceSettings(false);setIsTeacherMode(false);setIntroComplete(!selectedIntroGuide(experience).length);}}/>}
+      {introLocked && <ChildIntro guide={selectedIntroGuide(experience)}
         onCleanup={()=>threeTankRef.current?.showIntroFrame(null,0)}
         onFrame={(action,p)=>{
           const frame=threeTankRef.current?.showIntroFrame(action,p);if(!frame)return null;
