@@ -46,7 +46,7 @@ export const PRESCHOOL_PRODUCT_EXPERIMENTS: PreschoolProductExperiment[] = [
       concept: 'Tái tạo lại các thao tác giáo viên và trẻ đã làm trên lớp để trẻ thấy được quá trình nhanh hơn, chủ động tương tác khám phá:',
       features: [
         'Bể thử nghiệm chìm nổi trực quan: Thả các vật quen thuộc (sỏi, thìa sắt, quả bóng bàn, mẩu xốp, lá cây, thanh gỗ, quả táo, quả trứng) với hiệu ứng vật lý rơi, bồng bềnh và mớn nước.',
-        'Chế tạo Đèn Dung Nham (Lava Lamp): Mô phỏng bình nước pha dầu ăn (dầu nhẹ nổi lên trên), nhỏ giọt màu và thả viên sủi C tạo chu kỳ bọt khí đẩy giọt màu trồi sủi bọt lung linh kèm đèn chiếu dạ quang.'
+        'Chế tạo Đèn Dung Nham tại nhà: Dùng bình trong, nước, dầu ăn và mẩu viên sủi do người lớn chuẩn bị. Trẻ dự đoán, quan sát bọt khí nâng giọt nước rồi giọt chìm; màu thực phẩm và đèn pin là tùy chọn.'
       ]
     },
     part2Description: {
