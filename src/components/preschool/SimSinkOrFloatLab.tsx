@@ -1,3 +1,4 @@
+import {freshComparisonItem} from './sink-float/comparisonTrial';
 import { ComparisonTank } from './sink-float/ComparisonTank';
 import { StartScreen } from './sink-float/StartScreen';
 import { STUDENT_GUIDE, STUDENT_PROMPT } from './sink-float/introGuide';
@@ -500,6 +501,9 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const [showTeacherObjectives, setShowTeacherObjectives] = useState<boolean>(false);
   const [isTeacherMode,setIsTeacherMode] = useState(false);
   const [showSecondTank,setShowSecondTank] = useState(false);
+  const [comparisonMode,setComparisonMode]=useState(false);
+  const [comparisonItemId,setComparisonItemId]=useState('item-egg');
+  const [comparisonTrial,setComparisonTrial]=useState<{token:number;item:TankObject}|undefined>();
   const [sceneSetting, setSceneSetting] = useState<SceneSetting>('laboratory');
   const basketBatchRef = useRef(0);
   const [showAdultPanel, setShowAdultPanel] = useState<boolean>(false);
@@ -583,7 +587,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     setWorkflowStep('idle');
     setActiveStirProgress(0);
     setHoldingItemId(null);
-    setActivityMode(mode);
+    setComparisonMode(false);setActivityMode(mode);
     if(mode!=='discovery')setAdvanced(true);
     setSelectedTrayItem(null);
     setDraggingTrayItem(null);
@@ -761,6 +765,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     isDraggingRef.current = false;
 
     const onWindowPointerMove = (moveEvt: PointerEvent) => {
+      if(moveEvt.pointerId!==e.pointerId)return;
       if (!activeDragItemRef.current || !gestureAllowedRef.current) return;
       const curX = moveEvt.clientX;
       const curY = moveEvt.clientY;
@@ -788,7 +793,9 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     };
 
     const onWindowPointerUp = (upEvt: PointerEvent) => {
+      if(upEvt.pointerId!==e.pointerId)return;
       threeTankRef.current?.clearDropPreview();
+      window.removeEventListener('blur',onBlur);
       window.removeEventListener('pointermove', onWindowPointerMove);
       window.removeEventListener('pointerup', onWindowPointerUp);
       window.removeEventListener('pointercancel', onWindowPointerUp);
@@ -851,14 +858,18 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       activeDragItemRef.current = null;
     };
 
+    const onBlur=()=>{dragCleanupRef.current?.();activeDragItemRef.current=null;isDraggingRef.current=false;setSelectedTrayItem(null);setDraggingTrayItem(null);};
+    window.addEventListener('blur',onBlur);
     window.addEventListener('pointermove', onWindowPointerMove);
     window.addEventListener('pointerup', onWindowPointerUp);
     window.addEventListener('pointercancel', onWindowPointerUp);
     dragCleanupRef.current = () => {
       threeTankRef.current?.clearDropPreview();
+      window.removeEventListener('blur',onBlur);
       window.removeEventListener('pointermove', onWindowPointerMove);
       window.removeEventListener('pointerup', onWindowPointerUp);
       window.removeEventListener('pointercancel', onWindowPointerUp);
+      window.removeEventListener('blur',onBlur);
     };
   };
 
@@ -993,15 +1004,31 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const startSession = (mode: 'student' | 'teacher') => {
     speechEngine.stop();speechEngine.setVoiceEnabled(mode==='student');setVoiceEnabled(mode==='student');
     setIsTeacherMode(mode==='teacher');setShowAdultPanel(mode==='teacher');
-    setAdvanced(false);setPreviewIntro(false);setActivityMode('discovery');
+    setAdvanced(false);setComparisonMode(false);setPreviewIntro(false);setActivityMode('discovery');
     setMessage(STUDENT_PROMPT);setIntroComplete(mode==='teacher');setStarted(true);
   };
   const switchExploration = (next:boolean) => {
     if(pouringWater||holdingItemId||selectedTrayItem||draggingTrayItem||workflowStep!=='idle')return;
     threeTankRef.current?.cancelActiveGesture();handleResetSalt();handleResetAllTank();
     setAddedWaterMl(0);addedWaterRef.current=0;setBucketWater({ml:0,grams:0});bucketWaterRef.current={ml:0,grams:0};
-    setFloorSpills([]);setAdvanced(next);setActivityMode('discovery');
+    setComparisonTrial(undefined);setComparisonMode(false);setFloorSpills([]);setAdvanced(next);setActivityMode('discovery');
     setMessage(next?'Con thử thay đổi nước rồi quan sát đồ vật nhé.':STUDENT_PROMPT);
+  };
+  const comparisonBusy=pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle';
+  const toggleComparison=()=>{
+    if(comparisonBusy)return;
+    threeTankRef.current?.cancelActiveGesture();handleResetAllTank();
+    setAddedWaterMl(0);addedWaterRef.current=0;setRemovedSaltGrams(0);removedSaltRef.current=0;
+    setRaceModeActive(false);setRaceRunning(false);setComparisonTrial(undefined);setComparisonMode(!comparisonMode);setAdvanced(true);setActivityMode('discovery');
+    setMessage('Giữ bể B là nước ngọt. Con thử thêm muối, khuấy ở bể A rồi so sánh.');
+  };
+  const releaseComparison=()=>{
+    if(comparisonBusy)return;
+    const item=PLAY_ITEMS_PRESETS.find(i=>i.id===comparisonItemId);if(!item)return;
+    threeTankRef.current?.resetDefaultView();setInteractionMode('interact');
+    threeTankRef.current?.dropComparisonItem(freshComparisonItem(item));
+    setComparisonTrial(previous=>({token:(previous?.token??0)+1,item:freshComparisonItem(item)}));
+    setMessage('Con nhìn vật trong hai bể nhé.');
   };
   if(!started)return <StartScreen onStart={startSession}/>;
 
@@ -1043,7 +1070,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       {/* ======================================================== */}
       <div {...(introLocked||showExperienceSettings ? {inert: ''} : {})} aria-hidden={introLocked||showExperienceSettings || undefined} className="flex-1 min-h-0 flex flex-row items-stretch p-2 gap-2 overflow-hidden">
         {/* CỘT TRÁI: KHU VỰC CHƠI CHÍNH (75-80%) */}
-        <main className={`flex-1 min-w-0 flex h-full overflow-hidden gap-2 ${showSecondTank&&isTeacherMode?'flex-col lg:flex-row':'flex-col'}`}>
+        <main className={`flex-1 min-w-0 flex h-full overflow-hidden gap-2 ${(showSecondTank&&isTeacherMode)||comparisonMode?'flex-col lg:flex-row':'flex-col'}`}>
           {/* HIỂN THỊ THEO ACTIVITY MODE */}
           {activityMode === 'boat-challenge' ? (
             /* THỬ THÁCH THUYỀN CHỞ HÀNG MỚI */
@@ -1067,6 +1094,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               }}
               className="flex-1 min-h-0 relative rounded-3xl overflow-hidden border-2 border-sky-300/80 shadow-inner flex flex-col bg-sky-50"
             >
+              {comparisonMode&&<div className="absolute top-2 left-2 z-20 rounded-xl bg-white/95 px-3 py-2 font-bold text-sm">Bể A · {dissolvedFraction>0?'Nước muối':'Nước ngọt'}{workflowStep==='stirring'?' · Đang khuấy':''}</div>}
               <ThreeTankCanvas
                 ref={threeTankRef}
                 shape={tankShape}
@@ -1099,7 +1127,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             </div>
           )}
 
-          {isTeacherMode&&<div className={showSecondTank?'flex flex-1 min-w-0 min-h-0':'hidden'}><ComparisonTank presets={basketPresets} sceneSetting={sceneSetting}/></div>}
+          {(isTeacherMode||comparisonMode)&&<div className={showSecondTank||comparisonMode?'flex flex-1 min-w-0 min-h-0':'hidden'}><ComparisonTank presets={comparisonMode?PLAY_ITEMS_PRESETS:basketPresets} sceneSetting={sceneSetting} pairedShape={comparisonMode?tankShape:undefined} pairedScale={comparisonMode?tankScale:undefined} trial={comparisonMode?comparisonTrial:undefined}/></div>}
         </main>
 
         {/* ======================================================== */}
@@ -1114,20 +1142,28 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               if(!next){setActivityMode('discovery');setShowObservationBoard(false);setShowGuideModal(false);setShowTeacherObjectives(false);setShowConclusionPicker(false);setShowDemoHand(false);setRaceModeActive(false);setRaceRunning(false);actionTimersRef.current.forEach(clearTimeout);actionTimersRef.current.clear();dragCleanupRef.current?.();activeDragItemRef.current=null;setSelectedTrayItem(null);setDraggingTrayItem(null);threeTankRef.current?.cancelActiveGesture();setInteractionMode('interact');}
             }} className="min-h-[52px] min-w-[52px] rounded-2xl bg-white border border-amber-200 flex items-center justify-center gap-2 px-2 font-bold">{isTeacherMode ? '👶' : '🧑‍🏫'}{isTeacherMode && <span className="text-xs">Khám phá của trẻ</span>}</button>
           </div>
-          {(activityMode==='discovery'||activityMode==='egg-challenge') && <div ref={trayRef}>
+          {!comparisonMode&&(activityMode==='discovery'||activityMode==='egg-challenge') && <div ref={trayRef}>
             <ObjectBasket items={displayItems} selectedId={selectedTrayItem?.id||null} showLabels={isTeacherMode}
               onPick={(event,item)=>{if(item.damage){const fresh:TankObject={...item,inTank:false,outsideTank:false,damage:undefined,x:0,y:0.45,z:0,vx:0,vy:0,vz:0,status:'basket',settled:false};setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));handleTrayItemPointerDown(event,fresh);}else handleTrayItemPointerDown(event,item);}}
               onKeyboardPick={item=>{if(!gestureAllowedRef.current)return;const fresh=item.damage?{...item,inTank:false,outsideTank:false,damage:undefined,status:'basket' as const}:item;if(item.damage)setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));setSelectedTrayItem(fresh);markUserInteracted();setMessage('Con đang cầm vật. Đưa tay đến chỗ muốn thả nhé.');}}
             />
           </div>}
-          {isTeacherMode&&<button aria-pressed={showSecondTank} onClick={()=>setShowSecondTank(!showSecondTank)} className="min-h-[48px] rounded-2xl bg-violet-100 font-bold">{showSecondTank?'Ẩn bể 2':'Thêm bể 2'}</button>}
+          {(selectedTrayItem||draggingTrayItem)&&<button onPointerDown={e=>e.stopPropagation()} onClick={()=>{dragCleanupRef.current?.();activeDragItemRef.current=null;isDraggingRef.current=false;setSelectedTrayItem(null);setDraggingTrayItem(null);threeTankRef.current?.clearDropPreview();}} className="min-h-[48px] rounded-2xl bg-orange-100 font-bold">Đặt vật về khay</button>}
+          {advanced&&<button disabled={comparisonBusy} aria-pressed={comparisonMode} onClick={toggleComparison} className="min-h-[52px] rounded-2xl bg-violet-100 px-2 font-bold disabled:opacity-50">{comparisonMode?'Về khám phá tự do':'So sánh nước'}</button>}
+          {comparisonMode&&<div className="rounded-2xl bg-white border-2 border-violet-200 p-2 space-y-2">
+            <p className="text-sm font-bold">Cùng vật · cùng bể · chỉ đổi muối</p>
+            <select aria-label="Vật dùng để so sánh hai bể" value={comparisonItemId} disabled={comparisonBusy} onChange={e=>setComparisonItemId(e.target.value)} className="w-full min-h-[48px] rounded-xl bg-sky-50 px-2">{PLAY_ITEMS_PRESETS.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select>
+            <button disabled={comparisonBusy} onClick={releaseComparison} className="w-full min-h-[52px] rounded-xl bg-violet-600 text-white font-bold disabled:opacity-50">Thả cùng vật vào hai bể</button>
+            <p className="text-xs">Thử trước, rồi thêm muối và khuấy ở bể A. Bể B giữ nước ngọt; lượng nước giữ nguyên.</p>
+          </div>}
+          {isTeacherMode&&!comparisonMode&&<button aria-pressed={showSecondTank} onClick={()=>setShowSecondTank(!showSecondTank)} className="min-h-[48px] rounded-2xl bg-violet-100 font-bold">{showSecondTank?'Ẩn bể 2':'Thêm bể 2'}</button>}
           {isTeacherMode&&<button aria-expanded={showGuideModal} onClick={()=>setShowGuideModal(!showGuideModal)} className="min-h-[48px] rounded-2xl bg-amber-100 font-bold">📖 Hướng dẫn</button>}
           <button disabled={pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle'} aria-pressed={advanced} onClick={()=>switchExploration(!advanced)} className="min-h-[52px] rounded-2xl bg-sky-100 px-2 font-bold disabled:opacity-50">{advanced?'🧺 Thả đồ vật':'🔎 Khám phá thêm'}</button>
-          {advanced&&<p className="text-sm px-2 text-sky-800">Thêm nước, thêm muối rồi khuấy. Con thấy điều gì thay đổi?</p>}
+          {advanced&&!comparisonMode&&<p className="text-sm px-2 text-sky-800">Thêm nước, thêm muối rồi khuấy. Con thấy điều gì thay đổi?</p>}
           {isTeacherMode&&<button onClick={()=>setShowExperienceSettings(true)} className="min-h-[48px] w-full rounded-2xl border border-sky-200 bg-white font-bold text-sm">Hướng dẫn và âm thanh</button>}
           {isTeacherMode && <div className="text-sm px-2 text-sky-800">Lượng nước trong bể: {Math.round(waterVolumeMl(tankShape,dimensions)+addedWaterMl)} ml</div>}
-          {advanced && (activityMode==='discovery'||activityMode==='egg-challenge') && <WaterPitcher
-            disabled={introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}
+          {advanced && !comparisonMode && (activityMode==='discovery'||activityMode==='egg-challenge') && <WaterPitcher
+            disabled={comparisonMode || introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}
             teacher={isTeacherMode} onActive={setPouringWater}
             flowRate={waterVolumeMl(tankShape,dimensions)*.1}
             getTarget={(x,y)=>threeTankRef.current?.flowTarget(x,y,dimensions.height+.9)||null}
@@ -1143,8 +1179,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               return amount;
             }}/>
           }
-          {advanced && (activityMode==='discovery'||activityMode==='egg-challenge') && <WaterLadle
-            disabled={introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}
+          {advanced && !comparisonMode && (activityMode==='discovery'||activityMode==='egg-challenge') && <WaterLadle
+            disabled={comparisonMode || introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}
             teacher={isTeacherMode} capacity={waterVolumeMl(tankShape,dimensions)*.2}
             onActive={active=>{setPouringWater(active);setLadleActive(active);}}
             checkWater={(x,y)=>waterVolumeMl(tankShape,dimensions)+addedWaterRef.current>.01 && (threeTankRef.current?.checkPointInWater(x,y) ?? false)}
@@ -1475,7 +1511,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                 <span>Đua Thả 2 Vật:</span>
               </span>
               <button
-                onClick={() => setRaceModeActive(!raceModeActive)}
+                disabled={comparisonMode}
+                    onClick={() => setRaceModeActive(!raceModeActive)}
                 className={`text-[9px] font-bold px-2 py-0.5 rounded-lg transition ${
                   raceModeActive ? 'bg-amber-400 text-slate-950' : 'bg-slate-100 dark:bg-slate-800'
                 }`}
@@ -1545,6 +1582,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                 {/* Đổi lứa tuổi thích ứng */}
                 <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl text-[10px] font-bold">
                   <button
+                    disabled={comparisonMode}
                     onClick={() => setAgeGroup('3-4')}
                     className={`px-2 py-0.5 rounded-lg transition ${
                       ageGroup === '3-4'
@@ -1555,6 +1593,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                     4 món
                   </button>
                   <button
+                    disabled={comparisonMode}
                     onClick={() => setAgeGroup('5-6')}
                     className={`px-2 py-0.5 rounded-lg transition ${
                       ageGroup === '5-6'
@@ -1583,7 +1622,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                   </span>
                   <div className="grid grid-cols-2 gap-1 text-[10px] font-bold">
                     <button
-                      onClick={() => setTankShape('rectangle')}
+                      disabled={comparisonMode}
+                    onClick={() => setTankShape('rectangle')}
                       className={`py-1 px-1.5 rounded-lg border transition ${
                         tankShape === 'rectangle'
                           ? 'bg-emerald-50 border-emerald-500 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
@@ -1593,7 +1633,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                       ▬ Chữ Nhật
                     </button>
                     <button
-                      onClick={() => setTankShape('square')}
+                      disabled={comparisonMode}
+                    onClick={() => setTankShape('square')}
                       className={`py-1 px-1.5 rounded-lg border transition ${
                         tankShape === 'square'
                           ? 'bg-emerald-50 border-emerald-500 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
@@ -1603,7 +1644,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                       ◼ Lập Phương
                     </button>
                     <button
-                      onClick={() => setTankShape('cylinder')}
+                      disabled={comparisonMode}
+                    onClick={() => setTankShape('cylinder')}
                       className={`py-1 px-1.5 rounded-lg border transition ${
                         tankShape === 'cylinder'
                           ? 'bg-emerald-50 border-emerald-500 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
@@ -1613,7 +1655,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                       ⚪ Trụ Tròn
                     </button>
                     <button
-                      onClick={() => setTankShape('triangle')}
+                      disabled={comparisonMode}
+                    onClick={() => setTankShape('triangle')}
                       className={`py-1 px-1.5 rounded-lg border transition ${
                         tankShape === 'triangle'
                           ? 'bg-emerald-50 border-emerald-500 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
@@ -1632,7 +1675,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                   </span>
                   <div className="grid grid-cols-2 gap-1 text-[10px] font-bold">
                     <button
-                      onClick={() => setTankScale('normal')}
+                      disabled={comparisonMode}
+                    onClick={() => setTankScale('normal')}
                       className={`py-1 px-1.5 rounded-lg border transition ${
                         tankScale === 'normal'
                           ? 'bg-sky-500 text-white border-sky-600'
@@ -1642,7 +1686,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                       Bể To (100%)
                     </button>
                     <button
-                      onClick={() => setTankScale('compact')}
+                      disabled={comparisonMode}
+                    onClick={() => setTankScale('compact')}
                       className={`py-1 px-1.5 rounded-lg border transition ${
                         tankScale === 'compact'
                           ? 'bg-sky-500 text-white border-sky-600'

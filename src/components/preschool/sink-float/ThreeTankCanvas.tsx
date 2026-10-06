@@ -1,3 +1,4 @@
+import {freshComparisonItem} from './comparisonTrial';
 import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import * as THREE from 'three';
 import { TankDimensions, TankObject, TankScale, TankShape, InteractionMode, SaltWorkflowStep } from './types';
@@ -31,6 +32,7 @@ export interface ThreeTankCanvasHandle {
     screenY: number,
     screenVelocity?: { vx: number; vy: number }
   ) => void;
+  dropComparisonItem: (item:TankObject)=>void;
   cancelActiveGesture: () => void;
   resetDefaultView: () => void;
   resetSideView: () => void;
@@ -453,6 +455,12 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const contact=predictedContact(pos,new THREE.Vector3(right.x*vx,vy,right.z*vx),dimsRef.current,shapeRef.current,displayedWaterLevelRef.current,radius);
         if(!contact){setDropPreview(null);return;}
         const projected=contact.point.project(camera);setDropPreview({x:(projected.x+1)*rect.width/2,y:(1-projected.y)*rect.height/2,inside:contact.inside});
+      },
+      dropComparisonItem:(item)=>{
+        if(inputLockedRef.current||workflowStepRef.current!=='idle')return;
+        setDropPreview(null);
+        // Identical world-space release, independent of camera angle or viewport.
+        onUpdateItems(itemsRef.current.map(i=>i.id===item.id?{...freshComparisonItem(item),inTank:true,status:'falling',y:dimsRef.current.height+.8}:freshComparisonItem(i)));
       },
       dropOrThrowItemAtScreenPos: (
         item: TankObject,

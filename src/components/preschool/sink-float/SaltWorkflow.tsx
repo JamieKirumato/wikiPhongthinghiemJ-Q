@@ -180,6 +180,11 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   const [isHoveringJarMouth, setIsHoveringJarMouth] = useState<boolean>(false);
   const [isInWaterState, setIsInWaterState] = useState<boolean>(false);
 
+  useEffect(()=>{
+    const cancel=(event:KeyboardEvent)=>{if(event.key==='Escape'&&(workflowStep==='scoopMode'||workflowStep==='holdingSpoon')){scoopStartRef.current=null;pourStartRef.current=null;setIsJarOpen(false);onStepChange('idle');onMessageUpdate('Đã cất thìa và trả muối về hũ.');}};
+    window.addEventListener('keydown',cancel);return()=>window.removeEventListener('keydown',cancel);
+  },[workflowStep,onStepChange,onMessageUpdate]);
+
   // Theo dõi chính xác vị trí trước đó và trạng thái trong/ngoài nước để không nhảy bước
   const lastStirPosRef = useRef<{ x: number; y: number; wasInside: boolean }>({
     x: 0,
@@ -345,6 +350,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
         {(workflowStep==='idle'||workflowStep==='scoopMode')&&onDoseChange&&<div className="flex gap-2 w-full">
           {[0.5,1].map(amount=><button key={amount} aria-label={amount===0.5?'Nửa thìa muối':'Đầy thìa muối'} aria-pressed={spoonFraction===amount} onClick={()=>onDoseChange(amount)} className={`flex-1 min-h-[52px] rounded-2xl flex items-center justify-center gap-1 ${spoonFraction===amount?'bg-amber-100 ring-2 ring-amber-300':'bg-white'}`}><span className="text-2xl" aria-hidden="true">🥄</span><svg width="20" height="20" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="#e2e8f0"/>{amount===1?<circle cx="10" cy="10" r="8" fill="#ffffff" stroke="#94a3b8"/>:<path d="M10 2A8 8 0 0 0 10 18Z" fill="white" stroke="#94a3b8"/>}</svg></button>)}
         </div>}
+        {(workflowStep==='holdingSpoon'||workflowStep==='scoopMode')&&<button className="min-h-[48px] rounded-xl bg-white px-3 font-bold" onClick={()=>{setIsJarOpen(false);scoopStartRef.current=null;pourStartRef.current=null;onStepChange('idle');}}>Cất thìa</button>}
         {workflowStep==='stirring'&&<div role="progressbar" aria-label="Muối đang tan" aria-valuenow={Math.round(activeStirProgress)} aria-valuemin={0} aria-valuemax={100} className="w-full h-3 rounded-full bg-sky-100 overflow-hidden"><div className="h-full rounded-full bg-cyan-400" style={{width:`${activeStirProgress}%`}}/></div>}
         {isMaxSpoons&&<button aria-label="Thay nước ngọt" className="min-h-[52px] min-w-[52px] text-3xl" onClick={handleResetWithCleanup}>🚰</button>}
       </>}

@@ -57,9 +57,10 @@ export function WaterLadle(props:Props) {
     cleanup.current=cancel;window.addEventListener('pointermove',move);window.addEventListener('pointerup',stop);window.addEventListener('pointercancel',cancel);window.addEventListener('blur',cancel);window.addEventListener('keydown',key);frame=requestAnimationFrame(tick);
   };
   return <>
-    <button disabled={props.disabled} onPointerDown={start} aria-label="Cầm gáo để múc nước ra khỏi bể" className="min-h-[72px] w-full rounded-2xl border border-amber-200 bg-white flex flex-col items-center justify-center touch-none disabled:opacity-40">
+    <button disabled={props.disabled} onPointerDown={start} aria-label="Cầm gáo để múc nước ra khỏi bể" aria-pressed={!!hand} className="min-h-[72px] w-full rounded-2xl border border-amber-200 bg-white flex flex-col items-center justify-center touch-none disabled:opacity-40">
       <LadleIcon/>{props.teacher&&<span className="text-sm text-amber-900">Giữ gáo, nhúng vào nước để múc; đưa ra ngoài để đổ. Buông trong bể để trả nước.</span>}
     </button>
+    {hand&&<div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[120] rounded-2xl bg-white shadow-lg border border-amber-200 p-2 flex items-center gap-3"><span className="text-sm">{hand.fill>0?'Gáo đã có nước':'Nhúng gáo vào nước để múc'}</span><button onPointerDown={e=>{e.stopPropagation();cleanup.current?.();}} onClick={()=>cleanup.current?.()} className="min-h-[48px] rounded-xl bg-amber-100 px-3 font-bold">Cất gáo · trả nước về bể</button></div>}
     {hand?.emptying&&hand.target&&<WaterStream from={{x:hand.x-13,y:hand.y+7}} to={hand.target}/>}
     {hand&&<div aria-hidden="true" className="fixed pointer-events-none z-50" style={{left:hand.x-28,top:hand.y-40}}><div style={{transform:hand.emptying?'rotate(-55deg)':undefined}}><LadleIcon fill={hand.fill}/></div><div className="absolute left-10 top-2 text-3xl">🖐️</div></div>}
   </>;
