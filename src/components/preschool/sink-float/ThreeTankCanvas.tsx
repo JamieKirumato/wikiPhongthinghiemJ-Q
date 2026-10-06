@@ -4,16 +4,19 @@ import { TankDimensions, TankObject, TankScale, TankShape, InteractionMode, Salt
 import { clampToTankBoundary, isPointInsideFootprint, getTankDimensions } from './tankGeometry';
 import { floatingCenterY } from './buoyancy';
 import { createItemModel, disposeItemModel, applyItemDamage } from './itemModels';
-import { damageFromImpact, gestureVelocity } from './impactPhysics';
+import { damageFromImpact, gestureVelocity, floorEggDamage } from './impactPhysics';
 import { playImpact, playWaterSwish, unlockImpactAudio } from './impactAudio';
 import { waterDisplacement, waterEdgeFade, WaterImpulse } from './waterMotion';
 import { advanceAirFall, itemKind } from './playPhysics';
 import { SceneBackdrop, SceneSetting } from './SceneBackdrop';
 import { advanceSinking, displacedWaterLevel, sandHeight } from './waterPhysics';
 import {boundedZoom,releasePosition,predictedContact} from './interactionPreview';
+import {FloorSpill,FlowTarget,nearestHandTarget} from './waterTransfer';
 import {IntroAction,introPose} from './introGuide';
 
 export interface ThreeTankCanvasHandle {
+  flowTarget: (x:number,y:number)=>FlowTarget|null;
+  floorPoint: (x:number,y:number)=>{x:number;z:number}|null;
   showIntroFrame: (action:IntroAction|null,progress:number)=>{x:number;y:number;carrying:boolean;fromTray:number;tool:string;toolFill:number;item:string|null}|null;
   checkPointInWater: (screenX: number, screenY: number) => boolean;
   checkPointOverTankMouth: (screenX: number, screenY: number) => { isOver: boolean; point?: THREE.Vector3 };
@@ -38,6 +41,8 @@ export interface ThreeTankCanvasHandle {
 }
 
 interface ThreeTankCanvasProps {
+  floorSpills?:FloorSpill[];
+  overflowAt?:number;
   shape: TankShape;
   sceneSetting?: SceneSetting;
   inputLocked?: boolean;
@@ -61,7 +66,7 @@ interface ThreeTankCanvasProps {
 }
 
 // Cấu hình vật thể 3D thế giới (World Units)
-const ITEM_WORLD_SCALES: Record<string, { size: number; radius: number }> = {
+export const ITEM_WORLD_SCALES: Record<string, { size: number; radius: number }> = {
   'item-pebble': { size: 1.0, radius: 0.5 },
   'item-keys': { size: 0.78, radius: 0.39 },
   'item-spoon': { size: 0.88, radius: 0.44 },
@@ -78,6 +83,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
   (
     {
       shape,
+      floorSpills = [],
+      overflowAt = 0,
       sceneSetting = 'laboratory',
       inputLocked = false,
       scale,
@@ -101,6 +108,11 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
   ) => {
     const [grabHand,setGrabHand]=useState<{x:number;y:number;holding:boolean}|null>(null);
     const [dropPreview,setDropPreview]=useState<{x:number;y:number;inside:boolean}|null>(null);
+    const overflowRef=useRef<THREE.Mesh|null>(null);
+    const overflowTimeRef=useRef(overflowAt);overflowTimeRef.current=overflowAt;
+    const puddlesRef=useRef<THREE.Group|null>(null);
+    const spillsRef=useRef(floorSpills);spillsRef.current=floorSpills;
+    const renderedSpillsRef=useRef<FloorSpill[]|null>(null);
     const dragOffsetRef=useRef(new THREE.Vector3());
     const [hoveredItemId,setHoveredItemId] = useState<string | null>(null);
     const [waterHand, setWaterHand] = useState<{x:number;y:number} | null>(null);
@@ -255,8 +267,30 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       }
     }, []);
 
+    const floorPoint=(x:number,y:number)=>{
+      if(!mountRef.current||!cameraRef.current)return null;
+      const rect=mountRef.current.getBoundingClientRect();
+      if(x<rect.left||x>rect.right||y<rect.top||y>rect.bottom)return null;
+      const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((x-rect.left)/rect.width*2-1,-(y-rect.top)/rect.height*2+1),cameraRef.current);
+      const hit=new THREE.Vector3();return ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),.6),hit)?{x:hit.x,z:hit.z}:null;
+    };
+    const flowTarget=(x:number,y:number):FlowTarget|null=>{
+      if(!mountRef.current||!cameraRef.current)return null;
+      const rect=mountRef.current.getBoundingClientRect(),camera=cameraRef.current;
+      if(x<rect.left||x>rect.right||y<rect.top||y>rect.bottom)return null;
+      const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((x-rect.left)/rect.width*2-1,-(y-rect.top)/rect.height*2+1),camera);
+      const point=new THREE.Vector3(),d=dimsRef.current,shape=shapeRef.current;
+      const atRim=ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-d.height),point);
+      const inside=!!atRim&&isPointInsideFootprint(point.x,point.z,shape,d,.4);
+      if(!inside){if(!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),.6),point)||isPointInsideFootprint(point.x,point.z,shape,d,0))return null;}
+      const target=new THREE.Vector3(point.x,inside?Math.max(sandHeight(d),displayedWaterLevelRef.current):-.585,point.z);
+      const projected=target.clone().project(camera);
+      return {x:rect.left+(projected.x+1)*rect.width/2,y:rect.top+(1-projected.y)*rect.height/2,worldX:target.x,worldZ:target.z,inside};
+    };
+
     // IMPERATIVE API EXPOSED TO PARENT
     useImperativeHandle(ref, () => ({
+      flowTarget,floorPoint,
       showIntroFrame:(action,progress)=>{
         const scene=sceneRef.current,camera=cameraRef.current,mount=mountRef.current;
         if(!scene||!camera||!mount)return null;
@@ -273,7 +307,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         if(introGroupRef.current?.action!==action){
           if(introGroupRef.current){scene.remove(introGroupRef.current.group);disposeItemModel(introGroupRef.current.group);}
           const group=new THREE.Group();group.userData.demoOnly=true;
-          const actor=pose.item?createItemModel(pose.item,pose.item==='item-egg'?.72:.9):undefined;
+          const actor=pose.item?createItemModel(pose.item,.9):undefined;
           if(actor)group.add(actor);
           if(action==='salt'||action==='stir')for(let i=0;i<24;i++){
             const grain=new THREE.Mesh(new THREE.SphereGeometry(.035,6,6),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true}));
@@ -284,7 +318,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const demo=introGroupRef.current;
         if(demo?.actor){
           demo.actor.visible=pose.fromTray===0;demo.actor.position.set(pose.x,pose.y,pose.z);
-          if(action==='outside'&&progress>.79)applyItemDamage(demo.actor,'item-egg','broken');
+
         }
         if(demo&&(action==='salt'||action==='stir'))demo.group.children.forEach((grain,i)=>{
           if(!(grain instanceof THREE.Mesh))return;
@@ -560,7 +594,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       const exact = raycasterRef.current.intersectObjects(Array.from(itemMeshesRef.current.values()), true).find(hit => canPick(hit.object.userData.itemId));
       if (exact) return { itemId: exact.object.userData.itemId as string, point: exact.point };
       let nearest: { itemId: string; point: THREE.Vector3 } | null = null;
-      let distance = Infinity;
+      const candidates:Array<{id:string;x:number;y:number;radius:number;point:THREE.Vector3}>=[];
       for (const [id, mesh] of itemMeshesRef.current) {
         if (!canPick(id)) continue;
         mesh.updateWorldMatrix(true, true);
@@ -573,10 +607,11 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const edge = sphere.center.clone().addScaledVector(new THREE.Vector3(1,0,0).applyQuaternion(cameraRef.current.quaternion), sphere.radius).project(cameraRef.current);
         const radius = Math.max(38, Math.abs(edge.x - projected.x) * rect.width / 2 + 18);
         const gap = Math.hypot(dx, dy);
-        const score = gap / radius;
-        if (score <= 1 && score < distance) { distance = score; nearest = { itemId: id, point: sphere.center.clone() }; }
+        if(gap<=radius)candidates.push({id,x:screenX+dx,y:screenY+dy,radius,point:sphere.center.clone()});
       }
-      return nearest;
+      const id=nearestHandTarget(candidates,screenX,screenY);
+      const selected=candidates.find(c=>c.id===id);
+      nearest=selected?{itemId:selected.id,point:selected.point}:null;return nearest;
     };
 
     // 1. KHỞI TẠO THREE.JS SCENE, CAMERA, RENDERER
@@ -682,6 +717,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         rippleEffectsRef.current = []; splashEffectsRef.current = [];
         itemMeshesRef.current.forEach(disposeItemModel);
         if(introGroupRef.current){disposeItemModel(introGroupRef.current.group);introGroupRef.current=null;}
+        if(puddlesRef.current){disposeItemModel(puddlesRef.current);puddlesRef.current=null;}
+        if(overflowRef.current){disposeItemModel(overflowRef.current);overflowRef.current=null;}
         sandTextureRef.current?.dispose();
         saltGeom.dispose(); saltMat.dispose();
         floor.geometry.dispose(); floor.material.dispose(); grid.dispose();
@@ -1105,6 +1142,19 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
         // TÍNH THỂ TÍCH PHẦN CHÌM THỰC TẾ (SUBMERGED VOLUME)
         const currentTankItems = itemsRef.current;
+        if(overflowTimeRef.current>0&&currentTime-overflowTimeRef.current<350){
+          if(!overflowRef.current){const edge=clampToTankBoundary(0,d.depth,0,s,d);const curve=new THREE.QuadraticBezierCurve3(new THREE.Vector3(edge.x,d.height-.08,edge.z),new THREE.Vector3(0,d.height*.45,d.depth*.7),new THREE.Vector3(0,-.58,d.depth*.7));const mesh=new THREE.Mesh(new THREE.TubeGeometry(curve,20,.075,8,false),new THREE.MeshBasicMaterial({color:0x8be5ef,transparent:true,opacity:.75}));scene?.add(mesh);overflowRef.current=mesh;}
+        }else if(overflowRef.current){scene?.remove(overflowRef.current);disposeItemModel(overflowRef.current);overflowRef.current=null;}
+        if(renderedSpillsRef.current!==spillsRef.current){
+          if(puddlesRef.current){scene?.remove(puddlesRef.current);disposeItemModel(puddlesRef.current);}
+          const group=new THREE.Group();
+          for(const spill of spillsRef.current){
+            const radius=Math.max(.18,Math.sqrt(spill.ml/180));
+            const mesh=new THREE.Mesh(new THREE.CircleGeometry(radius,48),new THREE.MeshBasicMaterial({color:0x80d9e9,transparent:true,opacity:.65,depthWrite:false,side:THREE.DoubleSide}));
+            mesh.rotation.x=-Math.PI/2;mesh.scale.y=.75;mesh.position.set(spill.x,-.585,spill.z);group.add(mesh);
+          }
+          scene?.add(group);puddlesRef.current=group;renderedSpillsRef.current=spillsRef.current;
+        }
         const displacedObjects=currentTankItems.filter(item=>item.inTank&&!item.outsideTank).map(item=>({y:item.y,radius:(ITEM_WORLD_SCALES[itemKind(item.id)]||{radius:.4}).radius,volume:item.volumeMl}));
         const desiredLevel=displacedWaterLevel(introWaterRef.current??baseWaterLevelRef.current,s,d,displacedObjects);
         displayedWaterLevelRef.current+=(desiredLevel-displayedWaterLevelRef.current)*(1-Math.exp(-dt*6));
@@ -1376,6 +1426,14 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           };
         });
 
+        for(const egg of nextItems){
+          if(holdingItemRef.current===egg.id||itemKind(egg.id)!=='item-egg'||!egg.outsideTank||egg.status!=='grounded'||egg.damage==='broken')continue;
+          for(const other of currentTankItems){
+            if(other.id===egg.id||other.id===holdingItemRef.current)continue;
+            const damage=floorEggDamage(egg,other,dt,.525,ITEM_WORLD_SCALES[itemKind(other.id)]?.radius||.4);
+            if(damage!==egg.damage){egg.damage=damage;itemsChanged=true;const mesh=itemMeshesRef.current.get(egg.id);if(mesh)applyItemDamage(mesh,egg.id,damage);if(soundEnabled)playImpact('egg',Math.abs(other.vy));}
+          }
+        }
         if (itemsChanged) {
           itemsRef.current = nextItems;
           if (currentTime - lastItemsFlushRef.current >= 50) {

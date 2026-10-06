@@ -43,7 +43,7 @@ export async function introAudioSources(guide=INTRO_GUIDE){
   const sources=guide.map(step=>{
     const record=saved[step.audio];
     if(record?.audio instanceof Blob&&record.audio.size>1000){const url=URL.createObjectURL(record.audio);urls.push(url);return url;}
-    return `/audio/vi/${step.audio}.mp3`;
+    return `/audio/vi/${step.audio==='intro-2'?'intro-2-discovery':step.audio}.mp3`;
   });
   return {sources,release:()=>urls.forEach(url=>URL.revokeObjectURL(url))};
 }
