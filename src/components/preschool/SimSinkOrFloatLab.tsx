@@ -12,7 +12,8 @@ import {
   X,
   Compass,
   Eye,
-  Award
+  Award,
+  Waves
 } from 'lucide-react';
 import { unlockImpactAudio,setImpactEffectsVolume } from './sink-float/impactAudio';
 import { gestureVelocity } from './sink-float/impactPhysics';
@@ -1022,7 +1023,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       {/* ======================================================== */}
       <div {...(introLocked||showExperienceSettings ? {inert: ''} : {})} aria-hidden={introLocked||showExperienceSettings || undefined} className="lab-workspace">
         <header className="lab-heading">
-          <span className="lab-mark" aria-hidden="true">◉</span>
+          <span className="lab-mark" aria-hidden="true"><Waves size={23} strokeWidth={1.7}/></span>
           <div><span className="lab-eyebrow">PHÒNG KHÁM PHÁ</span><h2>Vật chìm, vật nổi</h2></div>
         </header>
         {/* CỘT TRÁI: KHU VỰC CHƠI CHÍNH (75-80%) */}
