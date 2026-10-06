@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState} from 'react';
 import {INTRO_GUIDE} from './introGuide';
-import {ExperienceSettings,INTRO_LABELS,NarrationRecord,createNarration,defaultIntroText,readNarration,saveExperience,writeNarration} from './teacherExperience';
+import {ExperienceSettings,INTRO_ACTIONS,INTRO_LABELS,NarrationRecord,createNarration,defaultIntroText,readNarration,saveExperience,writeNarration} from './teacherExperience';
 export function TeacherExperienceSettings({settings,onChange,onClose,onPreview}:{settings:ExperienceSettings;onChange:(value:ExperienceSettings)=>void;onClose:()=>void;onPreview:()=>void}){
   const [draft,setDraft]=useState<Record<string,string>>(()=>Object.fromEntries(INTRO_GUIDE.map(s=>[s.audio,defaultIntroText(s.audio)])));
   const [saved,setSaved]=useState<NarrationRecord>({}),[busy,setBusy]=useState(false),[status,setStatus]=useState('');
@@ -42,9 +42,16 @@ export function TeacherExperienceSettings({settings,onChange,onClose,onPreview}:
       <div className="flex items-center justify-between"><h2 className="font-bold text-lg">Hướng dẫn và âm thanh</h2><button autoFocus aria-label="Đóng cài đặt giáo viên" onClick={onClose} className="min-w-[48px] min-h-[48px] rounded-xl border">✕</button></div>
       <label className="flex gap-3 items-center min-h-[48px]"><input type="checkbox" checked={settings.introEnabled} onChange={e=>change({...settings,introEnabled:e.target.checked})}/>Tự bật hướng dẫn một lần mỗi lần vào thí nghiệm</label>
       <p className="text-sm text-slate-600">Khi bật, trẻ nghe và xem hết thao tác mẫu rồi mới chơi tự do. Giáo viên có thể tắt để vào chơi ngay.</p>
+      <fieldset className="space-y-2 rounded-2xl border border-sky-200 p-3">
+        <legend className="font-bold">Chọn thao tác trẻ sẽ được hướng dẫn</legend>
+        <p className="text-sm text-slate-600">Đã chọn {settings.introActions.length}/8 thao tác. Lời chào và lời kết được giữ khi có thao tác; bỏ chọn tất cả thì vào chơi ngay.</p>
+        {INTRO_GUIDE.map((step,i)=>INTRO_ACTIONS.includes(step.action)&&<label key={step.action} className="flex items-center gap-3 min-h-[44px]"><input type="checkbox" checked={settings.introActions.includes(step.action)} onChange={e=>change({...settings,introActions:e.target.checked?[...settings.introActions,step.action]:settings.introActions.filter(a=>a!==step.action)})}/>{INTRO_LABELS[i]}</label>)}
+        <button onClick={()=>change({...settings,introActions:['pick']})} className="min-h-[44px] rounded-xl border px-3 mr-2">Chỉ cầm và thả</button>
+        <button onClick={()=>change({...settings,introActions:[...INTRO_ACTIONS]})} className="min-h-[44px] rounded-xl border px-3">Chọn tất cả thao tác</button>
+      </fieldset>
       <label className="block font-semibold">Âm lượng tiếng nước và va chạm: {settings.effectsVolume}%<input aria-label="Âm lượng tiếng nước và va chạm" type="range" min="0" max="100" step="5" value={settings.effectsVolume} onChange={e=>change({...settings,effectsVolume:Number(e.target.value)})} className="block w-full mt-3"/></label>
       <p className="text-sm text-slate-600">0% tắt tiếng hiệu ứng; 100% là mức tối đa trong trò chơi. Giọng hướng dẫn có âm lượng riêng.</p>
-      <button disabled={busy} onClick={onPreview} className="min-h-[48px] w-full rounded-xl bg-sky-100 font-bold">Xem lại hướng dẫn với kịch bản đã lưu</button>
+      <button disabled={busy||!settings.introActions.length} onClick={onPreview} className="min-h-[48px] w-full rounded-xl bg-sky-100 font-bold">Xem lại hướng dẫn với kịch bản đã lưu</button>
       <h3 className="font-bold">Lời dẫn của giáo viên</h3>
       <p className="text-sm text-slate-600">Soạn lời theo từng thao tác để bàn tay minh họa đúng phần đang đọc. Khi tạo giọng hoặc nghe thử lời mới, nội dung được gửi tới dịch vụ đọc tiếng Việt của Google và cần Internet. Bản đọc lưu trên trình duyệt này.</p>
       <fieldset disabled={busy} className="space-y-4">

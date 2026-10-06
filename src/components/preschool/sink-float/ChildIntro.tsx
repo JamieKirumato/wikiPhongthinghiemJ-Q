@@ -7,12 +7,13 @@ import {RealisticHandSpoon,RealisticStirringHand} from './SaltWorkflow';
 import {introAudioSources} from './teacherExperience';
 export type IntroFrame={x:number;y:number;carrying:boolean;fromTray:number;tool:string;toolFill:number;item:string|null};
 
-export function ChildIntro({onComplete,onFrame,onCleanup}:{onComplete:()=>void;onFrame:(action:IntroAction,p:number)=>IntroFrame|null;onCleanup:()=>void}) {
+export function ChildIntro({onComplete,onFrame,onCleanup,guide=INTRO_GUIDE}:{guide?:typeof INTRO_GUIDE;onComplete:()=>void;onFrame:(action:IntroAction,p:number)=>IntroFrame|null;onCleanup:()=>void}) {
   const indexRef=useRef(0);
   const [step,setStep]=useState(0),[waiting,setWaiting]=useState(false),[progress,setProgress]=useState(0);
   const [frame,setFrame]=useState<IntroFrame|null>(null);
   const callbacks=useRef({onComplete,onFrame,onCleanup});callbacks.current={onComplete,onFrame,onCleanup};
   useEffect(()=>{
+    if(!guide.length){callbacks.current.onCleanup();callbacks.current.onComplete();return;}
     let active=true,raf=0,lastUpdate=0,blocked=false;
     let audio:HTMLAudioElement|null=null,release=()=>{};
     const start=(bundle:{sources:string[];release:()=>void})=>{
@@ -23,30 +24,30 @@ export function ChildIntro({onComplete,onFrame,onCleanup}:{onComplete:()=>void;o
     media.onended=()=>{
       if(!active)return;
       const next=++indexRef.current;
-      if(next===INTRO_GUIDE.length){callbacks.current.onCleanup();callbacks.current.onComplete();return;}
+      if(next===guide.length){callbacks.current.onCleanup();callbacks.current.onComplete();return;}
       setStep(next);setFrame(null);media.src=bundle.sources[next];play();
     };
     // One clock drives speech, hand position and all demonstration effects.
     const tick=(time:number)=>{
       if(!active)return;
-      if(!media.paused&&media.readyState>=3&&indexRef.current<INTRO_GUIDE.length&&time-lastUpdate>=32){
+      if(!media.paused&&media.readyState>=3&&indexRef.current<guide.length&&time-lastUpdate>=32){
         lastUpdate=time;
         const p=introProgress(media.currentTime,media.duration);
-        setProgress((indexRef.current+p)/INTRO_GUIDE.length*100);
-        setFrame(callbacks.current.onFrame(INTRO_GUIDE[indexRef.current].action,p));
+        setProgress((indexRef.current+p)/guide.length*100);
+        setFrame(callbacks.current.onFrame(guide[indexRef.current].action,p));
       }
       raf=requestAnimationFrame(tick);
     };
     media.onerror=()=>{if(active){blocked=true;setWaiting(true);}};play();raf=requestAnimationFrame(tick);
     };
     // A browser may require user activation: any natural contact starts the guide, no media toolbar.
-    const activate=()=>{if(!active||!blocked||!audio||indexRef.current>=INTRO_GUIDE.length)return;blocked=false;unlockImpactAudio();if(audio.error)audio.load();void audio.play().then(()=>{if(active)setWaiting(false);}).catch(()=>{if(active)blocked=true;});};
+    const activate=()=>{if(!active||!blocked||!audio||indexRef.current>=guide.length)return;blocked=false;unlockImpactAudio();if(audio.error)audio.load();void audio.play().then(()=>{if(active)setWaiting(false);}).catch(()=>{if(active)blocked=true;});};
     window.addEventListener('pointerdown',activate,true);window.addEventListener('keydown',activate,true);
-    void introAudioSources().then(start,()=>start({sources:INTRO_GUIDE.map(s=>`/audio/vi/${s.audio}.mp3`),release:()=>{}}));
+    void introAudioSources(guide).then(start,()=>start({sources:guide.map(s=>`/audio/vi/${s.audio}.mp3`),release:()=>{}}));
     return ()=>{active=false;window.removeEventListener('pointerdown',activate,true);window.removeEventListener('keydown',activate,true);cancelAnimationFrame(raf);if(audio){audio.pause();audio.onended=null;audio.onerror=null;}release();indexRef.current=0;callbacks.current.onCleanup();};
   },[]);
-  const action=INTRO_GUIDE[step].action;
-  const phaseProgress=progress/100*INTRO_GUIDE.length-step;
+  const action=guide[step]?.action||'ready';
+  const phaseProgress=progress/100*guide.length-step;
   const image=frame?.item?.replace('item-','');
   return <>
     {frame&&<div data-intro-hand data-action={action} aria-hidden="true" className="fixed z-[90] pointer-events-none" style={{left:frame.x,top:frame.y,transform:'translate(-50%,-50%)'}}>

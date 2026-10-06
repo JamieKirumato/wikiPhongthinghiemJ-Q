@@ -239,7 +239,7 @@ class IntroAudioMock{constructor(src){this.src=src;this.currentTime=0;this.durat
 const introReact={...fakeReact,useState:value=>[value,()=>{}],useEffect:fn=>{introEffect=fn;}};
 const introModule={exports:{}};
 const introCode=ts.transpileModule(fs.readFileSync('src/components/preschool/sink-float/ChildIntro.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.React}}).outputText;
-vm.runInNewContext(introCode,{module:introModule,exports:introModule.exports,React:introReact,require:name=>name==='react'?introReact:name==='./introGuide'?guide:name==='./teacherExperience'?{introAudioSources:()=>({then:fn=>fn({sources:guide.INTRO_GUIDE.map(s=>`/audio/vi/${s.audio}.mp3`),release(){}})})}:{unlockImpactAudio(){}},window:{addEventListener:(name,fn)=>introListeners.set(name,fn),removeEventListener:name=>introListeners.delete(name)},Audio:IntroAudioMock,requestAnimationFrame:fn=>{introFrames.set(++introFrameId,fn);return introFrameId;},cancelAnimationFrame:id=>introFrames.delete(id)});
+vm.runInNewContext(introCode,{module:introModule,exports:introModule.exports,React:introReact,require:name=>name==='react'?introReact:name==='./introGuide'?guide:name==='./teacherExperience'?{introAudioSources:(steps=guide.INTRO_GUIDE)=>({then:fn=>fn({sources:steps.map(s=>`/audio/vi/${s.audio}.mp3`),release(){}})})}:{unlockImpactAudio(){}},window:{addEventListener:(name,fn)=>introListeners.set(name,fn),removeEventListener:name=>introListeners.delete(name)},Audio:IntroAudioMock,requestAnimationFrame:fn=>{introFrames.set(++introFrameId,fn);return introFrameId;},cancelAnimationFrame:id=>introFrames.delete(id)});
 introModule.exports.ChildIntro({onComplete:()=>introFinished++,onCleanup:()=>introCleanup++,onFrame:(action,p)=>{introCalls.push({action,p});return null;}});
 const disposeIntro=introEffect();
 function introTick(time){const [id,fn]=introFrames.entries().next().value;introFrames.delete(id);fn(time);}
@@ -285,12 +285,35 @@ const repeatApple=recorded('item-apple#2','floating',1,4);
 assert.equal(reflection.reflectionObservations([appleTrial,freshEgg,saltyEgg,repeatApple]).length,2);
 assert.equal(reflection.reflectionObservations([appleTrial,repeatApple])[0].id,repeatApple.id);
 console.log('Passed: reflection uses actual recent observations; egg comparisons require ordered trials of the same physical egg and retain actual results.');
+const controls=source('src/components/preschool/sink-float/interactionPreview.ts');
+assert.equal(controls.boundedZoom(1,-10000),.96);assert.equal(controls.boundedZoom(1.6,10000),1.65);
+assert.ok(controls.boundedZoom(1.12,-50)<1.12);assert.ok(controls.boundedZoom(1.12,50)>1.12);
+for(const shape of ['rectangle','square','cylinder','triangle']){
+  const dims=geometry.getTankDimensions(shape,'normal');
+  const insideRay=new THREE.Ray(new THREE.Vector3(0,10,0),new THREE.Vector3(0,-1,0));
+  const pos=controls.releasePosition(insideRay,dims,shape,dims.waterHeight,5,.45);assert.ok(pos);assert.equal(pos.x,0);assert.equal(pos.z,0);
+  const contact=controls.predictedContact(pos,new THREE.Vector3(),dims,shape,dims.waterHeight,.45);assert.equal(contact.inside,true);assert.equal(contact.point.y,dims.waterHeight);
+  const outsideRay=new THREE.Ray(new THREE.Vector3(12,10,0),new THREE.Vector3(0,-1,0));
+  const out=controls.releasePosition(outsideRay,dims,shape,dims.waterHeight,5,.45);assert.equal(out.x,12);
+  const floorContact=controls.predictedContact(out,new THREE.Vector3(),dims,shape,dims.waterHeight,.45);assert.equal(floorContact.inside,false);assert.equal(floorContact.point.y,-.6);
+}
+const prefsSelection=source('src/components/preschool/sink-float/teacherExperience.ts');
+assert.equal(prefsSelection.normalizeExperience({}).introActions.length,8);
+const pickOnly=prefsSelection.normalizeExperience({introActions:['pick','unknown','pick']});assert.equal(pickOnly.introActions.join(','),'pick');
+assert.equal(prefsSelection.selectedIntroGuide(pickOnly).map(s=>s.action).join(','),'welcome,pick,ready');
+assert.equal(prefsSelection.selectedIntroGuide(prefsSelection.normalizeExperience({introActions:[]})).length,0);
+console.log('Passed: selected guidance migrates settings, filters unknown actions, and zoom/release preview respects water and outside floor for every tank shape.');
 (async()=>{
   blockIntroPlayback=true;introModule.exports.ChildIntro({onComplete:()=>introFinished++,onCleanup:()=>introCleanup++,onFrame:()=>null});const stopBlockedIntro=introEffect();
   await Promise.resolve();assert.equal(introAudio.paused,true);assert.equal(introFinished,1);const triesBefore=introPlayAttempts;
   blockIntroPlayback=false;introListeners.get('pointerdown')();await Promise.resolve();assert.equal(introAudio.paused,false);assert.equal(introPlayAttempts,triesBefore+1);
   introListeners.get('pointerdown')();assert.equal(introPlayAttempts,triesBefore+1);stopBlockedIntro();assert.equal(introListeners.size,0);
   console.log('Passed: blocked autoplay resumes from natural screen contact without a play button, duplicate playback or premature unlock.');
+  const selectedGuide=prefsSelection.selectedIntroGuide(pickOnly);let selectedEnded=0;
+  introModule.exports.ChildIntro({guide:selectedGuide,onComplete:()=>selectedEnded++,onCleanup(){},onFrame:()=>null});const stopSelected=introEffect();
+  for(const segment of selectedGuide){assert.ok(introAudio.src.endsWith(segment.audio+'.mp3'));introAudio.onended();}
+  assert.equal(selectedEnded,1);stopSelected();assert.equal(introListeners.size,0);
+  let skipped=0;introModule.exports.ChildIntro({guide:[],onComplete:()=>skipped++,onCleanup(){},onFrame:()=>null});introEffect();assert.equal(skipped,1);assert.equal(introFrames.size,0);
   let record={},revoked=0,urlCount=0;
   const db={createObjectStore(){},close(){},transaction(){const tx={objectStore:()=>({get(){const req={result:record};setImmediate(()=>req.onsuccess?.());return req;},put(value){record=value;setImmediate(()=>tx.oncomplete?.());}})};return tx;}};
   const indexedDB={open(){const req={result:db};setImmediate(()=>req.onsuccess?.());return req;}};
