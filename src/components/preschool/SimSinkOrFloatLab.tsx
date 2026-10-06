@@ -502,6 +502,13 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const [isTeacherMode,setIsTeacherMode] = useState(false);
   const [showSecondTank,setShowSecondTank] = useState(false);
   const [comparisonMode,setComparisonMode]=useState(false);
+  const [desktopComparison,setDesktopComparison]=useState(()=>window.matchMedia('(min-width: 1024px) and (any-pointer: fine)').matches);
+  useEffect(()=>{
+    const query=window.matchMedia('(min-width: 1024px) and (any-pointer: fine)');
+    const update=()=>{setDesktopComparison(query.matches);if(!query.matches){setComparisonMode(false);setComparisonTrial(undefined);}};
+    query.addEventListener('change',update);
+    return ()=>query.removeEventListener('change',update);
+  },[]);
   const [comparisonItemId,setComparisonItemId]=useState('item-egg');
   const [comparisonTrial,setComparisonTrial]=useState<{token:number;item:TankObject}|undefined>();
   const [sceneSetting, setSceneSetting] = useState<SceneSetting>('laboratory');
@@ -1016,7 +1023,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   };
   const comparisonBusy=pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle';
   const toggleComparison=()=>{
-    if(comparisonBusy)return;
+    if(comparisonBusy||!advanced||!desktopComparison)return;
     threeTankRef.current?.cancelActiveGesture();handleResetAllTank();
     setAddedWaterMl(0);addedWaterRef.current=0;setRemovedSaltGrams(0);removedSaltRef.current=0;
     setRaceModeActive(false);setRaceRunning(false);setComparisonTrial(undefined);setComparisonMode(!comparisonMode);setAdvanced(true);setActivityMode('discovery');
@@ -1149,7 +1156,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             />
           </div>}
           {(selectedTrayItem||draggingTrayItem)&&<button onPointerDown={e=>e.stopPropagation()} onClick={()=>{dragCleanupRef.current?.();activeDragItemRef.current=null;isDraggingRef.current=false;setSelectedTrayItem(null);setDraggingTrayItem(null);threeTankRef.current?.clearDropPreview();}} className="min-h-[48px] rounded-2xl bg-orange-100 font-bold">Đặt vật về khay</button>}
-          {advanced&&<button disabled={comparisonBusy} aria-pressed={comparisonMode} onClick={toggleComparison} className="min-h-[52px] rounded-2xl bg-violet-100 px-2 font-bold disabled:opacity-50">{comparisonMode?'Về khám phá tự do':'So sánh nước'}</button>}
+          {advanced&&desktopComparison&&<button disabled={comparisonBusy} aria-pressed={comparisonMode} onClick={toggleComparison} className="min-h-[52px] rounded-2xl bg-violet-100 px-2 font-bold disabled:opacity-50">{comparisonMode?'Về khám phá tự do':'So sánh nước'}</button>}
           {comparisonMode&&<div className="rounded-2xl bg-white border-2 border-violet-200 p-2 space-y-2">
             <p className="text-sm font-bold">Cùng vật · cùng bể · chỉ đổi muối</p>
             <select aria-label="Vật dùng để so sánh hai bể" value={comparisonItemId} disabled={comparisonBusy} onChange={e=>setComparisonItemId(e.target.value)} className="w-full min-h-[48px] rounded-xl bg-sky-50 px-2">{PLAY_ITEMS_PRESETS.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select>
