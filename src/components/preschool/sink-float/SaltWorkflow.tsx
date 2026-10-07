@@ -25,6 +25,17 @@ interface SaltWorkflowProps {
   onMessageUpdate: (msg: string) => void;
 }
 
+const SaltJar = ({open=false}:{open?:boolean}) => <svg viewBox="0 0 120 150" className="w-full h-full" aria-hidden="true">
+  <defs><linearGradient id="saltGlass"><stop stopColor="#cde7ed" stopOpacity=".65"/><stop offset=".35" stopColor="white" stopOpacity=".2"/><stop offset="1" stopColor="#aacbd4" stopOpacity=".6"/></linearGradient></defs>
+  <path d="M29 30L29 43Q15 49 15 65V128Q15 140 30 140H90Q105 140 105 128V65Q105 49 91 43V30Z" fill="url(#saltGlass)" stroke="#8daeb6" strokeWidth="2"/>
+  <path d="M20 80Q42 68 60 76Q80 81 100 73V127Q100 135 90 135H30Q20 135 20 127Z" fill="#f5f3eb" stroke="#d2d0c7"/>
+  {Array.from({length:100},(_,i)=><circle key={i} cx={24+(i*37%73)} cy={84+(i*19%46)} r={.7+(i%3)*.35} fill={i%3?'#ffffff':'#c9c7c0'}/>)}
+  <ellipse cx="60" cy="31" rx="31" ry="7" fill={open?'#dae5e5':'#c69d64'} stroke="#8c7654" strokeWidth="2"/>
+  {!open&&<rect x="27" y="16" width="66" height="16" rx="5" fill="#b9925d" stroke="#887045"/>}
+  <path d="M25 57V118" stroke="white" strokeWidth="6" opacity=".8" strokeLinecap="round"/>
+  {open&&<path d="M78 12L111 19L108 30L75 23Z" fill="#b9925d" stroke="#887045"/>}
+</svg>;
+
 // Bàn tay cầm thìa inox chân thực đi theo chuột
 export const RealisticHandSpoon: React.FC<{
   x: number;
@@ -32,7 +43,7 @@ export const RealisticHandSpoon: React.FC<{
   hasSalt: boolean;
   isPouring: boolean;
   amount?: number;
-}> = ({ x, y, hasSalt, isPouring, amount = 1 }) => (
+}> = ({ x, y, hasSalt, isPouring, amount = 1 }) => createPortal(
   <div
     style={{
       left: `${x}px`,
@@ -41,7 +52,7 @@ export const RealisticHandSpoon: React.FC<{
       transformOrigin: '30px 34px',
       transition: 'transform 0.22s ease-out'
     }}
-    className="fixed pointer-events-none z-50 filter drop-shadow-2xl select-none"
+    className="fixed pointer-events-none z-[80] filter drop-shadow-2xl select-none"
   >
     <svg width="150" height="96" viewBox="0 0 150 96" fill="none">
       {/* Cán thìa kim loại bóng */}
@@ -68,10 +79,7 @@ export const RealisticHandSpoon: React.FC<{
       {isPouring && (
         <g>
           <ellipse cx="24" cy="36" rx="11" ry="6" fill="#f8fafc" />
-          <circle cx="14" cy="50" r="3.2" fill="#ffffff" />
-          <circle cx="18" cy="60" r="2.8" fill="#ffffff" />
-          <circle cx="11" cy="68" r="3" fill="#ffffff" />
-          <circle cx="21" cy="74" r="2.2" fill="#ffffff" />
+          <circle cx="14" cy="50" r="2" fill="#ffffff"><animate attributeName="cy" values="42;92" dur=".55s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0" dur=".55s" repeatCount="indefinite"/></circle>
         </g>
       )}
 
@@ -89,7 +97,7 @@ export const RealisticHandSpoon: React.FC<{
         </linearGradient>
       </defs>
     </svg>
-  </div>
+  </div>, document.body
 );
 
 // Bàn tay cầm đũa thủy tinh khuấy nước
@@ -98,7 +106,7 @@ export const RealisticStirringHand: React.FC<{
   y: number;
   angle: number;
   isInWater: boolean;
-}> = ({ x, y, angle, isInWater }) => (
+}> = ({ x, y, angle, isInWater }) => createPortal(
   <div
     style={{
       left: `${x}px`,
@@ -107,7 +115,7 @@ export const RealisticStirringHand: React.FC<{
       transformOrigin: '50px 190px',
       transition: 'transform 0.05s linear'
     }}
-    className="fixed w-[100px] h-[200px] pointer-events-none z-50 filter drop-shadow-2xl select-none"
+    className="fixed w-[100px] h-[200px] pointer-events-none z-[80] filter drop-shadow-2xl select-none"
   >
     <svg width="100" height="200" viewBox="0 0 100 200" fill="none">
       {/* Đũa thủy tinh phòng thí nghiệm có phát quang nhẹ */}
@@ -117,28 +125,29 @@ export const RealisticStirringHand: React.FC<{
         width="7.5"
         height="160"
         rx="3.75"
-        fill="url(#glassRodGrad)"
-        stroke="rgba(255,255,255,0.95)"
+        fill="url(#woodRodGrad)"
+        stroke="#93642e"
         strokeWidth="1.5"
       />
-      <circle cx="50" cy="28" r="5" fill="#38bdf8" opacity="0.9" />
-      <circle cx="50" cy="190" r="4.5" fill="#38bdf8" opacity="0.9" />
+      <path d="M49 38V178M52 52V167" stroke="#a87436" opacity=".45"/>
+      <circle cx="50" cy="28" r="5" fill="#b98543" opacity="0.9" />
+      <circle cx="50" cy="190" r="4.5" fill="#b98543" opacity="0.9" />
 
 
       <defs>
-        <linearGradient id="glassRodGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="rgba(255,255,255,0.95)" />
-          <stop offset="45%" stopColor="rgba(56,189,248,0.7)" />
-          <stop offset="100%" stopColor="rgba(255,255,255,0.95)" />
+        <linearGradient id="woodRodGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#c79755" />
+          <stop offset="45%" stopColor="#edcb8e" />
+          <stop offset="100%" stopColor="#c79755" />
         </linearGradient>
       </defs>
     </svg>
 
     {/* Vòng xoáy nước sủi bọt khi đũa đang ở trong nước */}
     {isInWater && (
-      <div className="absolute left-[22px] bottom-[-4px] w-14 h-7 rounded-full border-2 border-cyan-200 animate-ping opacity-80 pointer-events-none" />
+      <svg className="absolute left-[-10px] bottom-[-18px] w-[120px] h-[52px]" viewBox="0 0 120 52" aria-hidden="true"><g transform={`translate(60 26) scale(1 .38) rotate(${angle})`} fill="none" stroke="#77bbc8" strokeWidth="2" opacity=".7"><path d="M0 0C12-15 29 0 15 17C-9 43-45 10-27-20C-3-60 58-30 46 14"/><path d="M-43 5A44 44 0 0 1 12-42" stroke="white"/></g></svg>
     )}
-  </div>
+  </div>, document.body
 );
 
 export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
@@ -176,12 +185,16 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   const scoopStartRef = useRef<{x:number;y:number} | null>(null);
   const pourStartRef = useRef<{x:number;y:number} | null>(null);
   const stirringStartedRef = useRef(0);
+  const lastVisualMotionRef = useRef(0);
   const lastVisualStirRef = useRef(0);
   const progressRef = useRef(activeStirProgress);
   progressRef.current = activeStirProgress;
   const [stirWobble, setStirWobble] = useState<number>(0);
   const [isHoveringJarMouth, setIsHoveringJarMouth] = useState<boolean>(false);
   const [isInWaterState, setIsInWaterState] = useState<boolean>(false);
+  const stirIdleTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  useEffect(()=>()=>{if(stirIdleTimer.current)clearTimeout(stirIdleTimer.current);},[]);
+  useEffect(()=>{if(workflowStep!=='stirring'){setIsInWaterState(false);if(stirIdleTimer.current)clearTimeout(stirIdleTimer.current);}},[workflowStep]);
 
   useEffect(()=>{
     const cancel=(event:KeyboardEvent)=>{if(event.key==='Escape'&&(workflowStep==='scoopMode'||workflowStep==='holdingSpoon')){scoopStartRef.current=null;pourStartRef.current=null;setIsJarOpen(false);onStepChange('idle');onMessageUpdate('Đã cất thìa và trả muối về hũ.');}};
@@ -231,11 +244,8 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
           py <= jarRect.bottom + 20;
         setIsHoveringJarMouth(inJar);
         if (inJar && saltSpoons < MAX_SALT_SPOONS) {
-          if (!scoopStartRef.current) scoopStartRef.current = {x: px, y: py};
-          if (Math.hypot(px - scoopStartRef.current.x, py - scoopStartRef.current.y) > 24) {
-            scoopStartRef.current = null;
-            handleScoopClick();
-          }
+          scoopStartRef.current = null;
+          handleScoopClick();
         } else scoopStartRef.current = null;
       }
 
@@ -246,7 +256,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
       }
       if (workflowStep === 'stirring') {
         const isInsideWater = checkPointInWater(px, py);
-        setIsInWaterState(isInsideWater);
+        if(!isInsideWater)setIsInWaterState(false);
 
         if (isInsideWater && lastStirPosRef.current.wasInside) {
           // CHỈ TÍNH QUÃNG ĐƯỜNG KHI CẢ ĐIỂM TRƯỚC VÀ ĐIỂM NÀY ĐỀU Ở TRONG NƯỚC
@@ -257,6 +267,9 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
 
           // Lọc các bước nhảy bất thường (> 70px)
           if (dist > 1.5 && dist < 70) {
+            setIsInWaterState(true);
+            if(stirIdleTimer.current)clearTimeout(stirIdleTimer.current);
+            stirIdleTimer.current=setTimeout(()=>setIsInWaterState(false),140);
             setStirWobble((prev) => prev + dist * 0.6);
 
             // Âm thanh khuấy nước
@@ -267,13 +280,16 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
             }
 
             const nowStir = performance.now();
-            if (!stirringStartedRef.current) stirringStartedRef.current = nowStir;
+            if (!stirringStartedRef.current) {stirringStartedRef.current = nowStir;lastVisualMotionRef.current=nowStir;}
             if (nowStir - lastVisualStirRef.current > 110) {
               onStirAtScreenPoint?.(px, py); lastVisualStirRef.current = nowStir;
             }
-            const deltaProgress = dist * 0.18;
+            const elapsed = Math.min(80, Math.max(0, nowStir-lastVisualMotionRef.current));
+            lastVisualMotionRef.current=nowStir;
+            const duration = saltSpoons < 1 ? 3000 : saltSpoons < 2 ? 5000 : 8000;
+            const deltaProgress = Math.min(dist * 0.2, elapsed * 100 / duration);
             const previousProgress = progressRef.current;
-            const nextProgress = Math.min(nowStir - stirringStartedRef.current > 1500 ? 100 : 95, previousProgress + deltaProgress);
+            const nextProgress = Math.min(nowStir - stirringStartedRef.current >= duration ? 100 : 95, previousProgress + deltaProgress);
             progressRef.current = nextProgress;
             onStirProgressUpdate(nextProgress);
 
@@ -344,17 +360,12 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
 
   if (visualOnly) return <>
     <div className="lab-salt">
-      <button ref={saltTriggerRef} aria-label="Mở hũ muối" aria-expanded={isJarOpen} disabled={disabled || isJarOpen} className="lab-salt-trigger" onClick={event=>{setIsJarOpen(true);setPointerPos({x:event.clientX,y:event.clientY});if(!isMaxSpoons)onStepChange('scoopMode');onMessageUpdate('Hũ muối đã mở. Con đưa thìa vào hũ rồi kéo để xúc muối nhé.');}}>🧂</button>
+      <button ref={saltTriggerRef} aria-label="Mở hũ muối" aria-expanded={isJarOpen} disabled={disabled || isJarOpen} className="lab-salt-trigger flex items-center justify-center" onClick={event=>{setIsJarOpen(true);setPointerPos({x:event.clientX,y:event.clientY});if(!isMaxSpoons){onDoseChange?.(1);onStepChange('scoopMode');}onMessageUpdate('Hũ muối đã mở. Con đưa thìa vào hũ rồi kéo để xúc muối nhé.');}}><span className="block w-12 h-14"><SaltJar/></span></button>
       {isJarOpen && createPortal(<div className="lab-salt-popover" style={jarPosition} role="group" aria-label="Hũ muối đang mở">
         <button aria-label="Đóng hũ muối" disabled={workflowStep==='pouring'||workflowStep==='stirring'} className="self-end min-h-[44px] min-w-[44px] rounded-full text-xl" onClick={()=>{setIsJarOpen(false);onStepChange('idle');}}>✕</button>
-        <div ref={jarMouthRef} role="button" aria-label="Xúc một thìa muối" tabIndex={0} onClick={handleScoopClick} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();handleScoopClick();}}} className="relative w-28 h-36 rounded-3xl border-4 border-sky-200 bg-sky-50/60 cursor-pointer flex items-end p-2 shadow-lg">
-          <div className="absolute -top-4 right-0 w-20 h-5 rounded-xl bg-amber-700 -rotate-12"/>
-          <div className="w-full h-24 rounded-t-2xl rounded-b-xl bg-gradient-to-b from-white to-slate-200 border-t-2 border-white shadow-inner"/>
+        <div ref={jarMouthRef} role="button" aria-label="Xúc một thìa muối" tabIndex={0} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();handleScoopClick();}}} className="relative w-28 h-36 cursor-pointer drop-shadow-lg"><SaltJar open/>
         </div>
-        {(workflowStep==='idle'||workflowStep==='scoopMode')&&onDoseChange&&<div className="flex gap-2 w-full">
-          {[0.5,1].map(amount=><button key={amount} aria-label={amount===0.5?'Nửa thìa muối':'Đầy thìa muối'} aria-pressed={spoonFraction===amount} onClick={()=>onDoseChange(amount)} className={`flex-1 min-h-[52px] rounded-2xl flex items-center justify-center gap-1 ${spoonFraction===amount?'bg-amber-100 ring-2 ring-amber-300':'bg-white'}`}><span className="text-2xl" aria-hidden="true">🥄</span><svg width="20" height="20" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="#e2e8f0"/>{amount===1?<circle cx="10" cy="10" r="8" fill="#ffffff" stroke="#94a3b8"/>:<path d="M10 2A8 8 0 0 0 10 18Z" fill="white" stroke="#94a3b8"/>}</svg></button>)}
-        </div>}
-        {(workflowStep==='holdingSpoon'||workflowStep==='scoopMode')&&<button className="min-h-[48px] rounded-xl bg-white px-3 font-bold" onClick={()=>{setIsJarOpen(false);scoopStartRef.current=null;pourStartRef.current=null;onStepChange('idle');}}>Cất thìa</button>}
+        {(workflowStep==='holdingSpoon'||workflowStep==='scoopMode')&&<button aria-label="Cất thìa" className="min-h-[48px] rounded-xl bg-white px-3 font-bold" onClick={()=>{setIsJarOpen(false);scoopStartRef.current=null;pourStartRef.current=null;onStepChange('idle');}}><span aria-hidden="true" className="text-2xl">↩</span></button>}
         {workflowStep==='stirring'&&<div role="progressbar" aria-label="Muối đang tan" aria-valuenow={Math.round(activeStirProgress)} aria-valuemin={0} aria-valuemax={100} className="w-full h-3 rounded-full bg-sky-100 overflow-hidden"><div className="h-full rounded-full bg-cyan-400" style={{width:`${activeStirProgress}%`}}/></div>}
         {isMaxSpoons&&<button aria-label="Thay nước ngọt" className="min-h-[52px] min-w-[52px] text-3xl" onClick={handleResetWithCleanup}>🚰</button>}
       </div>, document.body)}
@@ -406,7 +417,6 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
         {/* Khối Hũ Muối Thủy Tinh Lớn */}
         <div
           ref={jarMouthRef}
-          onClick={handleScoopClick}
           role="button"
           aria-label="Xúc một thìa muối"
           tabIndex={workflowStep === 'scoopMode' || workflowStep === 'idle' ? 0 : -1}
@@ -422,37 +432,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
               : 'Hũ muối thí nghiệm'
           }
         >
-          {/* Nắp hũ đã mở đặt lệch cạnh trên */}
-          <div className="absolute top-0 right-2 -rotate-12 w-24 h-6 rounded-xl bg-amber-800 border-2 border-amber-600 shadow-md flex items-center justify-center z-10">
-            <span className="text-[9px] font-bold text-amber-200">NẮP ĐÃ MỞ</span>
-          </div>
-
-          {/* Cổ và miệng hũ muối thủy tinh */}
-          <div
-            className={`w-28 h-5 rounded-t-xl border-x-2 border-t-2 border-sky-300/80 bg-sky-100/50 relative transition-all ${
-              isHoveringJarMouth && workflowStep === 'scoopMode'
-                ? 'ring-4 ring-amber-400 bg-amber-100/60 animate-pulse'
-                : ''
-            }`}
-          >
-            <div className="absolute inset-x-2 bottom-0 h-2 rounded-t-full bg-white/90 shadow-inner" />
-          </div>
-
-          {/* Thân hũ thủy tinh trong suốt chứa đầy muối tinh */}
-          <div className="w-36 h-[152px] rounded-b-3xl border-4 border-sky-300/80 bg-gradient-to-b from-sky-50/40 via-white/80 to-slate-100 relative overflow-hidden shadow-2xl flex flex-col justify-end p-2.5">
-            <div className="w-full h-28 rounded-t-2xl bg-gradient-to-b from-white via-slate-50 to-slate-200 border-t-2 border-slate-200 shadow-inner flex flex-col items-center justify-center p-1.5 relative">
-              <span className="text-[10px] font-black text-amber-900 tracking-wider">MUỐI TINH</span>
-              <span className="text-[8px] text-amber-700 font-medium">Muối trắng</span>
-
-              <div className="absolute top-2 left-3 w-1.5 h-1.5 rounded-full bg-sky-200 opacity-70 animate-ping" />
-              <div
-                className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full bg-amber-200 opacity-70 animate-ping"
-                style={{ animationDelay: '0.6s' }}
-              />
-            </div>
-
-            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/40 to-transparent pointer-events-none" />
-          </div>
+          <div className={`w-36 h-44 rounded-2xl ${isHoveringJarMouth?'ring-4 ring-amber-300':''}`}><SaltJar open/></div>
 
           {workflowStep === 'scoopMode' && (
             <div className="absolute -bottom-2 px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-extrabold text-[10px] shadow-lg animate-bounce whitespace-nowrap z-20">

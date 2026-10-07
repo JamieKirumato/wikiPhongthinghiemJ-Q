@@ -46,7 +46,7 @@ export function WaterPitcher({disabled,onActive,onAdd,checkMouth,teacher,onFlow,
       <PitcherIcon/>
       {teacher&&<span className="text-sm">Giữ và đưa bình lên miệng bể để rót; buông để dừng</span>}
     </button>
-    {hand&&<div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[120] rounded-2xl bg-white shadow-lg border border-sky-200 p-2 flex items-center gap-3"><span className="text-sm">{hand.pouring?'Đang rót nước':'Đưa miệng bình lên trên bể'}</span><button onPointerDown={e=>{e.stopPropagation();cleanupRef.current?.();}} onClick={()=>cleanupRef.current?.()} className="min-h-[48px] rounded-xl bg-sky-100 px-3 font-bold">Đặt bình xuống</button></div>}
+    {hand&&<div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[120] rounded-2xl bg-white shadow-lg border border-sky-200 p-2 flex items-center gap-3">{teacher&&<span className="text-sm">{hand.pouring?'Đang rót nước':'Đưa miệng bình lên trên bể'}</span>}<button aria-label="Đặt bình xuống" onPointerDown={e=>{e.stopPropagation();cleanupRef.current?.();}} onClick={()=>cleanupRef.current?.()} className="min-h-[48px] rounded-xl bg-sky-100 px-3 font-bold">{teacher?'Đặt bình xuống':<span aria-hidden="true" className="text-2xl">↩</span>}</button></div>}
     {hand?.pouring&&hand.target&&<WaterStream from={pitcherSpout(hand.x,hand.y)} to={hand.target}/>}
     {hand&&<div aria-hidden="true" className="fixed pointer-events-none z-50" style={{left:hand.x-35,top:hand.y-65}}><div style={{transform:hand.pouring?'rotate(-65deg)':'rotate(-15deg)'}}><PitcherIcon/></div></div>}
   </>;

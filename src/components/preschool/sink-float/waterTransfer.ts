@@ -24,3 +24,15 @@ export function mergeSpill(spills:FloorSpill[],x:number,z:number,ml:number):Floo
 export function nearestHandTarget(candidates:Array<{id:string;x:number;y:number;radius:number}>,x:number,y:number){
   return candidates.filter(c=>Math.hypot(c.x-x,c.y-y)<=c.radius).sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0]?.id;
 }
+
+export type BucketSupply={ml:number;grams:number;fullBuckets:Array<{ml:number;grams:number}>};
+/** Keep every full bucket and immediately provide another empty receiving bucket. */
+export function fillBucketSupply(current:BucketSupply,water:{ml:number;grams:number},capacity=600):BucketSupply {
+  let ml=current.ml+Math.max(0,water.ml),grams=current.grams+Math.max(0,water.grams);
+  const fullBuckets=[...current.fullBuckets];
+  while(ml>=capacity-.000001){
+    const amount=Math.min(capacity,ml),salt=ml>0?grams*amount/ml:0;
+    fullBuckets.push({ml:amount,grams:salt});ml=Math.max(0,ml-amount);grams=Math.max(0,grams-salt);
+  }
+  return {ml,grams,fullBuckets};
+}

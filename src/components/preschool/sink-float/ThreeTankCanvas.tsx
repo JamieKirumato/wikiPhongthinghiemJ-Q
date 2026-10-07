@@ -1,3 +1,4 @@
+import {overflowOutlets} from './overflowVisual';
 import {freshComparisonItem} from './comparisonTrial';
 import { tankCameraDistance } from './cameraFraming';
 import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
@@ -114,7 +115,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     ref
   ) => {
     const [dropPreview,setDropPreview]=useState<{x:number;y:number;inside:boolean}|null>(null);
-    const overflowRef=useRef<THREE.Mesh|null>(null);
+    const overflowRef=useRef<THREE.Group|null>(null);
     const overflowTimeRef=useRef(overflowAt);overflowTimeRef.current=overflowAt;
     const puddlesRef=useRef<THREE.Group|null>(null);
     const spillsRef=useRef(floorSpills);spillsRef.current=floorSpills;
@@ -412,19 +413,21 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         liveSaltCountRef.current = Math.min(200, count);
         const d = dimsRef.current;
         const spawnX = center ? center.x : 0;
-        const spawnY = d.height + 0.3;
+        const spawnY = (center?.y ?? d.height) + 0.15;
         const spawnZ = center ? center.z : 0;
 
         for (let i = 0; i < count; i++) {
           const idx = (i % 200) * 3;
-          positions[idx] = spawnX + (Math.random() - 0.5) * 0.8;
-          positions[idx + 1] = spawnY + Math.random() * 0.5;
-          positions[idx + 2] = spawnZ + (Math.random() - 0.5) * 0.8;
+          positions[idx] = spawnX + (Math.random() - 0.5) * 0.28;
+          positions[idx + 1] = spawnY + (i / Math.max(1,count)) * 1.4;
+          positions[idx + 2] = spawnZ + (Math.random() - 0.5) * 0.28;
 
           velocities[idx] = (Math.random() - 0.5) * 0.25;
           velocities[idx + 1] = -(Math.random() * 2.2 + 2.4);
           velocities[idx + 2] = (Math.random() - 0.5) * 0.25;
         }
+        (saltParticlesGroupRef.current.geometry.getAttribute('grainSize') as THREE.BufferAttribute).array.fill(1);
+        saltParticlesGroupRef.current.geometry.getAttribute('grainSize').needsUpdate=true;
         saltParticlesGroupRef.current.geometry.attributes.position.needsUpdate = true;
       },
 
@@ -447,7 +450,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       clearDropPreview:()=>setDropPreview(null),
       dropItemAtTankCenter:(item)=>{
         if(inputLockedRef.current||workflowStepRef.current!=='idle')return;
-        const next=itemsRef.current.map(i=>i.id===item.id?{...i,inTank:true,outsideTank:false,status:'falling' as const,settled:false,x:0,z:0,y:dimsRef.current.height+.8,vx:0,vy:0,vz:0}:i);
+        const next=itemsRef.current.map(i=>i.id===item.id?{...i,inTank:true,outsideTank:false,status:'falling' as const,settled:false,x:0,z:0,y:dimsRef.current.height+.8,vx:0,vy:0,vz:0,vRot:itemKind(i.id)==='item-leaf'?45:['item-spoon','item-keys'].includes(itemKind(i.id))?85:0}:i);
         itemsRef.current=next;onUpdateItems(next);setDropPreview(null);
       },
       previewDropAtScreenPos:(item,screenX,screenY,screenVelocity)=>{
@@ -528,6 +531,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
                   vx,
                   vy,
                   vz,
+                  vRot: itemKind(i.id)==='item-leaf' ? Math.max(-90,Math.min(90,40+vx*12)) : ['item-spoon','item-keys'].includes(itemKind(i.id)) ? Math.max(60,Math.min(240,60+Math.hypot(vx,vz,vy)*25))*(vx<0?-1:1) : i.vRot,
                   settled: false,
                   status: 'falling',
                   outsideTank: startsOutside
@@ -562,8 +566,11 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       },
       setSaltDissolveProgress: (progress: number) => { dissolveProgressRef.current = progress; },
       stirAtScreenPoint: (x: number, y: number, strength = 1) => {
-        const point = projectScreenToWorldInternal(x, y, 0);
-        if (!point) return;
+        if(!mountRef.current||!cameraRef.current)return;
+        const rect=mountRef.current.getBoundingClientRect();
+        raycasterRef.current.setFromCamera(new THREE.Vector2((x-rect.left)/rect.width*2-1,-(y-rect.top)/rect.height*2+1),cameraRef.current);
+        const point=new THREE.Vector3();
+        if(!raycasterRef.current.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-(waterSurfaceMeshRef.current?.position.y??baseWaterLevelRef.current)),point))return;
         if (!isPointInsideFootprint(point.x, point.z, shapeRef.current, dimsRef.current)) return;
         if (performance.now() - lastWaterGestureRef.current.time < 90) return;
         lastWaterGestureRef.current.time = performance.now();
@@ -706,13 +713,20 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         saltPositions[i * 3 + 1] = -999;
       }
       saltGeom.setAttribute('position', new THREE.BufferAttribute(saltPositions, 3));
+      saltGeom.setAttribute('grainSize',new THREE.BufferAttribute(new Float32Array(maxSaltCount).fill(1),1));
       const saltMat = new THREE.PointsMaterial({
         color: 0xffffff,
-        size: 0.14,
+        size: 0.19,
         transparent: true,
         opacity: 0.95
       });
+      saltMat.depthWrite=false;
+      saltMat.onBeforeCompile=shader=>{
+        shader.vertexShader='attribute float grainSize;\n'+shader.vertexShader;
+        shader.vertexShader=shader.vertexShader.replace('gl_PointSize = size;', 'gl_PointSize = size * grainSize;');
+      };
       const saltPoints = new THREE.Points(saltGeom, saltMat);
+      saltPoints.frustumCulled=false;
       saltPoints.renderOrder = 3;
       scene.add(saltPoints);
       saltParticlesGroupRef.current = saltPoints;
@@ -1161,7 +1175,16 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         // TÍNH THỂ TÍCH PHẦN CHÌM THỰC TẾ (SUBMERGED VOLUME)
         const currentTankItems = itemsRef.current;
         if(overflowTimeRef.current>0&&currentTime-overflowTimeRef.current<350){
-          if(!overflowRef.current){const edge=clampToTankBoundary(0,d.depth,0,s,d);const curve=new THREE.QuadraticBezierCurve3(new THREE.Vector3(edge.x,d.height-.08,edge.z),new THREE.Vector3(0,d.height*.45,d.depth*.7),new THREE.Vector3(0,-.58,d.depth*.7));const mesh=new THREE.Mesh(new THREE.TubeGeometry(curve,20,.075,8,false),new THREE.MeshBasicMaterial({color:0x8be5ef,transparent:true,opacity:.75}));scene?.add(mesh);overflowRef.current=mesh;}
+          if(!overflowRef.current){
+            const group=new THREE.Group();
+            for(const edge of overflowOutlets(s,d)){
+              const endX=edge.x+edge.nx*.65,endZ=edge.z+edge.nz*.65;
+              const curve=new THREE.QuadraticBezierCurve3(new THREE.Vector3(edge.x,d.height-.08,edge.z),new THREE.Vector3(endX,d.height*.7,endZ),new THREE.Vector3(endX,-.58,endZ));
+              group.add(new THREE.Mesh(new THREE.TubeGeometry(curve,12,.045,5,false),new THREE.MeshBasicMaterial({color:0x8be5ef,transparent:true,opacity:.55,depthWrite:false})));
+            }
+            scene?.add(group);overflowRef.current=group;
+          }
+          overflowRef.current.children.forEach((child,i)=>{((child as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity=.45+.12*Math.sin(currentTime*.012+i);});
         }else if(overflowRef.current){scene?.remove(overflowRef.current);disposeItemModel(overflowRef.current);overflowRef.current=null;}
         if(renderedSpillsRef.current!==spillsRef.current){
           if(puddlesRef.current){scene?.remove(puddlesRef.current);disposeItemModel(puddlesRef.current);}
@@ -1222,20 +1245,24 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         if (saltDataRef.current && saltParticlesGroupRef.current) {
           const { positions, velocities } = saltDataRef.current;
           let needsUpdate = false;
+          const grainSizes=saltParticlesGroupRef.current.geometry.getAttribute('grainSize') as THREE.BufferAttribute;
           for (let i = 0; i < 200; i++) {
             const idx = i * 3;
             if (positions[idx + 1] >= 0.05) {
-              if (i / liveSaltCountRef.current < dissolveProgressRef.current / 100) { positions[idx + 1] = -999; needsUpdate = true; continue; }
+              const remaining=Math.max(0,Math.min(1,(1-dissolveProgressRef.current/100)*1.8-(i/Math.max(1,liveSaltCountRef.current))*.8));
+              grainSizes.setX(i,remaining);
+              if(remaining<=.01){positions[idx+1]=-999;needsUpdate=true;continue;}
               positions[idx] += velocities[idx] * dt;
               positions[idx + 1] += velocities[idx + 1] * dt;
               positions[idx + 2] += velocities[idx + 2] * dt;
 
-              velocities[idx + 1] -= 0.65 * dt;
-              if (positions[idx + 1] > d.waterHeight) velocities[idx + 1] = -0.4;
+              const surface=waterSurfaceMeshRef.current?.position.y??d.waterHeight;
+              if(positions[idx+1]>surface)velocities[idx+1]-=3.2*dt;
+              else {velocities[idx+1]=Math.max(-.35,velocities[idx+1]-.2*dt);velocities[idx]*=Math.exp(-dt*.6);velocities[idx+2]*=Math.exp(-dt*.6);}
               const bounded = clampToTankBoundary(positions[idx], positions[idx + 2], 0.02, s, d);
               positions[idx] = bounded.x; positions[idx + 2] = bounded.z;
-              if (positions[idx + 1] <= 0.08) {
-                positions[idx + 1] = 0.08;
+              if (positions[idx + 1] <= sandHeight(d)+0.06) {
+                positions[idx + 1] = sandHeight(d)+0.06;
                 velocities[idx] = 0;
                 velocities[idx + 1] = 0;
                 velocities[idx + 2] = 0;
@@ -1245,6 +1272,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           }
           if (needsUpdate) {
             saltParticlesGroupRef.current.geometry.attributes.position.needsUpdate = true;
+            grainSizes.needsUpdate=true;
           }
         }
 
@@ -1314,7 +1342,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             const targetY=Math.max(itemR+sandHeight(d),floatingCenterY(itemR,effectiveWaterHeight,Math.max(.01,itemDensity/currentWaterDensity)));
             const safe=clampToTankBoundary(item.x,item.z,itemR,s,d);
             const mesh=itemMeshesRef.current.get(item.id);
-            if(mesh) mesh.position.set(safe.x,targetY+Math.sin(currentTime*.0015+safe.x)*.006,safe.z);
+            if(mesh){mesh.position.set(safe.x,targetY+Math.sin(currentTime*.0015+safe.x)*.006,safe.z);if(itemKind(item.id)==='item-leaf')mesh.traverse(child=>{if(child instanceof THREE.Sprite)child.material.rotation=THREE.MathUtils.degToRad(78+Math.sin(currentTime*.0015+safe.x)*3);});}
             if(Math.abs(targetY-item.y)>.005||safe.x!==item.x||safe.z!==item.z) {itemsChanged=true;return {...item,...safe,y:targetY,vy:0};}
             return item;
           }
@@ -1376,6 +1404,10 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             }
             // Nằm trong nước
             if (willFloat) {
+              if(itemKind(item.id)==='item-leaf'){
+                const targetAngle=78+Math.sin(currentTime*.0015+x)*3;
+                angle+=(targetAngle-angle)*(1-Math.exp(-2.2*dt));vRot*=Math.exp(-3*dt);
+              }
               const submergedFraction = Math.min(1.0, Math.max(0.01, itemDensity / currentWaterDensity));
               // Vị trí cân bằng để quả trứng NỔI NHÔ HẲN LÊN KHỎI MẶT NƯỚC (visibly breaks surface)
               const targetY = floatingCenterY(itemR, effectiveWaterHeight, submergedFraction);
@@ -1406,7 +1438,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
               itemsChanged = true;
             } else {
               // Vật nặng chìm xuống đáy cát
-              const sinking=advanceSinking(y,vy,dt,itemDensity,currentWaterDensity,sinkingDrag(item.id,item.weightGrams,item.volumeMl));
+              if(['item-spoon','item-keys'].includes(itemKind(item.id))){angle+=vRot*dt;vRot*=Math.exp(-.55*dt);}
+              const sinking=advanceSinking(y,itemKind(item.id)==='item-marble'?Math.max(-1.2,vy):vy,dt,itemDensity,currentWaterDensity,sinkingDrag(item.id,item.weightGrams,item.volumeMl));
               vy=sinking.vy; y=sinking.y;
 
               vx *= 1 - 4.0 * dt;
@@ -1423,6 +1456,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
                 vy = 0;
                 vx = 0;
                 vz = 0;
+                if(['item-spoon','item-keys'].includes(itemKind(item.id)))angle=(vRot<0?-1:1)*(itemKind(item.id)==='item-spoon'?82:62);
                 vRot = 0;
                 if (!settled) {
                   settled = true;
@@ -1446,6 +1480,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           const mesh = itemMeshesRef.current.get(item.id);
           if (mesh && camera) {
             mesh.position.set(x, y, z);
+            if(mesh.userData.photoAsset)mesh.traverse(child=>{if(child instanceof THREE.Sprite)child.material.rotation=THREE.MathUtils.degToRad(angle);});
             mesh.rotation.set(0.05, Math.sin(currentTime * 0.0003 + x) * 0.12, THREE.MathUtils.degToRad(angle));
           }
 
@@ -1737,7 +1772,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           const submerged=!item.outsideTank && item.y-radius<=displayedWaterLevelRef.current;
           const status:TankObject['status']=submerged ? (item.weightGrams/item.volumeMl<=waterDensityRef.current?'floating':'sunk'):'falling';
           const safe=clampToTankBoundary(item.x,item.z,radius,shapeRef.current,dimsRef.current);
-          return {...item,x:safe.x,z:safe.z,outsideTank:false,vx:right.x*v.vx*0.005,vz:right.z*v.vx*0.005,vy:-v.vy*0.006,settled:false,status};
+          return {...item,x:safe.x,z:safe.z,outsideTank:false,vRot:itemKind(item.id)==='item-leaf'?Math.max(-90,Math.min(90,40+v.vx*.12)):['item-spoon','item-keys'].includes(itemKind(item.id))?Math.max(60,Math.min(240,Math.hypot(v.vx,v.vy)*.3))*(v.vx<0?-1:1):item.vRot,vx:right.x*v.vx*0.005,vz:right.z*v.vx*0.005,vy:-v.vy*0.006,settled:false,status};
         });
         itemsRef.current=next; onUpdateItems(next); onMessageUpdate('Con vừa buông tay. Hãy quan sát vật sẽ đi đâu nhé!');
       }

@@ -6,7 +6,7 @@ import {TankObject,TankShape,TankScale,InteractionMode} from './types';
 import {freshComparisonItem} from './comparisonTrial';
 import {SceneSetting} from './SceneBackdrop';
 
-export function ComparisonTank({presets,sceneSetting,pairedShape,pairedScale,trial}:{presets:TankObject[];sceneSetting:SceneSetting;pairedShape?:TankShape;pairedScale?:TankScale;trial?:{token:number;item:TankObject}}){
+export function ComparisonTank({presets,sceneSetting,pairedShape,pairedScale,trial,visualOnly=false}:{visualOnly?:boolean;presets:TankObject[];sceneSetting:SceneSetting;pairedShape?:TankShape;pairedScale?:TankScale;trial?:{token:number;item:TankObject}}){
   const [ownShape,setShape]=useState<TankShape>('square'),[ownScale,setScale]=useState<TankScale>('normal');
   const shape=pairedShape??ownShape,scale=pairedScale??ownScale,paired=!!pairedShape;
   const [items,setItems]=useState<TankObject[]>(()=>presets.map(i=>({...i})));
@@ -32,7 +32,7 @@ export function ComparisonTank({presets,sceneSetting,pairedShape,pairedScale,tri
     cleanup.current=cancel;window.addEventListener('pointermove',move);window.addEventListener('pointerup',up);window.addEventListener('pointercancel',cancel);window.addEventListener('blur',cancel);window.addEventListener('keydown',key);
   };
   return <section aria-label="Bể so sánh thứ hai" className="flex-1 min-w-0 min-h-0 flex flex-col rounded-3xl border-2 border-violet-300 bg-violet-50 overflow-hidden">
-    <div className="flex flex-wrap items-center gap-2 p-2 text-sm">
+    {!visualOnly&&<div className="flex flex-wrap items-center gap-2 p-2 text-sm">
       <strong>{paired?'Bể B · Nước ngọt':'Bể 2'}</strong>
       {!paired&&<>
       <select aria-label="Hình dạng bể 2" value={shape} disabled={paired||!!held||!!selected} onChange={e=>setShape(e.target.value as TankShape)} className="min-h-[44px] rounded-xl bg-white px-2">
@@ -40,10 +40,10 @@ export function ComparisonTank({presets,sceneSetting,pairedShape,pairedScale,tri
       </select>
       <select aria-label="Kích thước bể 2" value={scale} disabled={paired||!!held||!!selected} onChange={e=>setScale(e.target.value as TankScale)} className="min-h-[44px] rounded-xl bg-white px-2"><option value="normal">Bể to</option><option value="compact">Bể nhỏ</option></select>
       <button disabled={paired} onClick={reset} className="min-h-[44px] px-2 rounded-xl bg-white">Dọn bể 2</button></>}
-    </div>
+    </div>}
     <div ref={scene} role="group" aria-label="Bể 2: nhấn Enter để thả vật đang chọn" tabIndex={0} className="relative flex-1 min-h-[140px]" onClick={e=>{if(selected&&!cleanup.current)drop(selected,e.clientX,e.clientY);}} onKeyDown={e=>{if(e.key==='Enter'&&selected){const r=scene.current?.getBoundingClientRect();if(r)drop(selected,r.left+r.width/2,r.top+r.height*.18);}}}>
       <ThreeTankCanvas ref={tank} shape={shape} scale={scale} dims={dims} sceneSetting={sceneSetting} items={items} onUpdateItems={setItems} waterDensity={1} interactionMode={interaction} onInteractionModeChange={setInteraction} holdingItemId={held} onHoldItem={setHeld} carryingTrayItem={!!selected} workflowStep="idle" onPourSaltAtPoint={()=>{}} soundEnabled onMessageUpdate={setMessage} showXRay={false}/>
     </div>
-    <div className="max-h-[170px] overflow-y-auto p-2"><p className="text-xs mb-1" role="status">{paired?'Bể B giữ nước ngọt để con so sánh.':message}</p>{!paired&&<ObjectBasket items={items.filter(i=>!i.inTank)} selectedId={selected?.id||null} showLabels={false} onPick={pick} onKeyboardPick={item=>{if(!held)setSelected(item);}}/>}</div>
+    <div className="max-h-[170px] overflow-y-auto p-2">{!visualOnly&&<p className="text-xs mb-1" role="status">{paired?'Bể B giữ nước ngọt để con so sánh.':message}</p>}{!paired&&<ObjectBasket items={items.filter(i=>!i.inTank)} selectedId={selected?.id||null} showLabels={false} onPick={pick} onKeyboardPick={item=>{if(!held)setSelected(item);}}/>}</div>
   </section>;
 }

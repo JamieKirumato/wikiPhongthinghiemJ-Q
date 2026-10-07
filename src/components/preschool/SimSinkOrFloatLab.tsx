@@ -1,3 +1,4 @@
+import {overflowOutlets} from './sink-float/overflowVisual';
 import {freshComparisonItem} from './sink-float/comparisonTrial';
 import { ComparisonTank } from './sink-float/ComparisonTank';
 import { StartScreen } from './sink-float/StartScreen';
@@ -41,7 +42,7 @@ import { brineDensity, waterVolumeMl, SALT_GRAMS_PER_SPOON, MAX_SALT_SPOONS } fr
 import { SaltWorkflow } from './sink-float/SaltWorkflow';
 import { WaterPitcher } from './sink-float/WaterPitcher';
 import {FloorMop} from './sink-float/FloorMop';
-import {FloorSpill,mergeSpill,splitOverflow,waterCapacity} from './sink-float/waterTransfer';
+import {BucketSupply,fillBucketSupply,FloorSpill,mergeSpill,splitOverflow,waterCapacity} from './sink-float/waterTransfer';
 import { WaterLadle } from './sink-float/WaterLadle';
 import { addedWaterHeight, sandHeight, scoopWater, modelDisplacementVolume } from './sink-float/waterPhysics';
 import { BoatChallenge } from './sink-float/BoatChallenge';
@@ -395,11 +396,42 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const [tankScale, setTankScale] = useState<TankScale>('normal');
   const [overflowAt,setOverflowAt]=useState(0);
   const [floorSpills,setFloorSpills]=useState<FloorSpill[]>([]);
-  const [bucketWater,setBucketWater]=useState({ml:0,grams:0});
+  const [bucketWater,setBucketWater]=useState<BucketSupply>({ml:0,grams:0,fullBuckets:[]});
   const bucketWaterRef=useRef(bucketWater);bucketWaterRef.current=bucketWater;
   const [ladleActive,setLadleActive]=useState(false);
+  const [carriedBucketVisible,setCarriedBucketVisible]=useState(false);
+  const [ladleGuideReady,setLadleGuideReady]=useState(false),[clothGuideReady,setClothGuideReady]=useState(false);
+  const cleanupVoiceRef=useRef<HTMLAudioElement|null>(null);
+  const cleanupGuidedRef=useRef({overflow:false,floor:false});
+  const [clearClothBucketsToken,setClearClothBucketsToken]=useState(0);
+  const floorCleanupRound=useRef(0),celebratingCleanup=useRef(false);
+  const playCleanupGuide=(file:string,done:()=>void,effect=false)=>{
+    if(silentTest||(effect?experience.effectsVolume<=0:!voiceEnabled)){done();return;}
+    speechEngine.stop();
+    const audio=new Audio(`/audio/vi/${file}.${effect?'wav':'mp3'}`);cleanupVoiceRef.current=audio;
+    if(effect)audio.volume=experience.effectsVolume/100;
+    const finish=()=>{if(cleanupVoiceRef.current!==audio)return;cleanupVoiceRef.current=null;done();};
+    audio.onended=finish;audio.onerror=finish;void audio.play().catch(finish);
+  };
+
   const bucketRef=useRef<HTMLDivElement|null>(null);
-  const addFloorWater=(x:number,z:number,ml:number)=>setFloorSpills(prev=>mergeSpill(prev,x,z,ml));
+  const receivingBucketRef=useRef<HTMLDivElement|null>(null);
+  const bucketReadyAfterRef=useRef(0);
+  const floorSpillsRef=useRef(floorSpills);floorSpillsRef.current=floorSpills;
+  const addFloorWater=(x:number,z:number,ml:number)=>{floorCleanupRound.current++;const next=mergeSpill(floorSpillsRef.current,x,z,ml);floorSpillsRef.current=next;setFloorSpills(next);};
+  const completeFloorCleanup=()=>{
+    if(floorSpillsRef.current.length||celebratingCleanup.current)return;
+    celebratingCleanup.current=true;
+    const round=floorCleanupRound.current;
+    playCleanupGuide('floor-cleanup-complete',()=>playCleanupGuide('cleanup-applause',()=>{
+      celebratingCleanup.current=false;
+      if(round!==floorCleanupRound.current||floorSpillsRef.current.length)return;
+      setClearClothBucketsToken(token=>token+1);
+      const empty={ml:0,grams:0,fullBuckets:[]};bucketWaterRef.current=empty;setBucketWater(empty);
+      setCarriedBucketVisible(false);setClothGuideReady(false);
+      cleanupGuidedRef.current={overflow:false,floor:false};
+    },true));
+  };
   const overBucket=(x:number,y:number)=>{const r=bucketRef.current?.getBoundingClientRect();return !!r&&x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom;};
   const [addedWaterMl,setAddedWaterMl]=useState(0);
   const addedWaterRef=useRef(0);
@@ -455,11 +487,28 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     const grams=volume>0?Math.max(0,dissolvedFraction*SALT_GRAMS_PER_SPOON-removedSaltRef.current)*amount/volume:0;
     removedSaltRef.current+=grams;setRemovedSaltGrams(removedSaltRef.current);
   };
+  const spillOverRim=(ml:number)=>{
+    const outlets=overflowOutlets(tankShape,dimensions);
+    for(const edge of outlets)addFloorWater(edge.x+edge.nx*.65,edge.z+edge.nz*.65,ml/outlets.length);
+    setOverflowAt(performance.now());
+  };
+  useEffect(()=>{
+    if(overflowAt<=0||cleanupGuidedRef.current.overflow)return;
+    cleanupGuidedRef.current.overflow=true;
+    playCleanupGuide('overflow-cleanup',()=>setLadleGuideReady(true));
+  },[overflowAt]);
+  useEffect(()=>{
+    if(!floorSpills.length||pouringWater||cleanupGuidedRef.current.floor||cleanupVoiceRef.current)return;
+    if(overflowAt>0&&!ladleGuideReady)return;
+    cleanupGuidedRef.current.floor=true;
+    playCleanupGuide('floor-cleanup',()=>setClothGuideReady(true));
+  },[floorSpills.length,pouringWater,ladleGuideReady,bucketWater.ml,bucketWater.fullBuckets.length]);
+  useEffect(()=>()=>{cleanupVoiceRef.current?.pause();cleanupVoiceRef.current=null;},[]);
   // Displacement by a newly immersed object can overflow a previously full tank too.
   useEffect(()=>{
     const total=waterVolumeMl(tankShape,dimensions)+addedWaterRef.current;
     const overflow=splitOverflow(total,0,tankCapacity).spilled;
-    if(overflow>.01){overflowSalt(overflow,total);addedWaterRef.current-=overflow;setAddedWaterMl(addedWaterRef.current);addFloorWater(0,dimensions.depth*.7,overflow);setOverflowAt(performance.now());}
+    if(overflow>.01){overflowSalt(overflow,total);addedWaterRef.current-=overflow;setAddedWaterMl(addedWaterRef.current);spillOverRim(overflow);}
   },[tankCapacity,tankShape,dimensions]);
 
   // 5. DANH SÁCH ĐỒ VẬT VÀ LỨA TUỔI
@@ -565,6 +614,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
 
   // Chỉ đọc lời dẫn sau cử chỉ tương tác đầu tiên của người dùng
   useEffect(() => {
+    if(cleanupVoiceRef.current)return;
     if (isTeacherMode && introComplete && hasUserInteracted && voiceEnabled && message) {
       speechEngine.speak(message);
     } else if (!isTeacherMode) {
@@ -953,7 +1003,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
         setWorkflowStep('stirring');
         setActiveStirProgress(0);
         setMessage('Con đưa đũa vào nước và khuấy vòng tròn để muối tan dần nhé!');
-      }, 450);
+      }, 1400);
     },
     [workflowStep, soundEnabled, spoonFraction]
   );
@@ -1032,8 +1082,9 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const switchExploration = (next:boolean) => {
     if(pouringWater||holdingItemId||selectedTrayItem||draggingTrayItem||workflowStep!=='idle')return;
     threeTankRef.current?.cancelActiveGesture();handleResetSalt();handleResetAllTank();
-    setAddedWaterMl(0);addedWaterRef.current=0;setBucketWater({ml:0,grams:0});bucketWaterRef.current={ml:0,grams:0};
-    setComparisonTrial(undefined);setComparisonMode(false);setFloorSpills([]);setAdvanced(next);setActivityMode('discovery');
+    floorCleanupRound.current++;celebratingCleanup.current=false;setClearClothBucketsToken(token=>token+1);
+    setAddedWaterMl(0);addedWaterRef.current=0;setBucketWater({ml:0,grams:0,fullBuckets:[]});bucketWaterRef.current={ml:0,grams:0,fullBuckets:[]};
+    setComparisonTrial(undefined);setComparisonMode(false);setFloorSpills([]);setOverflowAt(0);setLadleGuideReady(false);setClothGuideReady(false);cleanupGuidedRef.current={overflow:false,floor:false};cleanupVoiceRef.current?.pause();cleanupVoiceRef.current=null;setAdvanced(next);setActivityMode('discovery');
     setMessage(next?'Con thử thay đổi nước rồi quan sát đồ vật nhé.':STUDENT_PROMPT);
   };
   const comparisonBusy=pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle';
@@ -1067,7 +1118,10 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           : 'relative h-full min-h-0 overflow-hidden'
       }`}
     >
-      {introLocked&&<div className="absolute top-3 left-3 right-3 z-[110] flex items-center gap-2 rounded-2xl bg-white/95 p-3 shadow"><p className="flex-1 text-sm font-bold">{previewIntro?'Xem thử hướng dẫn':STUDENT_PROMPT}</p><button className="min-h-[48px] px-3 rounded-xl bg-sky-100" onClick={()=>setIntroComplete(true)}>Tự thử ngay</button></div>}
+      {introLocked&&<div className={`absolute top-3 right-3 z-[110] flex items-center gap-2 rounded-2xl bg-white/95 p-3 shadow ${isTeacherMode?'left-3':''}`}>
+        {isTeacherMode&&<p className="flex-1 text-sm font-bold">{previewIntro?'Xem thử hướng dẫn':STUDENT_PROMPT}</p>}
+        <button aria-label="Tự thử ngay" className="min-h-[48px] min-w-[48px] px-3 rounded-xl bg-sky-100" onClick={()=>setIntroComplete(true)}>{isTeacherMode?'Tự thử ngay':'▶'}</button>
+      </div>}
       {showExperienceSettings&&<TeacherExperienceSettings settings={experience} onChange={setExperience} onClose={()=>setShowExperienceSettings(false)} onPreview={()=>{setShowExperienceSettings(false);setPreviewIntro(true);setAdvanced(true);setIntroComplete(!selectedIntroGuide(experience).length);}}/>}
       {introLocked && <ChildIntro guide={previewIntro?selectedIntroGuide(experience):STUDENT_GUIDE}
         onCleanup={()=>threeTankRef.current?.showIntroFrame(null,0)}
@@ -1095,7 +1149,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       <div {...(introLocked||showExperienceSettings ? {inert: ''} : {})} aria-hidden={introLocked||showExperienceSettings || undefined} className="lab-workspace">
         <header className="lab-heading">
           <span className="lab-mark" aria-hidden="true"><Waves size={23} strokeWidth={1.7}/></span>
-          <div><span className="lab-eyebrow">PHÒNG KHÁM PHÁ</span><h2>Vật chìm, vật nổi</h2></div>
+          {isTeacherMode&&<div><span className="lab-eyebrow">PHÒNG KHÁM PHÁ</span><h2>Vật chìm, vật nổi</h2></div>}
         </header>
         {/* CỘT TRÁI: KHU VỰC CHƠI CHÍNH (75-80%) */}
         <main className={`lab-main flex-1 min-w-0 flex h-full overflow-hidden gap-2 ${(showSecondTank&&isTeacherMode)||comparisonMode?'flex-col lg:flex-row':'flex-col'}`}>
@@ -1121,11 +1175,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               }}
               className={`lab-scene ${selectedTrayItem || draggingTrayItem ? 'lab-scene-ready' : ''}`}
             >
-              {!isTeacherMode && !comparisonMode && !introLocked && <div className="lab-play-cue" onClick={event=>event.stopPropagation()}>
-                <div role="status" aria-live="polite">{selectedTrayItem || draggingTrayItem ? <>Bé đang cầm một đồ vật.<span>Chạm vào bể để thả, hoặc kéo rồi buông.</span></> : holdingItemId ? <>Bé đã nhặt được vật.<span>Buông để thả lại và quan sát.</span></> : pouringWater ? <>{ladleActive ? 'Bé đang cầm gáo.' : 'Bé đang cầm bình nước.'}<span>{ladleActive ? 'Nhúng gáo vào nước để múc.' : 'Đưa miệng bình lên trên bể để rót.'}</span></> : workflowStep !== 'idle' ? <>Cùng khám phá với muối.<span>{workflowStep==='stirring' ? 'Khuấy và quan sát nước trong bể.' : 'Đưa thìa đến bể để thêm muối.'}</span></> : <>Bé chọn một đồ vật nhé!<span>Chọn vật ở khay rồi chạm vào bể.</span></>}</div>
-                {selectedTrayItem && <button type="button" onClick={()=>{setSelectedTrayItem(null);threeTankRef.current?.clearDropPreview();}} aria-label="Cất vật đang cầm">Cất vật</button>}
-              </div>}
-              {comparisonMode&&<div className="absolute top-2 left-2 z-20 rounded-xl bg-white/95 px-3 py-2 font-bold text-sm">Bể A · {dissolvedFraction>0?'Nước muối':'Nước ngọt'}{workflowStep==='stirring'?' · Đang khuấy':''}</div>}
+              {isTeacherMode&&comparisonMode&&<div className="absolute top-2 left-2 z-20 rounded-xl bg-white/95 px-3 py-2 font-bold text-sm">Bể A · {dissolvedFraction>0?'Nước muối':'Nước ngọt'}{workflowStep==='stirring'?' · Đang khuấy':''}</div>}
               <ThreeTankCanvas
                 ref={threeTankRef}
                 shape={tankShape}
@@ -1151,14 +1201,18 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                 showXRay={showXRay}
                 onItemObserved={handleItemObserved}
               />
-              {(ladleActive||bucketWater.ml>0)&&<div ref={bucketRef} data-water-bucket aria-label="Chậu đựng nước đã múc" className="lab-bucket absolute bottom-5 left-5 z-30 pointer-events-none w-28 h-28">
-                <svg viewBox="0 0 120 120" width="112" height="112" aria-hidden="true"><path d="M17 43 Q60 27 103 43 L93 99 Q60 115 27 99Z" fill="#ffd59c" stroke="#b87838" strokeWidth="4"/><ellipse cx="60" cy="43" rx="43" ry="15" fill="#fff0cf" stroke="#b87838" strokeWidth="4"/>{bucketWater.ml>0&&<ellipse cx="60" cy={56-Math.min(12,bucketWater.ml/60)} rx="35" ry="10" fill="#86dcea" stroke="#d6fbff" strokeWidth="3"/>}<path d="M23 38 C15 5 105 5 97 38" fill="none" stroke="#d09450" strokeWidth="5"/></svg>
-                {isTeacherMode&&<span className="absolute bottom-0 left-2 text-xs font-bold bg-white/90 rounded px-1">{Math.round(bucketWater.ml)} ml</span>}
+              {(carriedBucketVisible||bucketWater.ml>0||bucketWater.fullBuckets.length>0)&&<div ref={bucketRef} data-water-bucket aria-label="Các xô hứng nước" className="lab-bucket absolute bottom-5 left-5 z-30 pointer-events-none flex flex-wrap items-end gap-2 max-w-[calc(100%-40px)]">
+                {bucketWater.fullBuckets.map((_,index)=><div key={index} aria-label="Xô đã đầy" className="relative w-12">
+                  <svg viewBox="0 0 120 120" width="48" height="48" aria-hidden="true"><path d="M17 43L27 99Q60 115 93 99L103 43" fill="#ffd59c" stroke="#b87838" strokeWidth="4"/><ellipse cx="60" cy="43" rx="43" ry="15" fill="#86dcea" stroke="#b87838" strokeWidth="4"/><path d="M23 38C15 5 105 5 97 38" fill="none" stroke="#d09450" strokeWidth="5"/></svg>
+                </div>)}
+                <div ref={receivingBucketRef} key={`receiving-${bucketWater.fullBuckets.length}`} aria-label={bucketWater.ml>0?'Xô đang hứng nước':'Xô trống tiếp theo'} className={`relative w-24 rounded-2xl ${bucketWater.fullBuckets.length>0?'bg-yellow-100/60 ring-4 ring-yellow-200/70':''}`}>
+                  <svg viewBox="0 0 120 120" width="96" height="96" aria-hidden="true"><path d="M17 43 Q60 27 103 43 L93 99 Q60 115 27 99Z" fill="#ffd59c" stroke="#b87838" strokeWidth="4"/><ellipse cx="60" cy="43" rx="43" ry="15" fill="#fff0cf" stroke="#b87838" strokeWidth="4"/>{bucketWater.ml>0&&<ellipse cx="60" cy={85-Math.min(40,bucketWater.ml/15)} rx="35" ry="10" fill="#86dcea" stroke="#d6fbff" strokeWidth="3"/>}<path d="M23 38 C15 5 105 5 97 38" fill="none" stroke="#d09450" strokeWidth="5"/></svg>
+                </div>
               </div>}
             </div>
           )}
 
-          {(isTeacherMode||comparisonMode)&&<div className={showSecondTank||comparisonMode?'flex flex-1 min-w-0 min-h-0':'hidden'}><ComparisonTank presets={comparisonMode?PLAY_ITEMS_PRESETS:basketPresets} sceneSetting={sceneSetting} pairedShape={comparisonMode?tankShape:undefined} pairedScale={comparisonMode?tankScale:undefined} trial={comparisonMode?comparisonTrial:undefined}/></div>}
+          {(isTeacherMode||comparisonMode)&&<div className={showSecondTank||comparisonMode?'flex flex-1 min-w-0 min-h-0':'hidden'}><ComparisonTank visualOnly={!isTeacherMode} presets={comparisonMode?PLAY_ITEMS_PRESETS:basketPresets} sceneSetting={sceneSetting} pairedShape={comparisonMode?tankShape:undefined} pairedScale={comparisonMode?tankScale:undefined} trial={comparisonMode?comparisonTrial:undefined}/></div>}
         </main>
 
         {/* ======================================================== */}
@@ -1179,22 +1233,23 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               onKeyboardPick={item=>{if(!gestureAllowedRef.current)return;const fresh=item.damage?{...item,inTank:false,outsideTank:false,damage:undefined,status:'basket' as const}:item;if(item.damage)setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));const scene=playSceneRef.current?.getBoundingClientRect();if(scene)setDragCursorPos({x:scene.left+scene.width/2,y:scene.top+scene.height*.18});setSelectedTrayItem(fresh);if(scene)threeTankRef.current?.previewDropAtScreenPos(fresh,scene.left+scene.width/2,scene.top+scene.height/2);markUserInteracted();setMessage('Con đang cầm vật. Đưa tay đến chỗ muốn thả nhé.');}}
             />
           </div>}
-          {(selectedTrayItem||draggingTrayItem)&&<button onPointerDown={e=>e.stopPropagation()} onClick={()=>{dragCleanupRef.current?.();activeDragItemRef.current=null;isDraggingRef.current=false;setSelectedTrayItem(null);setDraggingTrayItem(null);threeTankRef.current?.clearDropPreview();}} className="min-h-[48px] rounded-2xl bg-orange-100 font-bold">Đặt vật về khay</button>}
-          {advanced&&desktopComparison&&<button disabled={comparisonBusy} aria-pressed={comparisonMode} onClick={toggleComparison} className="min-h-[52px] rounded-2xl bg-violet-100 px-2 font-bold disabled:opacity-50">{comparisonMode?'Về khám phá tự do':'So sánh nước'}</button>}
+          {(selectedTrayItem||draggingTrayItem)&&<button onPointerDown={e=>e.stopPropagation()} onClick={()=>{dragCleanupRef.current?.();activeDragItemRef.current=null;isDraggingRef.current=false;setSelectedTrayItem(null);setDraggingTrayItem(null);threeTankRef.current?.clearDropPreview();}} className="min-h-[48px] rounded-2xl bg-orange-100 font-bold" aria-label="Đặt vật về khay">{isTeacherMode?'Đặt vật về khay':<span aria-hidden="true" className="text-2xl">🧺↩</span>}</button>}
+          {advanced&&desktopComparison&&<button disabled={comparisonBusy} aria-label="So sánh nước" aria-pressed={comparisonMode} onClick={toggleComparison} className="min-h-[52px] rounded-2xl bg-violet-100 px-2 font-bold disabled:opacity-50">{isTeacherMode?(comparisonMode?'Về khám phá tự do':'So sánh nước'):<span aria-hidden="true" className="text-3xl">{comparisonMode?'🧺':'⚖️🌊'}</span>}</button>}
           {comparisonMode&&<div className="rounded-2xl bg-white border-2 border-violet-200 p-2 space-y-2">
-            <p className="text-sm font-bold">Cùng vật · cùng bể · chỉ đổi muối</p>
-            <select aria-label="Vật dùng để so sánh hai bể" value={comparisonItemId} disabled={comparisonBusy} onChange={e=>setComparisonItemId(e.target.value)} className="w-full min-h-[48px] rounded-xl bg-sky-50 px-2">{PLAY_ITEMS_PRESETS.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select>
-            <button disabled={comparisonBusy} onClick={releaseComparison} className="w-full min-h-[52px] rounded-xl bg-violet-600 text-white font-bold disabled:opacity-50">Thả cùng vật vào hai bể</button>
-            <p className="text-xs">Thử trước, rồi thêm muối và khuấy ở bể A. Bể B giữ nước ngọt; lượng nước giữ nguyên.</p>
+            {isTeacherMode&&<p className="text-sm font-bold">Cùng vật · cùng bể · chỉ đổi muối</p>}
+            {isTeacherMode?<select aria-label="Vật dùng để so sánh hai bể" value={comparisonItemId} disabled={comparisonBusy} onChange={e=>setComparisonItemId(e.target.value)} className="w-full min-h-[48px] rounded-xl bg-sky-50 px-2">{PLAY_ITEMS_PRESETS.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select>:<div className="grid grid-cols-3 gap-1">{PLAY_ITEMS_PRESETS.map(item=><button key={item.id} aria-label={item.name} aria-pressed={comparisonItemId===item.id} disabled={comparisonBusy} onClick={()=>setComparisonItemId(item.id)} className={`rounded-xl bg-white p-1 ${comparisonItemId===item.id?'ring-2 ring-sky-500':''}`}><img src={item.image} alt="" className="w-12 h-12 object-contain"/></button>)}</div>}
+
+            <button disabled={comparisonBusy} aria-label="Thả cùng vật vào hai bể" onClick={releaseComparison} className="w-full min-h-[52px] rounded-xl bg-violet-600 text-white font-bold disabled:opacity-50">{isTeacherMode?'Thả cùng vật vào hai bể':<span aria-hidden="true" className="text-3xl">⬇️⬇️</span>}</button>
+            {isTeacherMode&&<p className="text-xs">Thử trước, rồi thêm muối và khuấy ở bể A. Bể B giữ nước ngọt; lượng nước giữ nguyên.</p>}
           </div>}
           {isTeacherMode&&!comparisonMode&&<button aria-pressed={showSecondTank} onClick={()=>setShowSecondTank(!showSecondTank)} className="min-h-[48px] rounded-2xl bg-violet-100 font-bold">{showSecondTank?'Ẩn bể 2':'Thêm bể 2'}</button>}
           {isTeacherMode&&<button aria-expanded={showGuideModal} onClick={()=>setShowGuideModal(!showGuideModal)} className="min-h-[48px] rounded-2xl bg-amber-100 font-bold">📖 Hướng dẫn</button>}
-          <button disabled={pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle'} aria-pressed={advanced} onClick={()=>switchExploration(!advanced)} className="min-h-[52px] rounded-2xl bg-sky-100 px-2 font-bold disabled:opacity-50">{advanced?'🧺 Thả đồ vật':'🔎 Khám phá thêm'}</button>
-          {advanced&&!comparisonMode&&<p className="text-sm px-2 text-sky-800">Thêm nước, thêm muối rồi khuấy. Con thấy điều gì thay đổi?</p>}
+          <button disabled={pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle'} aria-label={advanced?'Thả đồ vật':'Khám phá thêm'} aria-pressed={advanced} onClick={()=>switchExploration(!advanced)} className="min-h-[52px] rounded-2xl bg-sky-100 px-2 font-bold disabled:opacity-50">{isTeacherMode?(advanced?'🧺 Thả đồ vật':'🔎 Khám phá thêm'):<span aria-hidden="true" className="text-3xl">{advanced?'🧺':'🔎'}</span>}</button>
+          {isTeacherMode&&advanced&&!comparisonMode&&<p className="text-sm px-2 text-sky-800">Thêm nước, thêm muối rồi khuấy. Con thấy điều gì thay đổi?</p>}
           {isTeacherMode&&<button onClick={()=>setShowExperienceSettings(true)} className="min-h-[48px] w-full rounded-2xl border border-sky-200 bg-white font-bold text-sm">Hướng dẫn và âm thanh</button>}
           {isTeacherMode && <div className="text-sm px-2 text-sky-800">Lượng nước trong bể: {Math.round(waterVolumeMl(tankShape,dimensions)+addedWaterMl)} ml</div>}
           <div className="lab-tools" aria-label="Dụng cụ thí nghiệm">
-          {advanced && !comparisonMode && (activityMode==='discovery'||activityMode==='egg-challenge') && <WaterPitcher
+          {(advanced||ladleGuideReady) && !comparisonMode && (activityMode==='discovery'||activityMode==='egg-challenge') && <WaterPitcher
             disabled={comparisonMode || introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}
             teacher={isTeacherMode} onActive={setPouringWater}
             flowRate={waterVolumeMl(tankShape,dimensions)*.1}
@@ -1207,11 +1262,12 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               const result=splitOverflow(total,0,capRef.current);
               overflowSalt(result.spilled,total);
               addedWaterRef.current=result.kept-base;setAddedWaterMl(addedWaterRef.current);
-              if(result.spilled>0){addFloorWater(0,dimensions.depth*.7,result.spilled);setOverflowAt(performance.now());}
+              if(result.spilled>0){spillOverRim(result.spilled);}
               return amount;
             }}/>
           }
-          {advanced && !comparisonMode && (activityMode==='discovery'||activityMode==='egg-challenge') && <WaterLadle
+          {(advanced||ladleGuideReady) && !comparisonMode && (activityMode==='discovery'||activityMode==='egg-challenge') && <WaterLadle
+            highlighted={ladleGuideReady&&!ladleActive} isBucket={overBucket} canPourBucket={()=>performance.now()>=bucketReadyAfterRef.current} onCarriedOutside={setCarriedBucketVisible}
             disabled={comparisonMode || introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}
             teacher={isTeacherMode} capacity={waterVolumeMl(tankShape,dimensions)*.2}
             onActive={active=>{setPouringWater(active);setLadleActive(active);}}
@@ -1219,15 +1275,14 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             checkMouth={(x,y)=>threeTankRef.current?.checkPointOverTankMouth(x,y).isOver ?? false}
             onFlow={(x,y)=>threeTankRef.current?.stirAtScreenPoint(x,y,.5)}
             getTarget={(x,y)=>{
-              if(overBucket(x,y)){const r=bucketRef.current!.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height*.4,worldX:0,worldZ:0,inside:false};}
+              if(overBucket(x,y)){const r=(receivingBucketRef.current||bucketRef.current)!.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height*.4,worldX:0,worldZ:0,inside:false};}
               return threeTankRef.current?.flowTarget(x,y)||null;
             }}
             onDispose={(x,y,water)=>{
               if(overBucket(x,y)){
-                const total=bucketWaterRef.current.ml+water.ml,salt=bucketWaterRef.current.grams+water.grams;
-                const result=splitOverflow(total,salt,600);
-                const next={ml:result.kept,grams:salt-result.grams};bucketWaterRef.current=next;setBucketWater(next);
-                if(result.spilled>0){const floor=threeTankRef.current?.floorPoint(x,y);addFloorWater(floor?.x??-dimensions.width*.65,floor?.z??dimensions.depth*.65,result.spilled);}
+                const next=fillBucketSupply(bucketWaterRef.current,water);
+                if(next.fullBuckets.length>bucketWaterRef.current.fullBuckets.length)bucketReadyAfterRef.current=performance.now()+700;
+                bucketWaterRef.current=next;setBucketWater(next);
               }
               else {const target=threeTankRef.current?.flowTarget(x,y);if(target)addFloorWater(target.worldX,target.worldZ,water.ml);else {addedWaterRef.current+=water.ml;removedSaltRef.current=Math.max(0,removedSaltRef.current-water.grams);setAddedWaterMl(addedWaterRef.current);setRemovedSaltGrams(removedSaltRef.current);}}
             }}
@@ -1242,22 +1297,25 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               setAddedWaterMl(addedWaterRef.current);setRemovedSaltGrams(removedSaltRef.current);
             }}/>
           }
-          {(floorSpills.length>0||items.some(i=>i.inTank&&i.outsideTank&&i.damage==='broken'))&&<FloorMop
+          <FloorMop available={floorSpills.length>0} highlighted={clothGuideReady&&floorSpills.length>0}
+            clearBucketsToken={clearClothBucketsToken} onWringComplete={completeFloorCleanup}
             disabled={introLocked||pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle'||interactionMode==='orbit'}
             teacher={isTeacherMode} onActive={setPouringWater}
-            onClean={(x,y)=>{
-              const point=threeTankRef.current?.floorPoint(x,y);if(!point)return;
-              setFloorSpills(prev=>prev.map(spill=>Math.hypot(spill.x-point.x,spill.z-point.z)<Math.max(1,Math.sqrt(spill.ml/180))?{...spill,ml:Math.max(0,spill.ml-80)}:spill).filter(spill=>spill.ml>.01));
-              setItems(prev=>prev.filter(item=>!(item.outsideTank&&item.damage==='broken'&&Math.hypot(item.x-point.x,item.z-point.z)<1)));
+            onClean={(x,y,capacity)=>{
+              const point=threeTankRef.current?.floorPoint(x,y);if(!point)return 0;
+              const spills=floorSpillsRef.current,index=spills.findIndex(spill=>Math.hypot(spill.x-point.x,spill.z-point.z)<Math.max(1,Math.sqrt(spill.ml/180)));
+              if(index<0)return 0;
+              const absorbed=Math.min(capacity,spills[index].ml);
+              const next=spills.map((spill,i)=>i===index?{...spill,ml:spill.ml-absorbed}:spill).filter(spill=>spill.ml>.01);
+              floorSpillsRef.current=next;setFloorSpills(next);return absorbed;
             }}/>
-          }
           {advanced && (activityMode==='discovery'||activityMode==='egg-challenge') && (
           <SaltWorkflow key="salt-workflow" visualOnly={!isTeacherMode}
             disabled={interactionMode === 'orbit' || pouringWater}
             saltSpoons={saltSpoons}
             spoonFraction={spoonFraction}
             onDoseChange={setSpoonFraction}
-            onStirAtScreenPoint={(x,y) => threeTankRef.current?.stirAtScreenPoint(x,y)}
+            onStirAtScreenPoint={(x,y) => threeTankRef.current?.stirAtScreenPoint(x,y,.35)}
             onPourAtScreenPoint={(x,y) => {
               const hit = threeTankRef.current?.checkPointOverTankMouth(x,y);
               if (hit?.isOver && hit.point) handlePourSaltAtPoint(hit.point);

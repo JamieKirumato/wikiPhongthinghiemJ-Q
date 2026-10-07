@@ -35,7 +35,7 @@ export function displacedWaterLevel(base:number,shape:TankShape,dims:TankDimensi
  */
 export function sinkingDrag(id:string,massGrams:number,volumeMl:number):number {
   const kind=id.split('#')[0];
-  const shapeFactor:Record<string,number>={'item-pebble':.8,'item-keys':2,'item-spoon':3,'item-egg':.5,'item-coin':4,'item-marble':.47};
+  const shapeFactor:Record<string,number>={'item-pebble':.8,'item-keys':2,'item-spoon':3,'item-egg':.5,'item-coin':4,'item-marble':1.6};
   const radiusCm=Math.cbrt(3*Math.max(.01,volumeMl)/(4*Math.PI));
   return Math.max(.8,Math.min(30,35*Math.PI*radiusCm*radiusCm*(shapeFactor[kind]??1)/Math.max(.1,massGrams)));
 }
