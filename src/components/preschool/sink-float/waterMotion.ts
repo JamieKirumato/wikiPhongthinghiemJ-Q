@@ -13,7 +13,7 @@ export function waterEdgeFade(x:number,z:number,shape:string,width:number,depth:
 
 /** Small travelling waves; the simulation's mean water level is unchanged. */
 export function waterDisplacement(x: number, z: number, time: number, impulses: WaterImpulse[]): number {
-  let height = Math.sin(x * 1.6 + time * 1.2) * Math.cos(z * 1.3 - time * .8) * .012;
+  let height = Math.sin(x * 1.6 + time * 1.2) * Math.cos(z * 1.3 - time * .8) * .003;
   for (const impulse of impulses) {
     const age = time - impulse.time;
     if (age < 0 || age > 2.4) continue;

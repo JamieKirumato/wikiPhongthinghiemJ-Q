@@ -72,6 +72,16 @@ startLadle();ladleListeners.get('pointermove')({pointerId:1,clientX:100,clientY:
 startLadle();ladleListeners.get('pointerup')({pointerId:1});assert.equal(ladleActive,true);ladleListeners.get('keydown')({key:'Escape'});assert.equal(ladleActive,false);assert.equal(ladleFrames.size,0);assert.equal(ladleVolume,800);
 console.log('Passed: actual ladle handlers fill, empty outside, return inside, ignore second pointer and restore carried water on blur.');
 const lowStone=waterPhysics.displacedWaterLevel(3,'rectangle',fillDims,[{y:.9,radius:.5,volume:80}]);
+const restingFloaters=Array.from({length:30},()=>({y:3.4,radius:.48,volume:500,immersedVolume:60}));
+const modelBallVolume=waterPhysics.modelDisplacementVolume(.48,500);
+assert.ok(modelBallVolume>0&&modelBallVolume<10);
+assert.ok(Math.abs(waterPhysics.modelDisplacementVolume(.24,500)*8-modelBallVolume)<1e-9);
+const steadyLevel=waterPhysics.displacedWaterLevel(3,'rectangle',fillDims,restingFloaters);
+for(let step=0;step<120;step++) {
+  const bobbing=restingFloaters.map((item,i)=>({...item,y:item.y+Math.sin(step*.1+i)*.02}));
+  assert.equal(waterPhysics.displacedWaterLevel(3,'rectangle',fillDims,bobbing),steadyLevel);
+}
+console.log('Passed: thirty resting floaters keep mean water level stable while visually bobbing.');
 const liftedStone=waterPhysics.displacedWaterLevel(3,'rectangle',fillDims,[{y:2,radius:.5,volume:80}]);
 assert.ok(Math.abs(lowStone-liftedStone)<1e-7); // depth of an immersed object cannot change displaced volume
 assert.ok(waterPhysics.displacedWaterLevel(3,'rectangle',fillDims,[{y:6,radius:.5,volume:80}])<lowStone);
@@ -82,6 +92,13 @@ for(let i=0;i<10;i++)slow=waterPhysics.advanceSinking(slow.y,slow.vy,.1,2.6,1);
 for(let i=0;i<100;i++)fine=waterPhysics.advanceSinking(fine.y,fine.vy,.01,2.6,1);
 assert.ok(Math.abs(slow.y-fine.y)<1e-8);
 assert.ok(slow.y>1); // stone takes observable time to descend, not a teleport to the bed
+function sampleSinkTime(id,mass,volume,waterDensity=1){let state={y:3,vy:0},time=0;while(state.y>1&&time<30){state=waterPhysics.advanceSinking(state.y,state.vy,1/120,mass/volume,waterDensity,waterPhysics.sinkingDrag(id,mass,volume));time+=1/120;}return time;}
+const samples=[['item-pebble',50,20],['item-keys',42,10],['item-spoon',35,7],['item-egg',55,50],['item-coin',6,.8],['item-marble',12,5]];
+const sinkTimes=samples.map(args=>sampleSinkTime(...args));
+assert.equal(new Set(sinkTimes.map(time=>time.toFixed(2))).size,6);
+assert.ok(sampleSinkTime('item-pebble',100,20)<sampleSinkTime('item-pebble',50,20));
+assert.ok(sampleSinkTime('item-egg',55,50,1.05)>sampleSinkTime('item-egg',55,50));
+console.log('Passed: six sinking samples have different arrival times; mass and brine change descent consistently.',sinkTimes.map(time=>time.toFixed(2)));
 function descentTime(start){let state={y:start,vy:0},time=0;while(state.y>.9&&time<20){state=waterPhysics.advanceSinking(state.y,state.vy,1/60,2.6,1);time+=1/60;}return time;}
 assert.ok(descentTime(4)>descentTime(2)+1);
 for(const clip of ['impactMining','impactGlass_light','impactPlate_light','impactSoft_medium'])for(let i=0;i<3;i++) {
@@ -318,17 +335,21 @@ for(const shape of ['rectangle','square','cylinder','triangle']){
   const dims=geometry.getTankDimensions(shape,'normal');
   const insideRay=new THREE.Ray(new THREE.Vector3(0,10,0),new THREE.Vector3(0,-1,0));
   const pos=controls.releasePosition(insideRay,dims,shape,dims.waterHeight,5,.45);assert.ok(pos);assert.equal(pos.x,0);assert.equal(pos.z,0);
+  const edge=geometry.clampToTankBoundary(dims.width,0,0,shape,dims);
+  const edgeRay=new THREE.Ray(new THREE.Vector3(edge.x,10,edge.z),new THREE.Vector3(0,-1,0));
+  const edgeDrop=controls.releasePosition(edgeRay,dims,shape,dims.waterHeight,5,.49);
+  assert.ok(edgeDrop&&geometry.isPointInsideFootprint(edgeDrop.x,edgeDrop.z,shape,dims,-.49),'visible water near an edge must release safely inside');
   const contact=controls.predictedContact(pos,new THREE.Vector3(),dims,shape,dims.waterHeight,.45);assert.equal(contact.inside,true);assert.equal(contact.point.y,dims.waterHeight);
   const outsideRay=new THREE.Ray(new THREE.Vector3(12,10,0),new THREE.Vector3(0,-1,0));
-  const out=controls.releasePosition(outsideRay,dims,shape,dims.waterHeight,5,.45);assert.equal(out.x,12);
-  const floorContact=controls.predictedContact(out,new THREE.Vector3(),dims,shape,dims.waterHeight,.45);assert.equal(floorContact.inside,false);assert.equal(floorContact.point.y,-.6);
+  const out=controls.releasePosition(outsideRay,dims,shape,dims.waterHeight,5,.45);assert.ok(geometry.isPointInsideFootprint(out.x,out.z,shape,dims,-.45));
+  const floorContact=controls.predictedContact(out,new THREE.Vector3(),dims,shape,dims.waterHeight,.45);assert.equal(floorContact.inside,true);assert.equal(floorContact.point.y,dims.waterHeight);
 }
 const prefsSelection=source('src/components/preschool/sink-float/teacherExperience.ts');
 assert.equal(prefsSelection.normalizeExperience({}).introActions.length,8);
 const pickOnly=prefsSelection.normalizeExperience({introActions:['pick','unknown','pick']});assert.equal(pickOnly.introActions.join(','),'pick');
 assert.equal(prefsSelection.selectedIntroGuide(pickOnly).map(s=>s.action).join(','),'welcome,pick,ready');
 assert.equal(prefsSelection.selectedIntroGuide(prefsSelection.normalizeExperience({introActions:[]})).length,0);
-console.log('Passed: selected guidance migrates settings, filters unknown actions, and zoom/release preview respects water and outside floor for every tank shape.');
+console.log('Passed: selected guidance migrates settings, filters unknown actions, and zoom/release preview keeps all releases and landing markers inside water for every tank shape.');
 (async()=>{
   blockIntroPlayback=true;introModule.exports.ChildIntro({onComplete:()=>introFinished++,onCleanup:()=>introCleanup++,onFrame:()=>null});const stopBlockedIntro=introEffect();
   await Promise.resolve();assert.equal(introAudio.paused,true);assert.equal(introFinished,1);const triesBefore=introPlayAttempts;
@@ -367,7 +388,14 @@ const transfer=source('src/components/preschool/sink-float/waterTransfer.ts');
 for(const shape of ['rectangle','square','cylinder','triangle']){
  const d=geometry.getTankDimensions(shape,'normal'),sand=waterPhysics.sandHeight(d);
  const capacity=transfer.waterCapacity(shape,d,[],sand);
+ const crowded=Array.from({length:48},()=>({y:.5,radius:.49,volume:waterPhysics.modelDisplacementVolume(.49,200)}));
+ const crowdedCapacity=transfer.waterCapacity(shape,d,crowded,sand);
+ assert.ok(crowdedCapacity>capacity*.5, '48 small models must not falsely displace the entire tank');
  const capStone=transfer.waterCapacity(shape,d,[{y:1,radius:.5,volume:80}],sand);
+ const floating=Array.from({length:12},()=>({y:2,radius:.48,volume:500,immersedVolume:60}));
+ const floatingCapacity=transfer.waterCapacity(shape,d,floating,sand);
+ assert.ok(Math.abs(floatingCapacity-Math.max(0,capacity-720))<1e-7);
+ assert.equal(transfer.waterCapacity(shape,d,floating.map((o,i)=>({...o,y:2+Math.sin(i)*.02})),sand),floatingCapacity);
  assert.ok(Math.abs(capacity-capStone-80)<1e-7);
  const above=transfer.waterCapacity(shape,d,[{y:d.height+2,radius:.5,volume:80}],sand);
  assert.equal(above,capacity);

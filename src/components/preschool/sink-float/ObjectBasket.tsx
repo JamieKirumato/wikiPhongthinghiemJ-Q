@@ -48,7 +48,6 @@ export const ObjectBasket: React.FC<ObjectBasketProps> = ({items, selectedId, sh
       })}
     </div>
     {items.length > 4 && <button className="lab-tray-arrow" aria-label="Đồ vật tiếp theo" disabled={edges.end} onClick={() => turnPage(1)}><ChevronRight/></button>}
-    <a className="lab-photo-credit" href="/assets/items/approved/credits.html" target="_blank" rel="noreferrer">Nguồn ảnh</a>
   </div>;
 };
 export default ObjectBasket;

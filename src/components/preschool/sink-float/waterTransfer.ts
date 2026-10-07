@@ -5,9 +5,9 @@ import {submergedFraction} from './buoyancy';
 
 export type FlowTarget={x:number;y:number;worldX:number;worldZ:number;inside:boolean};
 export type FloorSpill={x:number;z:number;ml:number};
-export function waterCapacity(shape:TankShape,dims:TankDimensions,objects:Array<{y:number;radius:number;volume:number}>,sand:number){
+export function waterCapacity(shape:TankShape,dims:TankDimensions,objects:Array<{y:number;radius:number;volume:number;immersedVolume?:number}>,sand:number){
   const rim=dims.height-.08;
-  return Math.max(0,(rim-sand)*getFootprintArea(shape,dims)*ML_PER_WORLD_VOLUME-objects.reduce((sum,o)=>sum+o.volume*submergedFraction(o.y,o.radius,rim),0));
+  return Math.max(0,(rim-sand)*getFootprintArea(shape,dims)*ML_PER_WORLD_VOLUME-objects.reduce((sum,o)=>sum+(o.immersedVolume??o.volume*submergedFraction(o.y,o.radius,rim)),0));
 }
 export function splitOverflow(volume:number,salt:number,capacity:number){
   const spilled=Math.max(0,volume-capacity),grams=volume>0?salt*spilled/volume:0;

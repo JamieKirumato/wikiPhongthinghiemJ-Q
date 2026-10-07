@@ -43,7 +43,7 @@ import { WaterPitcher } from './sink-float/WaterPitcher';
 import {FloorMop} from './sink-float/FloorMop';
 import {FloorSpill,mergeSpill,splitOverflow,waterCapacity} from './sink-float/waterTransfer';
 import { WaterLadle } from './sink-float/WaterLadle';
-import { addedWaterHeight, sandHeight, scoopWater } from './sink-float/waterPhysics';
+import { addedWaterHeight, sandHeight, scoopWater, modelDisplacementVolume } from './sink-float/waterPhysics';
 import { BoatChallenge } from './sink-float/BoatChallenge';
 import { RealLifeActivityCards } from './sink-float/RealLifeActivityCards';
 import { basketSlots, replenishBasket } from './sink-float/basketInventory';
@@ -254,8 +254,8 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     icon: '⚪',
     image: '/assets/items/approved/football.png',
     size: 0.96,
-    weightGrams: 400,
-    volumeMl: 5000,
+    weightGrams: 60,
+    volumeMl: 500,
     floatsDefault: true,
     desc: 'Bóng đá bơm hơi, kín khí',
     densityNote: 'Bóng bơm hơi chứa không khí, khối lượng riêng trung bình nhỏ hơn nước',
@@ -298,15 +298,15 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
   },
   {
     id: 'item-bottle',
-    name: 'Chai nhựa rỗng, kín nắp',
+    name: 'Hộp sữa rỗng, kín',
     icon: '🧱',
-    image: '/assets/items/approved/bottle.png',
+    image: '/assets/items/approved/milk-carton.png',
     size: 0.86,
     weightGrams: 20,
-    volumeMl: 500,
+    volumeMl: 180,
     floatsDefault: true,
-    desc: 'Chai nhựa rỗng, đậy kín nắp',
-    densityNote: 'Chai kín nắp chứa không khí; khối lượng riêng trung bình nhỏ hơn nước',
+    desc: 'Hộp sữa rỗng, đóng kín, chưa cắm ống hút',
+    densityNote: 'Hộp rỗng kín chứa không khí; hộp đầy sữa hoặc hộp mở có thể cho kết quả khác',
     inTank: false,
     x: 0,
     y: 0.45,
@@ -371,7 +371,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const pourTimeoutRef = useRef<number | null>(null);
 
   // Âm thanh & Giọng nói Cô Mimi
-  const [soundEnabled] = useState<boolean>(true);
+  const silentTest=typeof window!=='undefined'&&['127.0.0.1','localhost'].includes(window.location.hostname)&&new URLSearchParams(window.location.search).get('testAudio')==='off';
+  const [soundEnabled] = useState<boolean>(!silentTest);
   const [voiceEnabled, setVoiceEnabled] = useState<boolean>(() => speechEngine.isVoiceEnabled());
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [hasUserInteracted, setHasUserInteracted] = useState<boolean>(false);
@@ -440,7 +441,15 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   // Khối lượng riêng cập nhật LIÊN TỤC theo lượng muối tan (D >= 1.0)
   const dissolvedFraction = saltSpoons + (workflowStep === 'stirring' ? activeStirProgress / 100 * spoonFraction : 0);
   const [items, setItems] = useState<TankObject[]>(PLAY_ITEMS_PRESETS);
-  const tankCapacity=waterCapacity(tankShape,dimensions,items.filter(i=>i.inTank&&!i.outsideTank).map(i=>({y:i.y,radius:ITEM_WORLD_SCALES[i.id.split('#')[0]]?.radius||i.size/2,volume:i.volumeMl})),sandHeight(dimensions));
+  const [holdingItemId, setHoldingItemId] = useState<string | null>(null);
+  const waterDensity = brineDensity(Math.max(0,dissolvedFraction * SALT_GRAMS_PER_SPOON-removedSaltGrams), waterVolumeMl(tankShape, dimensions)+addedWaterMl);
+  const tankCapacity=waterCapacity(tankShape,dimensions,items.filter(i=>i.inTank&&!i.outsideTank).map(i=>{
+    const radius=ITEM_WORLD_SCALES[i.id.split('#')[0]]?.radius||i.size/2;
+    const volume=modelDisplacementVolume(radius,i.volumeMl);
+    return {y:i.y,radius,volume,
+      immersedVolume:i.status==='floating'&&i.weightGrams/i.volumeMl<waterDensity&&i.id!==holdingItemId ? volume*Math.min(1,i.weightGrams/i.volumeMl/waterDensity) : undefined
+    };
+  }),sandHeight(dimensions));
   const capRef=useRef(tankCapacity);capRef.current=tankCapacity;
   const overflowSalt=(amount:number,volume:number)=>{
     const grams=volume>0?Math.max(0,dissolvedFraction*SALT_GRAMS_PER_SPOON-removedSaltRef.current)*amount/volume:0;
@@ -452,10 +461,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     const overflow=splitOverflow(total,0,tankCapacity).spilled;
     if(overflow>.01){overflowSalt(overflow,total);addedWaterRef.current-=overflow;setAddedWaterMl(addedWaterRef.current);addFloorWater(0,dimensions.depth*.7,overflow);setOverflowAt(performance.now());}
   },[tankCapacity,tankShape,dimensions]);
-  const waterDensity = brineDensity(Math.max(0,dissolvedFraction * SALT_GRAMS_PER_SPOON-removedSaltGrams), waterVolumeMl(tankShape, dimensions)+addedWaterMl);
 
   // 5. DANH SÁCH ĐỒ VẬT VÀ LỨA TUỔI
-  const [holdingItemId, setHoldingItemId] = useState<string | null>(null);
   const [ageGroup, setAgeGroup] = useState<AgeGroup>('5-6');
 
   // 6. VÒNG LẶP HỌC TẬP (LEARNING LOOP): DỰ ĐOÁN & QUAN SÁT
@@ -490,9 +497,9 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const [previewIntro, setPreviewIntro] = useState(false);
   const [introComplete, setIntroComplete] = useState(true);
   useEffect(()=>{
-    setImpactEffectsVolume(experience.effectsVolume/100);soundEngine.setVolume(experience.effectsVolume/100);
+    setImpactEffectsVolume(silentTest?0:experience.effectsVolume/100);soundEngine.setVolume(silentTest?0:experience.effectsVolume/100);
     return ()=>{setImpactEffectsVolume(1);soundEngine.setVolume(1);};
-  },[experience.effectsVolume]);
+  },[experience.effectsVolume,silentTest]);
   const introLocked = started && !introComplete;
   const gestureAllowedRef = useRef(false);
   gestureAllowedRef.current = !introLocked && !pouringWater && interactionMode === 'interact' && workflowStep === 'idle';
@@ -861,6 +868,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
         // Chạm chọn rồi chạm bể
         setSelectedTrayItem((prev) => (prev?.id === item.id ? null : item));
         if (selectedTrayItem?.id !== item.id) {
+          const scene=playSceneRef.current?.getBoundingClientRect();
+          if(scene)threeTankRef.current?.previewDropAtScreenPos(item,scene.left+scene.width/2,scene.top+scene.height/2);
           setMessage(`Bé đã cầm "${item.name}"! Đưa tay đến chỗ muốn thả, hoặc kéo nhanh rồi buông để ném nhé!`);
           if (soundEnabled) soundEngine.playSpoonClink();
           if (onboardingStep === 1) setOnboardingStep(2);
@@ -1107,8 +1116,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               aria-label="Bể nước: nhấn Enter để thả vật đang cầm"
               onKeyDown={event => {
                 if (event.key === 'Enter' && selectedTrayItem && gestureAllowedRef.current) {
-                  const rect = playSceneRef.current?.getBoundingClientRect();
-                  if (rect) {threeTankRef.current?.dropOrThrowItemAtScreenPos(selectedTrayItem, rect.left+rect.width/2, rect.top+rect.height*0.18); setSelectedTrayItem(null);}
+                  threeTankRef.current?.dropItemAtTankCenter(selectedTrayItem);setSelectedTrayItem(null);
                 }
               }}
               className="lab-scene"
@@ -1164,7 +1172,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           {!comparisonMode&&(activityMode==='discovery'||activityMode==='egg-challenge') && <div className="lab-object-tray" ref={trayRef}>
             <ObjectBasket items={displayItems} selectedId={selectedTrayItem?.id||null} showLabels={false}
               onPick={(event,item)=>{if(item.damage){const fresh:TankObject={...item,inTank:false,outsideTank:false,damage:undefined,x:0,y:0.45,z:0,vx:0,vy:0,vz:0,status:'basket',settled:false};setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));handleTrayItemPointerDown(event,fresh);}else handleTrayItemPointerDown(event,item);}}
-              onKeyboardPick={item=>{if(!gestureAllowedRef.current)return;const fresh=item.damage?{...item,inTank:false,outsideTank:false,damage:undefined,status:'basket' as const}:item;if(item.damage)setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));const scene=playSceneRef.current?.getBoundingClientRect();if(scene)setDragCursorPos({x:scene.left+scene.width/2,y:scene.top+scene.height*.18});setSelectedTrayItem(fresh);markUserInteracted();setMessage('Con đang cầm vật. Đưa tay đến chỗ muốn thả nhé.');}}
+              onKeyboardPick={item=>{if(!gestureAllowedRef.current)return;const fresh=item.damage?{...item,inTank:false,outsideTank:false,damage:undefined,status:'basket' as const}:item;if(item.damage)setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));const scene=playSceneRef.current?.getBoundingClientRect();if(scene)setDragCursorPos({x:scene.left+scene.width/2,y:scene.top+scene.height*.18});setSelectedTrayItem(fresh);if(scene)threeTankRef.current?.previewDropAtScreenPos(fresh,scene.left+scene.width/2,scene.top+scene.height/2);markUserInteracted();setMessage('Con đang cầm vật. Đưa tay đến chỗ muốn thả nhé.');}}
             />
           </div>}
           {(selectedTrayItem||draggingTrayItem)&&<button onPointerDown={e=>e.stopPropagation()} onClick={()=>{dragCleanupRef.current?.();activeDragItemRef.current=null;isDraggingRef.current=false;setSelectedTrayItem(null);setDraggingTrayItem(null);threeTankRef.current?.clearDropPreview();}} className="min-h-[48px] rounded-2xl bg-orange-100 font-bold">Đặt vật về khay</button>}

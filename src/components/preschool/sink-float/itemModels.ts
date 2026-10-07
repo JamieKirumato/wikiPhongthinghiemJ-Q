@@ -1,10 +1,31 @@
 import * as THREE from 'three';
 import { itemKind } from './playPhysics';
+const photoTextures=new Map<string,THREE.Texture>();
 
 /** Small, rotatable solid models; tray illustrations remain the original assets. */
-export function createItemModel(id: string, size: number): THREE.Group {
+export function createItemModel(id: string, size: number, image?:string, radius=size*.5): THREE.Group {
   const kind = itemKind(id);
   const group = new THREE.Group();
+  if(image && typeof document!=='undefined') {
+    let texture=photoTextures.get(image);
+    if(!texture){texture=new THREE.TextureLoader().load(image,loaded=>{
+      for(const fit of loaded.userData.onReady||[])fit();
+      loaded.userData.onReady=[];
+    });texture.userData.onReady=[];texture.colorSpace=THREE.SRGBColorSpace;photoTextures.set(image,texture);}
+    const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,alphaTest:.12,depthWrite:true}));
+    const fit=()=>{
+      const bitmap=texture!.image as {width:number;height:number}|undefined;
+      const ratio=bitmap&&bitmap.height ? bitmap.width/bitmap.height : 1;
+      const height=2*radius/size/Math.sqrt(1+ratio*ratio);
+      sprite.scale.set(height*ratio,height,1);
+    };
+    fit();
+    if(!texture.image)texture.userData.onReady.push(fit);
+    sprite.userData.itemId=id;
+    group.add(sprite);group.scale.setScalar(size);group.userData.itemId=id;
+    group.userData.photoAsset=image;
+    return group;
+  }
   const material = (color: number, metalness = 0, roughness = 0.3) =>
     new THREE.MeshStandardMaterial({ color, metalness, roughness });
   const add = (geometry: THREE.BufferGeometry, color: number, position = [0, 0, 0], scale = [1, 1, 1], metal = 0) => {
@@ -32,11 +53,21 @@ export function createItemModel(id: string, size: number): THREE.Group {
   } else if (kind === 'item-coin') {
     add(new THREE.CylinderGeometry(.44,.44,.05,32),0xc8a44b);
   } else if (kind === 'item-bottle') {
-    const body=add(new THREE.CylinderGeometry(.27,.29,.85,24),0xd2edf4,[0,-.08,0]);
-    (body.material as THREE.MeshStandardMaterial).transparent=true;
-    (body.material as THREE.MeshStandardMaterial).opacity=.6;
-    add(new THREE.CylinderGeometry(.27,.12,.18,24),0xd2edf4,[0,.435,0]);
-    add(new THREE.CylinderGeometry(.13,.13,.12,24),0x4b94c8,[0,.58,0]);
+    add(new THREE.BoxGeometry(.48,.75,.36),0xfff7e6,[0,-.065,0]);
+    add(new THREE.BoxGeometry(.485,.34,.365),0x49a1d0,[0,-.24,0]);
+    const roof=new THREE.BufferGeometry();
+    roof.setAttribute('position',new THREE.Float32BufferAttribute([
+      -.24,.31,-.18, .24,.31,-.18, -.24,.31,.18, .24,.31,.18, -.24,.48,0, .24,.48,0
+    ],3));
+    roof.setIndex([0,1,5,0,5,4,2,4,5,2,5,3,0,4,2,1,3,5]);
+    roof.computeVertexNormals();
+    const foldedTop=add(roof,0x49a1d0);
+    (foldedTop.material as THREE.MeshStandardMaterial).side=THREE.DoubleSide;
+    add(new THREE.BoxGeometry(.48,.045,.025),0xfff7e6,[0,.49,0]);
+    // Paper packaging, with a simple cow motif rather than bottle geometry.
+    add(sphere(),0xffffff,[0,.06,.183],[.3,.2,.015]);
+    add(sphere(),0x273849,[-.05,.08,.193],[.06,.06,.015]);
+    add(sphere(),0x273849,[.05,.08,.193],[.06,.06,.015]);
   } else if (kind === 'item-apple') {
     add(sphere(), 0xe64242, [0, -0.02, 0], [1, 0.92, 1]);
     add(new THREE.CylinderGeometry(0.035, 0.045, 0.19, 8), 0x785032, [0, 0.43, 0]);
@@ -122,6 +153,7 @@ export function createItemModel(id: string, size: number): THREE.Group {
 
 export function disposeItemModel(group: THREE.Object3D) {
   group.traverse(child => {
+    if(child instanceof THREE.Sprite) child.material.dispose();
     if (child instanceof THREE.Mesh) {
       child.geometry.dispose();
       const materials = Array.isArray(child.material) ? child.material : [child.material];
@@ -133,6 +165,7 @@ export function disposeItemModel(group: THREE.Object3D) {
 export function applyItemDamage(group: THREE.Group, id: string, damage?: string) {
   if (!damage || group.userData.damage === damage) return;
   group.userData.damage = damage;
+  if(group.userData.photoAsset)return;
   const size = group.scale.x;
   const add = (geometry: THREE.BufferGeometry, color: number, x: number, y: number, z: number) => {
     const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({color, roughness: 0.8}));
