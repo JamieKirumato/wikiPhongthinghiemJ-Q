@@ -156,7 +156,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
     // Orbit angles
     const DEFAULT_YAW = 0.56;
-    const DEFAULT_PITCH = 0.35;
+    const DEFAULT_PITCH = 0.24;
 
     const orbitRef = useRef<{
       yaw: number;

@@ -1119,8 +1119,12 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                   threeTankRef.current?.dropItemAtTankCenter(selectedTrayItem);setSelectedTrayItem(null);
                 }
               }}
-              className="lab-scene"
+              className={`lab-scene ${selectedTrayItem || draggingTrayItem ? 'lab-scene-ready' : ''}`}
             >
+              {!isTeacherMode && !comparisonMode && !introLocked && <div className="lab-play-cue" onClick={event=>event.stopPropagation()}>
+                <div role="status" aria-live="polite">{selectedTrayItem || draggingTrayItem ? <>Bé đang cầm một đồ vật.<span>Chạm vào bể để thả, hoặc kéo rồi buông.</span></> : holdingItemId ? <>Bé đã nhặt được vật.<span>Buông để thả lại và quan sát.</span></> : pouringWater ? <>{ladleActive ? 'Bé đang cầm gáo.' : 'Bé đang cầm bình nước.'}<span>{ladleActive ? 'Nhúng gáo vào nước để múc.' : 'Đưa miệng bình lên trên bể để rót.'}</span></> : workflowStep !== 'idle' ? <>Cùng khám phá với muối.<span>{workflowStep==='stirring' ? 'Khuấy và quan sát nước trong bể.' : 'Đưa thìa đến bể để thêm muối.'}</span></> : <>Bé chọn một đồ vật nhé!<span>Chọn vật ở khay rồi chạm vào bể.</span></>}</div>
+                {selectedTrayItem && <button type="button" onClick={()=>{setSelectedTrayItem(null);threeTankRef.current?.clearDropPreview();}} aria-label="Cất vật đang cầm">Cất vật</button>}
+              </div>}
               {comparisonMode&&<div className="absolute top-2 left-2 z-20 rounded-xl bg-white/95 px-3 py-2 font-bold text-sm">Bể A · {dissolvedFraction>0?'Nước muối':'Nước ngọt'}{workflowStep==='stirring'?' · Đang khuấy':''}</div>}
               <ThreeTankCanvas
                 ref={threeTankRef}
