@@ -76,7 +76,7 @@
   .lab-basket-paged { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 4px; }
   .lab-tray-arrow { display: grid; place-items: center; min-width: 44px; min-height: 66px; border-radius: 14px; background: #fff9; color: #687b7c; }
   .lab-tray-arrow:disabled { opacity: .3; }
-  .lab-object { flex: 1 0 64px; min-height: 80px; border-radius: 14px; }
+  .lab-object { flex: 1 0 64px; min-height: 66px; border-radius: 14px; }
   .lab-play-cue { top: 10px; left: 10px; right: 10px; }
   .lab-play-cue [role=status] { padding: 8px 10px; font-size: 13px; }
   .lab-play-cue span { font-size: 11px; }
