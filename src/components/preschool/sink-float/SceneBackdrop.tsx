@@ -4,20 +4,26 @@ export type SceneSetting = 'laboratory' | 'seaside';
 export function SceneBackdrop({ setting }: { setting: SceneSetting }) {
   return <svg aria-hidden="true" className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid slice">
     <defs>
-      <linearGradient id="lab-wall" x2="0" y2="1"><stop stopColor="#eaf6fb"/><stop offset="1" stopColor="#cce4ee"/></linearGradient>
+      <linearGradient id="lab-wall" x2="0" y2="1"><stop stopColor="#f9f8f1"/><stop offset=".6" stopColor="#edf2ec"/><stop offset="1" stopColor="#dce9e4"/></linearGradient>
+      <linearGradient id="lab-window" x2="1" y2="1"><stop stopColor="#fffefa" stopOpacity=".95"/><stop offset="1" stopColor="#dceee6" stopOpacity=".25"/></linearGradient>
+      <radialGradient id="lab-daylight"><stop stopColor="#fffef7" stopOpacity=".9"/><stop offset="1" stopColor="#fffef7" stopOpacity="0"/></radialGradient>
       <linearGradient id="sea-sky" x2="0" y2="1"><stop stopColor="#bfeafa"/><stop offset="1" stopColor="#eefaff"/></linearGradient>
       <linearGradient id="sea-water" x2="0" y2="1"><stop stopColor="#6bc9dc"/><stop offset="1" stopColor="#b5e9ef"/></linearGradient>
     </defs>
     {setting === 'laboratory' ? <>
       <rect width="1000" height="800" fill="url(#lab-wall)"/>
-      <rect x="40" y="36" width="260" height="165" rx="16" fill="#fff" stroke="#b1d3df" strokeWidth="9"/>
-      <rect x="55" y="51" width="230" height="135" rx="8" fill="#cfedf7"/>
-      <path d="M170 51V186M55 119H285" stroke="white" strokeWidth="9"/>
-      <path d="M66 165Q130 120 185 153T282 135V186H55Z" fill="#b7dfcf"/>
-      <rect x="690" y="105" width="250" height="14" rx="7" fill="#91b1c0"/>
-      <rect x="705" y="172" width="235" height="14" rx="7" fill="#91b1c0"/>
-      {[735, 815, 900].map((x,i)=><g key={x}><path d={`M${x-10} 53H${x+10}V72L${x+25} 95Q${x+28} 107 ${x+12} 107H${x-12}Q${x-28} 107 ${x-25} 95L${x-10} 72Z`} fill={['#9bdacf','#f5d28e','#c6b6e9'][i]} stroke="#fff" strokeWidth="4"/><rect x={x-15} y="132" width="30" height="36" rx="6" fill={['#c2dcec','#bdddc7','#f1c8b8'][i]}/></g>)}
-      <path d="M0 235H1000" stroke="#a8c7d4" strokeWidth="8"/>
+      <ellipse cx="320" cy="120" rx="580" ry="380" fill="url(#lab-daylight)"/>
+      <g opacity=".65">
+        <rect x="82" y="-40" width="386" height="268" rx="8" fill="url(#lab-window)" stroke="#fffdf7" strokeWidth="5"/>
+        <path d="M210 -40V228M340 -40V228" stroke="#fffdf7" strokeWidth="6"/>
+        <path d="M90 238H472" stroke="#bccfc5" strokeWidth="2"/>
+      </g>
+      <g opacity=".5">
+        <path d="M784 169H940" stroke="#b9c7ba" strokeWidth="3"/>
+        <rect x="810" y="138" width="32" height="29" rx="3" fill="#d4c5ac"/>
+        <path d="M826 141V101M826 122Q796 121 803 103Q823 102 826 122M826 113Q849 111 850 92Q829 93 826 113" fill="#7c9d84" stroke="#7c9d84" strokeWidth="2"/>
+        <path d="M890 120V135L882 152Q878 166 893 166H910Q925 166 920 152L912 135V120Z" fill="#d9e9de" stroke="#a5bfb0" strokeWidth="2"/>
+      </g>
     </> : <>
       <rect width="1000" height="800" fill="url(#sea-sky)"/>
       <circle cx="860" cy="87" r="40" fill="#fff0ac"/>

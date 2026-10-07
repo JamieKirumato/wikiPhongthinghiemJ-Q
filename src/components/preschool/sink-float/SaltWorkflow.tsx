@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { SaltWorkflowStep } from './types';
 import { soundEngine } from '../../../utils/audioEffects';
 import { MAX_SALT_SPOONS } from './salinity';
@@ -74,11 +75,6 @@ export const RealisticHandSpoon: React.FC<{
         </g>
       )}
 
-      {/* Ngón tay cầm cán thìa */}
-      <path d="M 145 68 Q 120 54 105 48 Q 96 46 88 44" stroke="#f59e0b" strokeWidth="13" strokeLinecap="round" />
-      <path d="M 145 68 Q 120 54 105 48 Q 96 46 88 44" stroke="#fcd34d" strokeWidth="10" strokeLinecap="round" />
-      <ellipse cx="96" cy="40" rx="9" ry="5.5" fill="#fde68a" stroke="#d97706" strokeWidth="1.5" transform="rotate(-15 96 40)" />
-      <ellipse cx="85" cy="44" rx="7" ry="5" fill="#fcd34d" stroke="#d97706" strokeWidth="1.5" transform="rotate(10 85 44)" />
 
       <defs>
         <linearGradient id="metalShineGrad" x1="0" y1="0" x2="1" y2="0">
@@ -128,10 +124,6 @@ export const RealisticStirringHand: React.FC<{
       <circle cx="50" cy="28" r="5" fill="#38bdf8" opacity="0.9" />
       <circle cx="50" cy="190" r="4.5" fill="#38bdf8" opacity="0.9" />
 
-      {/* Tay cầm đầu que đũa */}
-      <path d="M 90 50 Q 70 34 54 32" stroke="#f59e0b" strokeWidth="13" strokeLinecap="round" />
-      <path d="M 90 50 Q 70 34 54 32" stroke="#fcd34d" strokeWidth="10.5" strokeLinecap="round" />
-      <ellipse cx="50" cy="34" rx="8" ry="6" fill="#fde68a" stroke="#d97706" strokeWidth="1.5" />
 
       <defs>
         <linearGradient id="glassRodGrad" x1="0" y1="0" x2="1" y2="0">
@@ -170,6 +162,17 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
 }) => {
   const [pointerPos, setPointerPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isJarOpen, setIsJarOpen] = useState(false);
+  const saltTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const [jarPosition, setJarPosition] = useState({top: 64, right: 12});
+  useEffect(() => {
+    if (!visualOnly || !isJarOpen) return;
+    const place = () => {
+      const rect = saltTriggerRef.current?.getBoundingClientRect();
+      if (rect) setJarPosition({top: Math.max(64, Math.min(rect.top - 290, window.innerHeight - 320)), right: Math.max(12, window.innerWidth - rect.right)});
+    };
+    place(); window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [visualOnly, isJarOpen]);
   const scoopStartRef = useRef<{x:number;y:number} | null>(null);
   const pourStartRef = useRef<{x:number;y:number} | null>(null);
   const stirringStartedRef = useRef(0);
@@ -340,8 +343,9 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   const isMaxSpoons = saltSpoons >= MAX_SALT_SPOONS;
 
   if (visualOnly) return <>
-    <div className="w-full rounded-3xl bg-white/70 p-2 flex flex-col items-center gap-2">
-      {!isJarOpen || disabled ? <button aria-label="Mở hũ muối" disabled={disabled} className="w-full min-h-[88px] text-6xl hover:scale-105 transition-transform" onClick={event=>{setIsJarOpen(true);setPointerPos({x:event.clientX,y:event.clientY});if(!isMaxSpoons)onStepChange('scoopMode');onMessageUpdate('Hũ muối đã mở. Con đưa thìa vào hũ rồi kéo để xúc muối nhé.');}}>🧂</button> : <>
+    <div className="lab-salt">
+      <button ref={saltTriggerRef} aria-label="Mở hũ muối" aria-expanded={isJarOpen} disabled={disabled || isJarOpen} className="lab-salt-trigger" onClick={event=>{setIsJarOpen(true);setPointerPos({x:event.clientX,y:event.clientY});if(!isMaxSpoons)onStepChange('scoopMode');onMessageUpdate('Hũ muối đã mở. Con đưa thìa vào hũ rồi kéo để xúc muối nhé.');}}>🧂</button>
+      {isJarOpen && createPortal(<div className="lab-salt-popover" style={jarPosition} role="group" aria-label="Hũ muối đang mở">
         <button aria-label="Đóng hũ muối" disabled={workflowStep==='pouring'||workflowStep==='stirring'} className="self-end min-h-[44px] min-w-[44px] rounded-full text-xl" onClick={()=>{setIsJarOpen(false);onStepChange('idle');}}>✕</button>
         <div ref={jarMouthRef} role="button" aria-label="Xúc một thìa muối" tabIndex={0} onClick={handleScoopClick} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();handleScoopClick();}}} className="relative w-28 h-36 rounded-3xl border-4 border-sky-200 bg-sky-50/60 cursor-pointer flex items-end p-2 shadow-lg">
           <div className="absolute -top-4 right-0 w-20 h-5 rounded-xl bg-amber-700 -rotate-12"/>
@@ -353,7 +357,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
         {(workflowStep==='holdingSpoon'||workflowStep==='scoopMode')&&<button className="min-h-[48px] rounded-xl bg-white px-3 font-bold" onClick={()=>{setIsJarOpen(false);scoopStartRef.current=null;pourStartRef.current=null;onStepChange('idle');}}>Cất thìa</button>}
         {workflowStep==='stirring'&&<div role="progressbar" aria-label="Muối đang tan" aria-valuenow={Math.round(activeStirProgress)} aria-valuemin={0} aria-valuemax={100} className="w-full h-3 rounded-full bg-sky-100 overflow-hidden"><div className="h-full rounded-full bg-cyan-400" style={{width:`${activeStirProgress}%`}}/></div>}
         {isMaxSpoons&&<button aria-label="Thay nước ngọt" className="min-h-[52px] min-w-[52px] text-3xl" onClick={handleResetWithCleanup}>🚰</button>}
-      </>}
+      </div>, document.body)}
     </div>
     {(workflowStep==='scoopMode'||workflowStep==='holdingSpoon'||workflowStep==='pouring')&&<RealisticHandSpoon x={pointerPos.x} y={pointerPos.y} hasSalt={workflowStep==='holdingSpoon'||workflowStep==='pouring'} isPouring={workflowStep==='pouring'} amount={spoonFraction}/>}
     {workflowStep==='stirring'&&<RealisticStirringHand x={pointerPos.x} y={pointerPos.y} angle={stirWobble} isInWater={isInWaterState}/>}

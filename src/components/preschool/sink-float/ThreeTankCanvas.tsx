@@ -1,4 +1,5 @@
 import {freshComparisonItem} from './comparisonTrial';
+import { tankCameraDistance } from './cameraFraming';
 import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import * as THREE from 'three';
 import { TankDimensions, TankObject, TankScale, TankShape, InteractionMode, SaltWorkflowStep } from './types';
@@ -108,7 +109,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     },
     ref
   ) => {
-    const [,setGrabHand]=useState<{x:number;y:number;holding:boolean}|null>(null);
     const [dropPreview,setDropPreview]=useState<{x:number;y:number;inside:boolean}|null>(null);
     const overflowRef=useRef<THREE.Mesh|null>(null);
     const overflowTimeRef=useRef(overflowAt);overflowTimeRef.current=overflowAt;
@@ -117,7 +117,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     const renderedSpillsRef=useRef<FloorSpill[]|null>(null);
     const dragOffsetRef=useRef(new THREE.Vector3());
     const [hoveredItemId,setHoveredItemId] = useState<string | null>(null);
-    const [waterHand, setWaterHand] = useState<{x:number;y:number} | null>(null);
     const waterImpulsesRef = useRef<WaterImpulse[]>([]);
     const baseWaterLevelRef=useRef(waterLevel);
     baseWaterLevelRef.current=waterLevel;
@@ -154,12 +153,11 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     // Orbit angles
     const DEFAULT_YAW = 0.56;
     const DEFAULT_PITCH = 0.35;
-    const DEFAULT_DISTANCE = 12.8;
 
     const orbitRef = useRef<{
       yaw: number;
       pitch: number;
-      distance: number;
+
       isDragging: number; // 0: none, 1: orbiting, 2: dragging item
       startX: number;
       startY: number;
@@ -169,7 +167,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     }>({
       yaw: DEFAULT_YAW,
       pitch: DEFAULT_PITCH,
-      distance: DEFAULT_DISTANCE,
+
       isDragging: 0,
       startX: 0,
       startY: 0,
@@ -178,7 +176,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       isAutoRotating: false
     });
 
-    const zoomRef = useRef(1.12);
+    const zoomRef = useRef(1);
     const introGroupRef=useRef<{action:IntroAction;group:THREE.Group;actor?:THREE.Group}|null>(null);
     const introWaterRef=useRef<number|null>(null);
     const heldIdRef = useRef<string | null>(null);
@@ -331,8 +329,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         });
         if(action==='rotate'){
           orbitRef.current.targetYaw=DEFAULT_YAW+Math.sin(progress*Math.PI*2)*.7;
-          zoomRef.current=1.12+Math.sin(Math.max(0,progress-.55)*Math.PI*4)*.2;
-        }else{orbitRef.current.targetYaw=DEFAULT_YAW;zoomRef.current=action==='outside'?1.32:1.12;}
+          zoomRef.current=1+Math.sin(Math.max(0,progress-.55)*Math.PI*4)*.2;
+        }else{orbitRef.current.targetYaw=DEFAULT_YAW;zoomRef.current=action==='outside'?1.15:1;}
         if(action==='stir'&&progress>.08&&progress<.82&&performance.now()-lastWaterGestureRef.current.time>180){
           lastWaterGestureRef.current.time=performance.now();spawnWaterReaction(pose.x,pose.z,.5,false);
         }
@@ -529,12 +527,11 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           )
         );
 
-
       },
 
       cancelActiveGesture: () => {
         activePointerRef.current = null;
-        setWaterHand(null);setGrabHand(null);setDropPreview(null);
+        setDropPreview(null);
         heldIdRef.current = null;
         orbitRef.current.isDragging = 0;
         orbitRef.current.isAutoRotating = false;
@@ -542,7 +539,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       },
 
       resetDefaultView: () => {
-        zoomRef.current = 1.12;
+        zoomRef.current = 1;
         orbitRef.current.targetYaw = DEFAULT_YAW;
         orbitRef.current.targetPitch = DEFAULT_PITCH;
         orbitRef.current.isAutoRotating = false;
@@ -591,8 +588,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     holdingItemRef.current = holdingItemId;
     const inputLockedRef = useRef(inputLocked);
     inputLockedRef.current = inputLocked;
-    const floorRef = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial> | null>(null);
-    const floorGridRef = useRef<THREE.GridHelper | null>(null);
+    const floorRef = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null>(null);
+    const contactShadowRef = useRef<THREE.Mesh | null>(null);
 
     // Exact mesh hits first, then a generous screen-space hand target for small objects.
     const pickItemAtScreenPoint = (screenX: number, screenY: number) => {
@@ -634,7 +631,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       const scene = new THREE.Scene();
       sceneRef.current = scene;
 
-      // Camera: Giữ cố định FOV và distance để bể nhỏ thu nhỏ 50% thực tế, không auto-zoom
+      // Fixed FOV; responsive framing uses the normal tank to preserve compact scale.
       const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
       cameraRef.current = camera;
 
@@ -675,10 +672,22 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       scene.add(objectsGroup);
       objectsGroupRef.current = objectsGroup;
 
-      // Visible tiled floor: missed throws remain part of the experiment.
-      const floor = new THREE.Mesh(new THREE.PlaneGeometry(32,32), new THREE.MeshStandardMaterial({color:0xe5f0f5,roughness:0.85}));
+      // A quiet worktop still catches objects thrown outside the tank.
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(32,32), new THREE.MeshBasicMaterial({color:0xe6eee8,toneMapped:false}));
       floor.rotation.x = -Math.PI/2; floor.position.y = -0.61; scene.add(floor); floorRef.current = floor;
-      const grid = new THREE.GridHelper(32,32,0xb5d0dd,0xc9dee8); grid.position.y=-0.6; scene.add(grid); floorGridRef.current = grid;
+      // Soft contact shadow, outside the tank group so it never becomes a picking target.
+      const shadowCanvas = document.createElement('canvas');
+      shadowCanvas.width = shadowCanvas.height = 128;
+      const shadowContext = shadowCanvas.getContext('2d')!;
+      const shadowGradient = shadowContext.createRadialGradient(64,64,12,64,64,64);
+      shadowGradient.addColorStop(0, 'rgba(29,67,57,.25)');
+      shadowGradient.addColorStop(.55, 'rgba(29,67,57,.14)');
+      shadowGradient.addColorStop(1, 'rgba(29,67,57,0)');
+      shadowContext.fillStyle = shadowGradient; shadowContext.fillRect(0,0,128,128);
+      const shadowTexture = new THREE.CanvasTexture(shadowCanvas);
+      const contactShadow = new THREE.Mesh(new THREE.PlaneGeometry(1,1), new THREE.MeshBasicMaterial({map:shadowTexture,transparent:true,depthWrite:false,toneMapped:false}));
+      contactShadow.rotation.x = -Math.PI/2; contactShadow.position.y = -.595;
+      scene.add(contactShadow); contactShadowRef.current = contactShadow;
       // Hạt muối rơi 3D
       const maxSaltCount = 200;
       const saltGeom = new THREE.BufferGeometry();
@@ -730,7 +739,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         if(overflowRef.current){disposeItemModel(overflowRef.current);overflowRef.current=null;}
         sandTextureRef.current?.dispose();
         saltGeom.dispose(); saltMat.dispose();
-        floor.geometry.dispose(); floor.material.dispose(); grid.dispose();
+        floor.geometry.dispose(); floor.material.dispose();
+        contactShadow.geometry.dispose(); contactShadow.material.dispose(); shadowTexture.dispose();
+        contactShadowRef.current = null;
         renderer.dispose();
         itemMeshesRef.current.clear();
         scene.clear();
@@ -738,8 +749,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     }, []);
 
     useEffect(() => {
-      floorRef.current?.material.color.setHex(sceneSetting === 'laboratory' ? 0xe5f0f5 : 0xffedc7);
-      if (floorGridRef.current) floorGridRef.current.visible = sceneSetting === 'laboratory';
+      floorRef.current?.material.color.setHex(sceneSetting === 'laboratory' ? 0xe6eee8 : 0xffedc7);
     }, [sceneSetting]);
 
     // 2. DỰNG HÌNH HỌC BỂ KÍNH VÀ NƯỚC (RENDER ORDER & PALE CYAN TRANSPARENCY)
@@ -762,10 +772,11 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       }
 
       const { width: W, height: H, depth: D } = dims;
+      contactShadowRef.current?.scale.set(W * 1.7, D * 1.9, 1);
 
       // Kính trong suốt tinh khiết
       const glassMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0xe0f2fe,
+        color: 0xd8eee8,
         transmission: 0.95,
         opacity: 0.12,
         transparent: true,
@@ -776,14 +787,14 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         depthWrite: false
       });
 
-      const whiteFrameMat = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        roughness: 0.25,
-        metalness: 0.1
+      const whiteFrameMat = new THREE.MeshBasicMaterial({
+        color: 0xfafcf7,
+        toneMapped: false
       });
+      const rimMaterial = new THREE.MeshBasicMaterial({color:0xc5d8d0,toneMapped:false});
 
       const siliconeSealMat = new THREE.MeshStandardMaterial({
-        color: 0x38bdf8,
+        color: 0x539a91,
         roughness: 0.2,
         metalness: 0.15
       });
@@ -804,7 +815,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
       // Khối nước PALE CYAN trong suốt, không ám tối
       const waterVolumeMat = new THREE.MeshBasicMaterial({
-        color: 0xa5edf5,
+        color: 0x99ddd7,
         transparent: true,
         opacity: 0.25,
         toneMapped: false,
@@ -814,7 +825,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
       // Mặt trên nước trong suốt nhấp nhô nhẹ
       const waterSurfaceMat = new THREE.MeshPhongMaterial({
-        color: 0x9de5f0,
+        color: 0x96ded8,
         specular: 0xe9ffff,
         shininess: 100,
         transparent: true,
@@ -864,8 +875,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         rightGlass.renderOrder = 4;
         tankGroup.add(rightGlass);
 
-        // Viền trắng
-        const rimFront = new THREE.Mesh(new THREE.BoxGeometry(W + 0.12, 0.08, 0.08), whiteFrameMat);
+        // Pale green glass edges stay readable against the bright surroundings.
+        const rimFront = new THREE.Mesh(new THREE.BoxGeometry(W + 0.12, 0.08, 0.08), rimMaterial);
         rimFront.position.set(0, H, D / 2);
         rimFront.renderOrder = 4;
         tankGroup.add(rimFront);
@@ -874,7 +885,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         rimBack.position.set(0, H, -D / 2);
         tankGroup.add(rimBack);
 
-        const rimLeft = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, D + 0.12), whiteFrameMat);
+        const rimLeft = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, D + 0.12), rimMaterial);
         rimLeft.position.set(-W / 2, H, 0);
         rimLeft.renderOrder = 4;
         tankGroup.add(rimLeft);
@@ -924,7 +935,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         glassMesh.renderOrder = 4;
         tankGroup.add(glassMesh);
 
-        const rimMesh = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.04, 16, 64), whiteFrameMat);
+        const rimMesh = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.04, 16, 64), rimMaterial);
         rimMesh.rotation.x = Math.PI / 2;
         rimMesh.position.set(0, H, 0);
         rimMesh.renderOrder = 4;
@@ -993,7 +1004,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           tankGroup.add(wall);
           const direction = new THREE.Vector3().subVectors(end, start);
           for (const level of [0.04, H]) {
-            const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, direction.length(), 8), whiteFrameMat);
+            const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, direction.length(), 8), rimMaterial);
             rim.position.copy(start).add(end).multiplyScalar(0.5);
             rim.position.y = level;
             rim.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
@@ -1124,20 +1135,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         // Fit all eight corners at the current angle. Always fit the NORMAL
         // tank so selecting 50% never auto-zooms the small tank back to full size.
         const fitDims = getTankDimensions(s, 'normal');
-        const fitTargetY = fitDims.height * 0.4;
-        const tanVertical = Math.tan(THREE.MathUtils.degToRad(20)) * 0.92;
-        const tanHorizontal = tanVertical * (camera?.aspect || 1);
-        let r = orbit.distance;
-        for (const px of [-fitDims.width / 2, fitDims.width / 2]) {
-          for (const py of [-fitTargetY, fitDims.height - fitTargetY]) {
-            for (const pz of [-fitDims.depth / 2, fitDims.depth / 2]) {
-              const horizontal = px * Math.cos(orbit.yaw) - pz * Math.sin(orbit.yaw);
-              const vertical = -px * Math.sin(orbit.yaw) * Math.sin(orbit.pitch) + py * Math.cos(orbit.pitch) - pz * Math.cos(orbit.yaw) * Math.sin(orbit.pitch);
-              const depth = px * Math.sin(orbit.yaw) * Math.cos(orbit.pitch) + py * Math.sin(orbit.pitch) + pz * Math.cos(orbit.yaw) * Math.cos(orbit.pitch);
-              r = Math.max(r, depth + Math.abs(horizontal) / tanHorizontal, depth + Math.abs(vertical) / tanVertical);
-            }
-          }
-        }
+        let r = tankCameraDistance(fitDims, camera?.aspect || 1, orbit.yaw, orbit.pitch);
         r *= zoomRef.current;
         const targetY = d.height * 0.4;
         const cx = r * Math.sin(orbit.yaw) * Math.cos(orbit.pitch);
@@ -1522,7 +1520,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           const hitPoint = hit.point;
           const grabbed=itemsRef.current.find(i=>i.id===itemId);
           dragOffsetRef.current.set(grabbed?.x||0,grabbed?.y||0,grabbed?.z||0).sub(hitPoint);
-          setGrabHand({x:mouseX,y:mouseY,holding:true});
+
           dragPlaneRef.current.setFromNormalAndCoplanarPoint(
             cameraRef.current.getWorldDirection(new THREE.Vector3()).negate(),
             hitPoint
@@ -1546,7 +1544,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         orbitRef.current.isDragging = 3;
         orbitRef.current.isAutoRotating = false;
         lastWaterGestureRef.current = {time:performance.now(),x:e.clientX,y:e.clientY};
-        setWaterHand({x:mouseX,y:mouseY});
+
         spawnWaterReaction(waterHit.point.x,waterHit.point.z,.8,false);
         if(soundEnabled) playWaterSwish(.8);
         return;
@@ -1576,7 +1574,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const last = lastWaterGestureRef.current;
         const now = performance.now();
         const movement = Math.hypot(e.clientX-last.x,e.clientY-last.y);
-        setWaterHand({x:e.clientX-rect.left,y:e.clientY-rect.top});
+
         if(now-last.time >= 90 && movement > 4 && raycasterRef.current.ray.intersectPlane(waterPlane,point)
           && isPointInsideFootprint(point.x,point.z,shapeRef.current,dimsRef.current)) {
           const strength = Math.min(3,movement/Math.max(.09,(now-last.time)/1000)/180);
@@ -1592,7 +1590,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         raycasterRef.current.setFromCamera(new THREE.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1),cameraRef.current);
         const hit=pickItemAtScreenPoint(e.clientX,e.clientY);
         setHoveredItemId(hit?.itemId || null);
-        setGrabHand(hit?{x:e.clientX-rect.left,y:e.clientY-rect.top,holding:false}:null);
+
       }
 
       // Xoay bể ở chế độ orbit
@@ -1626,7 +1624,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         raycasterRef.current.setFromCamera(mouseNdc, cameraRef.current);
         const intersectionPoint = new THREE.Vector3();
 
-        setGrabHand({x:mouseX,y:mouseY,holding:true});
         if (raycasterRef.current.ray.intersectPlane(dragPlaneRef.current, intersectionPoint)) {
           intersectionPoint.add(dragOffsetRef.current);
           const d = dimsRef.current;
@@ -1697,7 +1694,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     const handlePointerUp = (e: React.PointerEvent) => {
       if (activePointerRef.current !== null && activePointerRef.current !== e.pointerId) return;
       activePointerRef.current = null;
-      setWaterHand(null);setGrabHand(null);setDropPreview(null);
+      setDropPreview(null);
       const id=heldIdRef.current;
       if (orbitRef.current.isDragging===2 && id) {
         const samples=dragSamplesRef.current, first=samples[0], last=samples[samples.length-1];
@@ -1723,13 +1720,13 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     },[]);
 
     return (
-      <div className="relative w-full h-full min-h-0 rounded-3xl overflow-hidden bg-gradient-to-b from-sky-100/70 via-sky-50/50 to-blue-100/60 dark:from-slate-950 dark:via-sky-950/40 dark:to-slate-900 border-2 border-sky-300/80 shadow-inner flex flex-col">
+      <div className="lab-canvas">
         <SceneBackdrop setting={sceneSetting}/>
         <div
           ref={mountRef}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
-          onPointerLeave={()=>{setHoveredItemId(null);if(!heldIdRef.current)setGrabHand(null);}}
+          onPointerLeave={()=>{setHoveredItemId(null);}}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
           className={`relative z-10 w-full flex-1 min-h-0 touch-none select-none ${
@@ -1743,7 +1740,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           }`}
         />
         {dropPreview&&<div data-drop-preview aria-hidden="true" className={`absolute z-20 pointer-events-none w-12 h-5 rounded-[50%] border-[3px] border-dashed ${dropPreview.inside?'border-sky-600 bg-sky-200/40':'border-amber-600 bg-amber-200/40'}`} style={{left:dropPreview.x,top:dropPreview.y,transform:'translate(-50%,-50%)'}}/>}
-        {waterHand && <div aria-hidden="true" className="absolute z-20 pointer-events-none text-4xl" style={{left:waterHand.x-20,top:waterHand.y-20}}>🖐️</div>}
       </div>
     );
   }

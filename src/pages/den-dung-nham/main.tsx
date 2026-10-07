@@ -19,7 +19,7 @@ const StandaloneLavaApp: React.FC = () => {
           <h1 className="font-extrabold text-sm sm:text-base text-rose-300 flex items-center gap-1.5">
             <span>🌋 Thí Nghiệm: Đèn Dung Nham Sủi Bọt</span>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-950 text-rose-300 font-bold border border-rose-700">
-              HTML Độc Lập
+              Thử tại nhà
             </span>
           </h1>
         </div>
