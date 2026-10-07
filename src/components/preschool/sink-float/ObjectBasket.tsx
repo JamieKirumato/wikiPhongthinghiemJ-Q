@@ -42,13 +42,13 @@ export const ObjectBasket: React.FC<ObjectBasketProps> = ({items, selectedId, sh
               event.preventDefault(); onKeyboardPick(item);
             }
           }} className="lab-object">
-          <div className="lab-object-image"><img src={item.image} alt={item.name} draggable={false}/></div>
+          <div className="lab-object-image"><img src={item.image} alt={item.name} draggable={false} style={{transform: `scale(${item.id.includes('item-marble') ? 1.04 : item.id.includes('item-wood') ? 1.01 : 1})`}}/></div>
           {showLabels && <span className="text-[11px] font-semibold truncate w-full text-center pb-1 pointer-events-none">{item.name}</span>}
         </button>;
       })}
     </div>
     {items.length > 4 && <button className="lab-tray-arrow" aria-label="Đồ vật tiếp theo" disabled={edges.end} onClick={() => turnPage(1)}><ChevronRight/></button>}
-    <a className="lab-photo-credit" href="/assets/items/photos/credits.html" target="_blank" rel="noreferrer">Nguồn ảnh</a>
+    <a className="lab-photo-credit" href="/assets/items/approved/credits.html" target="_blank" rel="noreferrer">Nguồn ảnh</a>
   </div>;
 };
 export default ObjectBasket;

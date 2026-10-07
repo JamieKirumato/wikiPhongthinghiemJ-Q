@@ -44,6 +44,6 @@ export function ComparisonTank({presets,sceneSetting,pairedShape,pairedScale,tri
     <div ref={scene} role="group" aria-label="Bể 2: nhấn Enter để thả vật đang chọn" tabIndex={0} className="relative flex-1 min-h-[140px]" onClick={e=>{if(selected&&!cleanup.current)drop(selected,e.clientX,e.clientY);}} onKeyDown={e=>{if(e.key==='Enter'&&selected){const r=scene.current?.getBoundingClientRect();if(r)drop(selected,r.left+r.width/2,r.top+r.height*.18);}}}>
       <ThreeTankCanvas ref={tank} shape={shape} scale={scale} dims={dims} sceneSetting={sceneSetting} items={items} onUpdateItems={setItems} waterDensity={1} interactionMode={interaction} onInteractionModeChange={setInteraction} holdingItemId={held} onHoldItem={setHeld} carryingTrayItem={!!selected} workflowStep="idle" onPourSaltAtPoint={()=>{}} soundEnabled onMessageUpdate={setMessage} showXRay={false}/>
     </div>
-    <div className="max-h-[170px] overflow-y-auto p-2"><p className="text-xs mb-1" role="status">{paired?'Bể B giữ nước ngọt để con so sánh.':message}</p>{!paired&&<ObjectBasket items={items.filter(i=>!i.inTank)} selectedId={selected?.id||null} showLabels onPick={pick} onKeyboardPick={item=>{if(!held)setSelected(item);}}/>}</div>
+    <div className="max-h-[170px] overflow-y-auto p-2"><p className="text-xs mb-1" role="status">{paired?'Bể B giữ nước ngọt để con so sánh.':message}</p>{!paired&&<ObjectBasket items={items.filter(i=>!i.inTank)} selectedId={selected?.id||null} showLabels={false} onPick={pick} onKeyboardPick={item=>{if(!held)setSelected(item);}}/>}</div>
   </section>;
 }

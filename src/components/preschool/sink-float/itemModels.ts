@@ -68,13 +68,36 @@ export function createItemModel(id: string, size: number): THREE.Group {
     (stone.material as THREE.MeshStandardMaterial).color.setHex(0xffffff);
     (stone.material as THREE.MeshStandardMaterial).vertexColors=true;
   } else if (kind === 'item-wood') {
-    add(new THREE.BoxGeometry(0.88, 0.3, 0.48), 0xc79156);
-    for (let i = 0; i < 4; i++) add(new THREE.BoxGeometry(0.7, 0.006, 0.018), 0x996834, [0, 0.154, -0.16 + i * 0.1]);
+    add(new THREE.BoxGeometry(0.65, 0.65, 0.65), 0xc79156);
+    for (let i = 0; i < 4; i++) add(new THREE.BoxGeometry(0.6, 0.006, 0.012), 0x996834, [0, 0.327, -0.2 + i * 0.13]);
   } else if (kind === 'item-foam') {
     add(new THREE.BoxGeometry(0.77, 0.42, 0.58), 0xfffdf5);
     for (let i = 0; i < 6; i++) add(sphere(), 0xdddfe0, [-0.26 + (i % 3) * 0.24, -0.11 + Math.floor(i / 3) * 0.22, 0.292], [0.035, 0.035, 0.01]);
   } else if (kind === 'item-pingpong') {
     add(sphere(), 0xfff8e5);
+    // Twelve black pentagonal panels on the inflated football.
+    const phi = (1 + Math.sqrt(5)) / 2;
+    const centers: THREE.Vector3[] = [];
+    for (const a of [-1, 1]) for (const b of [-phi, phi]) {
+      centers.push(new THREE.Vector3(0,a,b), new THREE.Vector3(a,b,0), new THREE.Vector3(b,0,a));
+    }
+    for (const normal of centers) {
+      normal.normalize();
+      const u = new THREE.Vector3().crossVectors(normal, Math.abs(normal.y) < .9 ? new THREE.Vector3(0,1,0) : new THREE.Vector3(1,0,0)).normalize();
+      const v = new THREE.Vector3().crossVectors(normal,u);
+      const points = [normal.clone().multiplyScalar(.47)];
+      for (let i=0;i<5;i++) {
+        const angle = i*Math.PI*2/5;
+        points.push(normal.clone().multiplyScalar(.42).addScaledVector(u,Math.cos(angle)*.165).addScaledVector(v,Math.sin(angle)*.165).normalize().multiplyScalar(.47));
+      }
+      const positions: number[] = [];
+      for (let i=0;i<5;i++) positions.push(...points[0].toArray(), ...points[i+1].toArray(), ...points[(i+1)%5+1].toArray());
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+      geometry.computeVertexNormals();
+      const panel = add(geometry,0x24292e);
+      (panel.material as THREE.MeshStandardMaterial).side=THREE.DoubleSide;
+    }
   } else if (kind === 'item-leaf') {
     const leaf = add(sphere(), 0x69ae42, [0, 0, 0], [1, 0.085, 0.5]);
     leaf.rotation.y = -0.35;
@@ -85,8 +108,12 @@ export function createItemModel(id: string, size: number): THREE.Group {
   } else {
     const ring = add(new THREE.TorusGeometry(0.19, 0.04, 8, 24), 0xd5ae52, [0, 0.2, 0], [1, 1, 1], 0.7);
     ring.rotation.x = Math.PI / 2;
-    add(new THREE.BoxGeometry(0.07, 0.06, 0.5), 0xd5ae52, [0, 0.2, 0.3], [1, 1, 1], 0.7);
-    for (let i = 0; i < 3; i++) add(new THREE.BoxGeometry(0.16, 0.06, 0.055), 0xd5ae52, [0.06, 0.2, 0.34 + i * 0.085], [1, 1, 1], 0.7);
+    for (let key=0;key<3;key++) {
+      const x=(key-1)*.15;
+      const color=key===1?0xd5ae52:0xcbd8e3;
+      add(new THREE.BoxGeometry(0.07, 0.06, 0.5), color, [x, 0.2, 0.3], [1, 1, 1], 0.7);
+      for (let i = 0; i < 3; i++) add(new THREE.BoxGeometry(0.11, 0.06, 0.055), color, [x+.035, 0.2, 0.34 + i * 0.085], [1, 1, 1], 0.7);
+    }
   }
   group.scale.setScalar(size);
   group.userData.itemId = id;

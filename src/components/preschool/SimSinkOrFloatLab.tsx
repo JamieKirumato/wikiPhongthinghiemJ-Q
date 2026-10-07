@@ -84,7 +84,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-pebble',
     name: 'Hòn sỏi',
     icon: '🪨',
-    image: '/assets/items/photos/pebble.jpg',
+    image: '/assets/items/pebble.png',
     size: 0.7,
     weightGrams: 50,
     volumeMl: 20,
@@ -106,9 +106,9 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
   },
   {
     id: 'item-keys',
-    name: 'Chìa khóa kim loại',
+    name: 'Chùm chìa khóa',
     icon: '🔑',
-    image: '/assets/items/photos/keys.jpg',
+    image: '/assets/items/approved/keys.png',
     size: 0.78,
     weightGrams: 42,
     volumeMl: 10,
@@ -132,7 +132,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-spoon',
     name: 'Thìa inox',
     icon: '🥄',
-    image: '/assets/items/photos/spoon.jpg',
+    image: '/assets/items/approved/spoon.png',
     size: 0.88,
     weightGrams: 35,
     volumeMl: 7,
@@ -156,7 +156,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-egg',
     name: 'Quả trứng',
     icon: '🥚',
-    image: '/assets/items/photos/egg.jpg',
+    image: '/assets/items/egg.png',
     size: 0.75,
     weightGrams: 55,
     volumeMl: 50,
@@ -180,7 +180,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-apple',
     name: 'Quả táo đỏ',
     icon: '🍎',
-    image: '/assets/items/photos/apple.jpg',
+    image: '/assets/items/approved/apple.png',
     size: 0.9,
     weightGrams: 75,
     volumeMl: 90,
@@ -204,7 +204,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-wood',
     name: 'Khối gỗ',
     icon: '🪵',
-    image: '/assets/items/photos/wood.jpg',
+    image: '/assets/items/approved/wood.png',
     size: 0.85,
     weightGrams: 28,
     volumeMl: 45,
@@ -228,7 +228,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-duck',
     name: 'Vịt cao su',
     icon: '🐥',
-    image: '/assets/items/photos/duck.jpg',
+    image: '/assets/items/duck.png',
     size: 0.98,
     weightGrams: 12,
     volumeMl: 55,
@@ -250,15 +250,15 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
   },
   {
     id: 'item-pingpong',
-    name: 'Bóng bàn',
+    name: 'Bóng đá',
     icon: '⚪',
-    image: '/assets/items/photos/pingpong.jpg',
-    size: 0.66,
-    weightGrams: 3,
-    volumeMl: 40,
+    image: '/assets/items/approved/football.png',
+    size: 0.96,
+    weightGrams: 400,
+    volumeMl: 5000,
     floatsDefault: true,
-    desc: 'Nhựa rỗng chứa khí',
-    densityNote: 'Siêu nhẹ và chứa đầy khí (D = 0.075 g/ml), nổi nhô hẳn lên trên mặt nước',
+    desc: 'Bóng đá bơm hơi, kín khí',
+    densityNote: 'Bóng bơm hơi chứa không khí, khối lượng riêng trung bình nhỏ hơn nước',
     inTank: false,
     x: 0,
     y: 0.45,
@@ -276,7 +276,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-leaf',
     name: 'Chiếc lá',
     icon: '🍃',
-    image: '/assets/items/photos/leaf.jpg',
+    image: '/assets/items/approved/leaf.png',
     size: 0.82,
     weightGrams: 1,
     volumeMl: 5,
@@ -300,10 +300,10 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-bottle',
     name: 'Chai nhựa rỗng, kín nắp',
     icon: '🧱',
-    image: '/assets/items/photos/bottle.jpg',
+    image: '/assets/items/approved/bottle.png',
     size: 0.86,
     weightGrams: 20,
-    volumeMl: 250,
+    volumeMl: 500,
     floatsDefault: true,
     desc: 'Chai nhựa rỗng, đậy kín nắp',
     densityNote: 'Chai kín nắp chứa không khí; khối lượng riêng trung bình nhỏ hơn nước',
@@ -324,8 +324,8 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
 
 // 4 món đồ quen thuộc nhất dành cho lứa tuổi 3 - 4
 PLAY_ITEMS_PRESETS.push(
-  {...PLAY_ITEMS_PRESETS[0],id:'item-coin',name:'Đồng xu',icon:'🪙',image:'/assets/items/photos/coin.jpg',size:.65,weightGrams:6,volumeMl:.8,desc:'Đồng xu kim loại',densityNote:'Kim loại đặc',floatsDefault:false},
-  {...PLAY_ITEMS_PRESETS[0],id:'item-marble',name:'Vi thủy tinh',icon:'🔮',image:'/assets/items/photos/marble.jpg',size:.65,weightGrams:12,volumeMl:5,desc:'Vi thủy tinh đặc',densityNote:'Thủy tinh đặc',floatsDefault:false}
+  {...PLAY_ITEMS_PRESETS[0],id:'item-coin',name:'Đồng xu',icon:'🪙',image:'/assets/items/approved/coin.png',size:.65,weightGrams:6,volumeMl:.8,desc:'Đồng xu kim loại',densityNote:'Kim loại đặc',floatsDefault:false},
+  {...PLAY_ITEMS_PRESETS[0],id:'item-marble',name:'Vi thủy tinh',icon:'🔮',image:'/assets/items/approved/marble.png',size:.65,weightGrams:12,volumeMl:5,desc:'Vi thủy tinh đặc',densityNote:'Thủy tinh đặc',floatsDefault:false}
 );
 const AGE_3_4_ITEM_IDS = ['item-pebble', 'item-duck', 'item-apple', 'item-egg'];
 
@@ -1162,7 +1162,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             }} className="min-h-[52px] min-w-[52px] rounded-2xl bg-white border border-amber-200 flex items-center justify-center gap-2 px-2 font-bold">{isTeacherMode ? '👶' : '🧑‍🏫'}{isTeacherMode && <span className="text-xs">Khám phá của trẻ</span>}</button>
           </div>
           {!comparisonMode&&(activityMode==='discovery'||activityMode==='egg-challenge') && <div className="lab-object-tray" ref={trayRef}>
-            <ObjectBasket items={displayItems} selectedId={selectedTrayItem?.id||null} showLabels={isTeacherMode}
+            <ObjectBasket items={displayItems} selectedId={selectedTrayItem?.id||null} showLabels={false}
               onPick={(event,item)=>{if(item.damage){const fresh:TankObject={...item,inTank:false,outsideTank:false,damage:undefined,x:0,y:0.45,z:0,vx:0,vy:0,vz:0,status:'basket',settled:false};setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));handleTrayItemPointerDown(event,fresh);}else handleTrayItemPointerDown(event,item);}}
               onKeyboardPick={item=>{if(!gestureAllowedRef.current)return;const fresh=item.damage?{...item,inTank:false,outsideTank:false,damage:undefined,status:'basket' as const}:item;if(item.damage)setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));const scene=playSceneRef.current?.getBoundingClientRect();if(scene)setDragCursorPos({x:scene.left+scene.width/2,y:scene.top+scene.height*.18});setSelectedTrayItem(fresh);markUserInteracted();setMessage('Con đang cầm vật. Đưa tay đến chỗ muốn thả nhé.');}}
             />

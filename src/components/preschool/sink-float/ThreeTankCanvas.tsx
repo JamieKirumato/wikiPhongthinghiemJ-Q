@@ -77,7 +77,7 @@ export const ITEM_WORLD_SCALES: Record<string, { size: number; radius: number }>
   'item-apple': { size: 0.90, radius: 0.45 },
   'item-wood': { size: 0.85, radius: 0.425 },
   'item-duck': { size: 0.98, radius: 0.49 },
-  'item-pingpong': { size: 0.66, radius: 0.33 },
+  'item-pingpong': { size: 0.96, radius: 0.48 },
   'item-leaf': { size: 0.82, radius: 0.41 },
   'item-bottle': { size: .85, radius: .58 },
   'item-coin': {size:.65,radius:.325},
