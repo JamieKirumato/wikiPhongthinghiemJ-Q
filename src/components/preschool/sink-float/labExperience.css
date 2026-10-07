@@ -22,6 +22,14 @@
 .lab-scene { position: relative; display: flex; flex: 1; min-width: 0; min-height: 0; overflow: hidden; border-radius: 24px; border: 1px solid #d4dfd6; box-shadow: 0 8px 32px -20px #366052; background: #edf2eb; }
 .lab-scene::after { content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; box-shadow: inset 0 1px 2px #ffffffd9, inset 0 -24px 45px -30px #567c6230; }
 .lab-canvas { position: relative; display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; overflow: hidden; }
+.lab-scene-ready { border-color: #438672; box-shadow: inset 0 0 0 2px #438672; }
+.lab-play-cue { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 25; display: flex; align-items: center; justify-content: space-between; gap: 8px; pointer-events: none; }
+.lab-play-cue [role=status] { color: #25483e; background: #fffef8e8; border: 1px solid #dde6d9; border-radius: 16px; padding: 10px 14px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 14px -10px #254b40; }
+.lab-play-cue span { display: block; font-size: 12px; font-weight: 400; margin-top: 3px; color: #58756a; }
+.lab-play-cue button { pointer-events: auto; min-width: 64px; min-height: 48px; padding: 8px 12px; border-radius: 14px; background: #fffdf4; color: #285b4b; border: 1px solid #a6c7b8; font-weight: 600; }
+.lab-play-cue button:focus-visible { outline: 3px solid #34816f; outline-offset: 2px; }
+.dark .lab-play-cue [role=status] { background: #203c32ed; color: #eaf4ed; border-color: #517565; }
+.dark .lab-play-cue span { color: #c2d8cd; }
 .lab-dock { min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; overscroll-behavior: contain; padding: 2px 2px 12px; }
 .lab-dock > * { flex-shrink: 0; }
 .lab-utilities { position: absolute; right: 16px; top: 12px; z-index: 30; display: flex; gap: 8px; }
@@ -68,7 +76,10 @@
   .lab-basket-paged { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 4px; }
   .lab-tray-arrow { display: grid; place-items: center; min-width: 44px; min-height: 66px; border-radius: 14px; background: #fff9; color: #687b7c; }
   .lab-tray-arrow:disabled { opacity: .3; }
-  .lab-object { flex: 1 0 64px; min-height: 66px; border-radius: 14px; }
+  .lab-object { flex: 1 0 64px; min-height: 80px; border-radius: 14px; }
+  .lab-play-cue { top: 10px; left: 10px; right: 10px; }
+  .lab-play-cue [role=status] { padding: 8px 10px; font-size: 13px; }
+  .lab-play-cue span { font-size: 11px; }
   .lab-object-image { width: 56px; height: 56px; }
   .lab-tools { display: flex; gap: 8px; }
   .lab-tools > button, .lab-salt { flex: 1; min-width: 0; }

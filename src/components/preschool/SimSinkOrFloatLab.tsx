@@ -1111,8 +1111,12 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                   if (rect) {threeTankRef.current?.dropOrThrowItemAtScreenPos(selectedTrayItem, rect.left+rect.width/2, rect.top+rect.height*0.18); setSelectedTrayItem(null);}
                 }
               }}
-              className="lab-scene"
+              className={`lab-scene ${selectedTrayItem || draggingTrayItem ? 'lab-scene-ready' : ''}`}
             >
+              {!isTeacherMode && !comparisonMode && !introLocked && <div className="lab-play-cue" onClick={event=>event.stopPropagation()}>
+                <div role="status" aria-live="polite">{selectedTrayItem || draggingTrayItem ? <>Bé đang cầm {(selectedTrayItem || draggingTrayItem)!.name}.<span>Chạm vào bể để thả, hoặc kéo rồi buông.</span></> : holdingItemId ? <>Bé đã nhặt được vật.<span>Buông để thả lại và quan sát.</span></> : pouringWater ? <>{ladleActive ? 'Bé đang cầm gáo.' : 'Bé đang cầm bình nước.'}<span>{ladleActive ? 'Nhúng gáo vào nước để múc.' : 'Đưa miệng bình lên trên bể để rót.'}</span></> : workflowStep !== 'idle' ? <>Cùng khám phá với muối.<span>{workflowStep==='stirring' ? 'Khuấy và quan sát nước trong bể.' : 'Đưa thìa đến bể để thêm muối.'}</span></> : <>Bé chọn một đồ vật nhé!<span>Chọn vật ở khay rồi chạm vào bể.</span></>}</div>
+                {selectedTrayItem && <button type="button" onClick={()=>{setSelectedTrayItem(null);threeTankRef.current?.clearDropPreview();}} aria-label="Cất vật đang cầm">Cất vật</button>}
+              </div>}
               {comparisonMode&&<div className="absolute top-2 left-2 z-20 rounded-xl bg-white/95 px-3 py-2 font-bold text-sm">Bể A · {dissolvedFraction>0?'Nước muối':'Nước ngọt'}{workflowStep==='stirring'?' · Đang khuấy':''}</div>}
               <ThreeTankCanvas
                 ref={threeTankRef}
@@ -1162,7 +1166,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             }} className="min-h-[52px] min-w-[52px] rounded-2xl bg-white border border-amber-200 flex items-center justify-center gap-2 px-2 font-bold">{isTeacherMode ? '👶' : '🧑‍🏫'}{isTeacherMode && <span className="text-xs">Khám phá của trẻ</span>}</button>
           </div>
           {!comparisonMode&&(activityMode==='discovery'||activityMode==='egg-challenge') && <div className="lab-object-tray" ref={trayRef}>
-            <ObjectBasket items={displayItems} selectedId={selectedTrayItem?.id||null} showLabels={false}
+            <ObjectBasket items={displayItems} selectedId={selectedTrayItem?.id||null} showLabels={true}
               onPick={(event,item)=>{if(item.damage){const fresh:TankObject={...item,inTank:false,outsideTank:false,damage:undefined,x:0,y:0.45,z:0,vx:0,vy:0,vz:0,status:'basket',settled:false};setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));handleTrayItemPointerDown(event,fresh);}else handleTrayItemPointerDown(event,item);}}
               onKeyboardPick={item=>{if(!gestureAllowedRef.current)return;const fresh=item.damage?{...item,inTank:false,outsideTank:false,damage:undefined,status:'basket' as const}:item;if(item.damage)setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));const scene=playSceneRef.current?.getBoundingClientRect();if(scene)setDragCursorPos({x:scene.left+scene.width/2,y:scene.top+scene.height*.18});setSelectedTrayItem(fresh);markUserInteracted();setMessage('Con đang cầm vật. Đưa tay đến chỗ muốn thả nhé.');}}
             />
