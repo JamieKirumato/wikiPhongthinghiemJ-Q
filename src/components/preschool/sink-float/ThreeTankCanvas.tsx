@@ -79,7 +79,9 @@ export const ITEM_WORLD_SCALES: Record<string, { size: number; radius: number }>
   'item-duck': { size: 0.98, radius: 0.49 },
   'item-pingpong': { size: 0.66, radius: 0.33 },
   'item-leaf': { size: 0.82, radius: 0.41 },
-  'item-foam': { size: 0.86, radius: 0.43 }
+  'item-bottle': { size: .85, radius: .58 },
+  'item-coin': {size:.65,radius:.325},
+  'item-marble': {size:.65,radius:.325}
 };
 
 export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvasProps>(

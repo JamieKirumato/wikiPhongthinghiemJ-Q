@@ -26,6 +26,17 @@ export function createItemModel(id: string, size: number): THREE.Group {
     }
     geometry.computeVertexNormals();
     add(geometry, 0xf4dfba);
+  } else if (kind === 'item-marble') {
+    add(sphere(),0x67b4d7);
+    add(new THREE.TorusGeometry(.25,.045,8,24),0xf6c444).rotation.x=.6;
+  } else if (kind === 'item-coin') {
+    add(new THREE.CylinderGeometry(.44,.44,.05,32),0xc8a44b);
+  } else if (kind === 'item-bottle') {
+    const body=add(new THREE.CylinderGeometry(.27,.29,.85,24),0xd2edf4,[0,-.08,0]);
+    (body.material as THREE.MeshStandardMaterial).transparent=true;
+    (body.material as THREE.MeshStandardMaterial).opacity=.6;
+    add(new THREE.CylinderGeometry(.27,.12,.18,24),0xd2edf4,[0,.435,0]);
+    add(new THREE.CylinderGeometry(.13,.13,.12,24),0x4b94c8,[0,.58,0]);
   } else if (kind === 'item-apple') {
     add(sphere(), 0xe64242, [0, -0.02, 0], [1, 0.92, 1]);
     add(new THREE.CylinderGeometry(0.035, 0.045, 0.19, 8), 0x785032, [0, 0.43, 0]);

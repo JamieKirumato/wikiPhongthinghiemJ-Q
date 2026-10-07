@@ -78,13 +78,13 @@ export interface TrialRecord {
   timestamp: number;
 }
 
-// 10 món đồ chơi mẫu phong phú cho trẻ mầm non
+// 12 đồ vật quen thuộc để trẻ tự chọn và quan sát
 const PLAY_ITEMS_PRESETS: TankObject[] = [
   {
     id: 'item-pebble',
     name: 'Hòn sỏi',
     icon: '🪨',
-    image: '/assets/items/pebble.png',
+    image: '/assets/items/photos/pebble.jpg',
     size: 0.7,
     weightGrams: 50,
     volumeMl: 20,
@@ -106,9 +106,9 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
   },
   {
     id: 'item-keys',
-    name: 'Chùm chìa khóa',
+    name: 'Chìa khóa kim loại',
     icon: '🔑',
-    image: '/assets/items/keys.png',
+    image: '/assets/items/photos/keys.jpg',
     size: 0.78,
     weightGrams: 42,
     volumeMl: 10,
@@ -132,7 +132,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-spoon',
     name: 'Thìa inox',
     icon: '🥄',
-    image: '/assets/items/spoon.png',
+    image: '/assets/items/photos/spoon.jpg',
     size: 0.88,
     weightGrams: 35,
     volumeMl: 7,
@@ -156,7 +156,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-egg',
     name: 'Quả trứng',
     icon: '🥚',
-    image: '/assets/items/egg.png',
+    image: '/assets/items/photos/egg.jpg',
     size: 0.75,
     weightGrams: 55,
     volumeMl: 50,
@@ -180,7 +180,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-apple',
     name: 'Quả táo đỏ',
     icon: '🍎',
-    image: '/assets/items/apple.png',
+    image: '/assets/items/photos/apple.jpg',
     size: 0.9,
     weightGrams: 75,
     volumeMl: 90,
@@ -204,7 +204,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-wood',
     name: 'Khối gỗ',
     icon: '🪵',
-    image: '/assets/items/wood.png',
+    image: '/assets/items/photos/wood.jpg',
     size: 0.85,
     weightGrams: 28,
     volumeMl: 45,
@@ -228,7 +228,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-duck',
     name: 'Vịt cao su',
     icon: '🐥',
-    image: '/assets/items/duck.png',
+    image: '/assets/items/photos/duck.jpg',
     size: 0.98,
     weightGrams: 12,
     volumeMl: 55,
@@ -252,7 +252,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-pingpong',
     name: 'Bóng bàn',
     icon: '⚪',
-    image: '/assets/items/pingpong.png',
+    image: '/assets/items/photos/pingpong.jpg',
     size: 0.66,
     weightGrams: 3,
     volumeMl: 40,
@@ -276,7 +276,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-leaf',
     name: 'Chiếc lá',
     icon: '🍃',
-    image: '/assets/items/leaf.png',
+    image: '/assets/items/photos/leaf.jpg',
     size: 0.82,
     weightGrams: 1,
     volumeMl: 5,
@@ -297,16 +297,16 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     observed: 'untested'
   },
   {
-    id: 'item-foam',
-    name: 'Mẩu xốp',
+    id: 'item-bottle',
+    name: 'Chai nhựa rỗng, kín nắp',
     icon: '🧱',
-    image: '/assets/items/foam.png',
+    image: '/assets/items/photos/bottle.jpg',
     size: 0.86,
-    weightGrams: 2,
-    volumeMl: 35,
+    weightGrams: 20,
+    volumeMl: 250,
     floatsDefault: true,
-    desc: 'Xốp bọt khí',
-    densityNote: 'Cấu tạo từ hàng triệu bóng khí li ti (D = 0.057 g/ml), nổi sát trên bề mặt nước',
+    desc: 'Chai nhựa rỗng, đậy kín nắp',
+    densityNote: 'Chai kín nắp chứa không khí; khối lượng riêng trung bình nhỏ hơn nước',
     inTank: false,
     x: 0,
     y: 0.45,
@@ -323,6 +323,10 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
 ];
 
 // 4 món đồ quen thuộc nhất dành cho lứa tuổi 3 - 4
+PLAY_ITEMS_PRESETS.push(
+  {...PLAY_ITEMS_PRESETS[0],id:'item-coin',name:'Đồng xu',icon:'🪙',image:'/assets/items/photos/coin.jpg',size:.65,weightGrams:6,volumeMl:.8,desc:'Đồng xu kim loại',densityNote:'Kim loại đặc',floatsDefault:false},
+  {...PLAY_ITEMS_PRESETS[0],id:'item-marble',name:'Vi thủy tinh',icon:'🔮',image:'/assets/items/photos/marble.jpg',size:.65,weightGrams:12,volumeMl:5,desc:'Vi thủy tinh đặc',densityNote:'Thủy tinh đặc',floatsDefault:false}
+);
 const AGE_3_4_ITEM_IDS = ['item-pebble', 'item-duck', 'item-apple', 'item-egg'];
 
 // Bàn tay trẻ em cầm đồ vật di chuyển theo chuột khi kéo từ khay
@@ -452,7 +456,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
 
   // 5. DANH SÁCH ĐỒ VẬT VÀ LỨA TUỔI
   const [holdingItemId, setHoldingItemId] = useState<string | null>(null);
-  const [ageGroup, setAgeGroup] = useState<AgeGroup>('3-4');
+  const [ageGroup, setAgeGroup] = useState<AgeGroup>('5-6');
 
   // 6. VÒNG LẶP HỌC TẬP (LEARNING LOOP): DỰ ĐOÁN & QUAN SÁT
   const [predictions, setPredictions] = useState<Record<string, ItemPrediction>>({});
@@ -997,8 +1001,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     }, 2000);
   };
 
-  // Danh sách đồ vật hiển thị theo lứa tuổi (3-4 tuổi: 4 món quen thuộc; 5-6 tuổi: cả 10 món)
-  const basketPresets = ageGroup === '3-4' ? PLAY_ITEMS_PRESETS.filter(i => AGE_3_4_ITEM_IDS.includes(i.id)) : PLAY_ITEMS_PRESETS;
+  // Danh sách đồ vật hiển thị theo lứa tuổi (3-4 tuổi: 4 món quen thuộc; 5-6 tuổi: cả 12 món)
+  const basketPresets = isTeacherMode && ageGroup === '3-4' ? PLAY_ITEMS_PRESETS.filter(i => AGE_3_4_ITEM_IDS.includes(i.id)) : PLAY_ITEMS_PRESETS;
   const displayItems = basketSlots(items, basketPresets);
 
   // Replenish real, uniquely identified objects; keep previous trials in the tank.
@@ -1618,7 +1622,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                         : 'text-slate-600 dark:text-slate-300'
                     }`}
                   >
-                    10 món
+                    12 món
                   </button>
                 </div>
 
