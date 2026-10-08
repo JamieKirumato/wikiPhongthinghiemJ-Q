@@ -22,10 +22,12 @@ export function WaterPitcher({disabled,onActive,onAdd,checkMouth,teacher,onFlow,
     event.preventDefault();unlockImpactAudio();callbacks.current.onActive(true);
     let point={x:event.clientX,y:event.clientY},last=performance.now(),frame=0;
     const pointer=event.pointerId;
+    let pickupReleased=false;
     setHand({...point,pouring:false});
     const move=(e:PointerEvent)=>{if(e.pointerId===pointer){point={x:e.clientX,y:e.clientY};}};
     const stop=(e?:PointerEvent)=>{
       if(e&&e.pointerId!==pointer)return;
+      if(e?.type==='pointerup'&&!pickupReleased){pickupReleased=true;return;}
       cancelAnimationFrame(frame);window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',stop);window.removeEventListener('pointercancel',stop);window.removeEventListener('blur',blur);window.removeEventListener('keydown',key);
       cleanupRef.current=null;setHand(null);callbacks.current.onActive(false);
     };
@@ -49,7 +51,7 @@ export function WaterPitcher({disabled,onActive,onAdd,checkMouth,teacher,onFlow,
   return <>
     <button disabled={disabled} aria-label="Cầm bình nước để rót vào bể" aria-pressed={!!hand} onPointerDown={start} className="min-h-[72px] w-full rounded-2xl border border-sky-200 bg-white flex flex-col items-center justify-center touch-none disabled:opacity-40">
       <PitcherIcon/>
-      {teacher&&<span className="text-sm">Giữ và đưa bình lên miệng bể để rót; buông để dừng</span>}
+      {teacher&&<span className="text-sm">Click để cầm bình, đưa lên miệng bể để rót; click lần nữa để đặt xuống</span>}
     </button>
     {hand&&<div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[120] rounded-2xl bg-white shadow-lg border border-sky-200 p-2 flex items-center gap-3">{teacher&&<span className="text-sm">{hand.pouring?'Đang rót nước':'Đưa miệng bình lên trên bể'}</span>}<button aria-label="Đặt bình xuống" onPointerDown={e=>{e.stopPropagation();cleanupRef.current?.();}} onClick={()=>cleanupRef.current?.()} className="min-h-[48px] rounded-xl bg-sky-100 px-3 font-bold">{teacher?'Đặt bình xuống':<span aria-hidden="true" className="text-2xl">↩</span>}</button></div>}
     {hand?.pouring&&hand.target&&displayHand&&<WaterStream from={pitcherSpout(displayHand.x,displayHand.y)} to={hand.target}/>}
