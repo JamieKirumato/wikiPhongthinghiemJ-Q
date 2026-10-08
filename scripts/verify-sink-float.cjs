@@ -357,6 +357,19 @@ for(const gesture of [{vx:300,vy:0},{vx:0,vy:-300},{vx:-300,vy:200}]){
  assert.ok(Math.abs(local.z)<1e-9);
 }
 assert.ok(Math.abs(controls.throwVelocity(camera,{vx:0,vy:-300}).z)>.1,'vertical flick also travels into depth');
+const mouth=source('src/components/preschool/sink-float/pitcherMouth.ts');
+for(const shape of ['rectangle','square','cylinder','triangle'])for(const yaw of [0,.8,2.4,4.2])for(const pitch of [.18,.55,.95]){
+ const d=geometry.getTankDimensions(shape,'normal'),view=new THREE.PerspectiveCamera(45,1.5,.1,100),rect={left:30,top:80,width:900,height:600};
+ view.position.set(Math.sin(yaw)*20*Math.cos(pitch),d.height/2+20*Math.sin(pitch),Math.cos(yaw)*20*Math.cos(pitch));view.lookAt(0,d.height/2,0);view.updateMatrixWorld();
+ const center=new THREE.Vector3(0,d.height,0).project(view),cx=rect.left+(center.x+1)*rect.width/2,cy=rect.top+(1-center.y)*rect.height/2;
+ for(const offset of [[0,0],[-40,0],[40,0],[0,-40],[0,40]]){
+  const target=mouth.pitcherMouthPoint(cx+offset[0],cy+offset[1],view,rect,shape,d);
+  assert.ok(target,'mouth accepts the pitcher from every screen direction and camera angle');
+  assert.ok(geometry.isPointInsideFootprint(target.x,target.z,shape,d));
+ }
+ assert.equal(mouth.pitcherMouthPoint(-1000,-1000,view,rect,shape,d),null,'away from mouth does not pour');
+}
+console.log('Passed: 2D pitcher mouth targets from five directions, twelve camera views and all four tank shapes.');
 const prefsSelection=source('src/components/preschool/sink-float/teacherExperience.ts');
 assert.equal(prefsSelection.normalizeExperience({}).introActions.length,8);
 const pickOnly=prefsSelection.normalizeExperience({introActions:['pick','unknown','pick']});assert.equal(pickOnly.introActions.join(','),'pick');

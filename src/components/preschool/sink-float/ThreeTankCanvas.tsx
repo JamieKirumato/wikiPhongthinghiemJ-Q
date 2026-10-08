@@ -17,6 +17,7 @@ import { advanceSinking,sinkingDrag, displacedWaterLevel, sandHeight, modelDispl
 import {boundedZoom,releasePosition,predictedContact,throwVelocity} from './interactionPreview';
 import {FloorSpill,FlowTarget,nearestHandTarget} from './waterTransfer';
 import {IntroAction,introPose} from './introGuide';
+import {pitcherMouthPoint} from './pitcherMouth';
 
 export interface ThreeTankCanvasHandle {
   flowTarget: (x:number,y:number,sourceHeight?:number)=>FlowTarget|null;
@@ -302,14 +303,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         if(!mount||!camera)return null;
         const rect=mount.getBoundingClientRect(),d=dimsRef.current;
         if(x<rect.left||x>rect.right||y<rect.top||y>rect.bottom)return null;
-        const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((x-rect.left)/rect.width*2-1,-(y-rect.top)/rect.height*2+1),camera);
-        const hit=new THREE.Vector3();
-        if(!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-d.height),hit))return null;
-        const safe=clampToTankBoundary(hit.x,hit.z,.15,shapeRef.current,d);
-        const rim=new THREE.Vector3(safe.x,d.height,safe.z).project(camera);
-        const rimX=rect.left+(rim.x+1)*rect.width/2,rimY=rect.top+(1-rim.y)*rect.height/2;
-        // A generous screen-space mouth target works from every viewing direction.
-        if(Math.hypot(rimX-x,rimY-y)>65)return flowTarget(x,y);
+        const safe=pitcherMouthPoint(x,y,camera,rect,shapeRef.current,d);
+        if(!safe)return null;
         const target=new THREE.Vector3(safe.x,Math.max(sandHeight(d),displayedWaterLevelRef.current),safe.z).project(camera);
         return {x:rect.left+(target.x+1)*rect.width/2,y:rect.top+(1-target.y)*rect.height/2,worldX:safe.x,worldZ:safe.z,inside:true};
       },
