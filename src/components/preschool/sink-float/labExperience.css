@@ -56,6 +56,56 @@
 .lab-salt-trigger { font-size: 36px; }
 .lab-salt-popover { position: fixed; z-index: 60; width: 184px; max-height: calc(100dvh - 80px); overflow-y: auto; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; border-radius: 22px; border: 1px solid #d5e4e7; background: #fffffff5; box-shadow: 0 12px 40px -10px #23495855; }
 [data-teacher-mode=true] .lab-tools { display: flex; flex-direction: column; }
+[data-teacher-mode=true] .lab-workspace { grid-template-rows: 54px auto minmax(0, 1fr); }
+.teacher-preparation-bar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; background: #fffef9; border: 1px solid #d5dfd8; border-radius: 16px; }
+.teacher-preparation-bar > span { margin-right: auto; font-size: 13px; color: #345b4e; font-weight: 600; }
+.teacher-preparation-bar button, .teacher-panel button { min-height: 44px; border: 1px solid #d6e2da; border-radius: 12px; padding: 8px 12px; background: #fff; color: #25483e; font-weight: 600; }
+.teacher-preparation-bar button:hover, .teacher-panel button:hover { background: #edf5ef; }
+.teacher-preparation-bar button:disabled, .teacher-panel button:disabled { opacity: .45; cursor: not-allowed; }
+.teacher-panel button:focus-visible, .teacher-preparation-bar button:focus-visible { outline: 3px solid #34816f; outline-offset: 2px; }
+.teacher-panel-backdrop { position: absolute; inset: 0; z-index: 115; background: #1b352a55; display: flex; justify-content: flex-end; border-radius: inherit; overflow: hidden; }
+.teacher-panel { width: min(580px, 100%); height: 100%; display: flex; flex-direction: column; min-height: 0; background: #fffefb; box-shadow: -12px 0 40px #193b3020; color: #25483e; }
+.teacher-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 12px; }
+.teacher-panel-heading h2 { font-size: 23px; font-weight: 700; }
+.teacher-panel-heading button { min-width: 44px; }
+.teacher-panel-tabs { display: flex; gap: 6px; padding: 0 20px 12px; border-bottom: 1px solid #e1e8df; }
+.teacher-panel-tabs button { flex: 1; font-size: 13px; }
+.teacher-panel button[aria-pressed=true] { border-color: #34816f; background: #e5f2e9; box-shadow: inset 0 0 0 1px #34816f; }
+.teacher-panel-body { overflow-y: auto; overscroll-behavior: contain; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; min-height: 0; flex: 1; font-size: 14px; line-height: 1.6; }
+.teacher-panel h3 { font-weight: 700; font-size: 15px; }
+.teacher-muted { color: #63776c; font-size: 13px; }
+.teacher-lesson-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.teacher-lesson-cards button { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left; font-size: 13px; }
+.teacher-lesson-cards button > span { font-size: 24px; }
+.teacher-objective { padding: 14px; background: #eef5ee; border: 1px solid #dce7db; border-radius: 16px; display: flex; flex-direction: column; gap: 6px; }
+.teacher-choice-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.teacher-item-picker { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
+.teacher-item-picker button { display: flex; flex-direction: column; align-items: center; font-size: 12px; padding: 6px; }
+.teacher-item-picker img { width: 48px; height: 48px; object-fit: contain; }
+.teacher-panel-footer { padding: 12px 20px 18px; border-top: 1px solid #e1e8df; background: #fffefb; }
+.teacher-panel button.teacher-primary { width: 100%; background: #286c59; color: white; min-height: 48px; }
+.teacher-panel button.teacher-primary:hover { background: #205747; }
+.teacher-safety { padding: 12px; background: #fff4dc; border-radius: 12px; color: #79551c; }
+.teacher-audio-settings button[aria-pressed=true] { background: #e5f2e9; border-color: #34816f; box-shadow: inset 0 0 0 1px #34816f; }
+.teacher-practice-steps { display: flex; flex-direction: column; gap: 12px; list-style: none; }
+.teacher-scene-picker { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.teacher-scene-picker button { text-align: left; }
+.teacher-practice-steps li { padding: 10px 12px; background: #fffefb; border-radius: 10px; }
+[data-teacher-mode=true][data-teacher-ready=false] .lab-main,
+[data-teacher-mode=true][data-teacher-ready=false] .lab-object-tray,
+[data-teacher-mode=true][data-teacher-ready=false] .lab-tools { visibility: hidden; }
+.teacher-controls-backdrop { position: absolute; inset: 0; z-index: 100; background: #1b352a55; display: flex; justify-content: flex-end; }
+.teacher-controls-panel { width: min(420px,100%); display: flex; flex-direction: column; background: #fffefb; min-height: 0; }
+.teacher-controls-panel button { min-height: 44px; }
+[data-teacher-mode=true] .lab-tools { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+@media (max-width: 639px) {
+  [data-teacher-mode=true] .lab-workspace { grid-template-rows: 48px auto minmax(0,1fr) auto; }
+  .teacher-preparation-bar > span { width: 100%; }
+  .teacher-preparation-bar button { flex: 1 1 42%; font-size: 12px; padding: 6px; }
+  .teacher-panel-tabs { padding-left: 12px; padding-right: 12px; }
+  .teacher-panel-body { padding: 12px; }
+  .teacher-item-picker { grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
 .dark .lab-experience { background: #112531; }
 .dark .lab-heading h2 { color: #dbf0f3; }
 .dark .lab-scene { border-color: #284652; }
