@@ -22,11 +22,10 @@ export function WaterPitcher({disabled,onActive,onAdd,checkMouth,teacher,onFlow,
     event.preventDefault();unlockImpactAudio();callbacks.current.onActive(true);
     let point={x:event.clientX,y:event.clientY},last=performance.now(),frame=0;
     const pointer=event.pointerId;
-    const startPoint={x:event.clientX,y:event.clientY};let lifted=false,moved=false;
-    const move=(e:PointerEvent)=>{if(e.pointerId===pointer){point={x:e.clientX,y:e.clientY};moved ||= Math.hypot(point.x-startPoint.x,point.y-startPoint.y)>8;}};
+    setHand({...point,pouring:false});
+    const move=(e:PointerEvent)=>{if(e.pointerId===pointer){point={x:e.clientX,y:e.clientY};}};
     const stop=(e?:PointerEvent)=>{
       if(e&&e.pointerId!==pointer)return;
-      if(e&&e.type!=='pointercancel'&&!lifted&&!moved){lifted=true;return;}
       cancelAnimationFrame(frame);window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',stop);window.removeEventListener('pointercancel',stop);window.removeEventListener('blur',blur);window.removeEventListener('keydown',key);
       cleanupRef.current=null;setHand(null);callbacks.current.onActive(false);
     };

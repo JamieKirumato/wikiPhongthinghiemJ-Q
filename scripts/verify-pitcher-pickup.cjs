@@ -1,0 +1,12 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict'),ts=require('typescript');
+const code=ts.transpileModule(fs.readFileSync('src/components/preschool/sink-float/WaterPitcher.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.React,esModuleInterop:true}}).outputText;
+const listeners=new Map(),frames=new Map(),active=[];let hand=null,id=0,added=0;
+const react={createElement:(type,props,...children)=>({type,props,children}),useState:()=>[null,v=>hand=v],useRef:v=>({current:v}),useEffect:()=>{}};
+const moduleStub={exports:{}};
+vm.runInNewContext(code,{module:moduleStub,exports:moduleStub.exports,require:n=>n==='react'?react:n==='./impactAudio'?{unlockImpactAudio(){},playWaterSwish(){}}:{},performance:{now:()=>0},window:{addEventListener:(n,f)=>listeners.set(n,f),removeEventListener:n=>listeners.delete(n)},requestAnimationFrame:f=>{frames.set(++id,f);return id;},cancelAnimationFrame:i=>frames.delete(i)});
+const tree=moduleStub.exports.WaterPitcher({disabled:false,onActive:v=>active.push(v),onAdd:v=>{added+=v;return v;},checkMouth:()=>true,teacher:false,onFlow(){},flowRate:100,getTarget:(x,y)=>x<400?{inside:true,x,y:400,worldX:0,worldZ:0}:null,onSpill(){}});
+const down=tree.children[0].props.onPointerDown;
+const event={button:0,pointerId:1,clientX:615,clientY:675,preventDefault(){}};
+down(event);assert.ok(hand,'press immediately picks up pitcher');listeners.get('pointerup')({pointerId:2});assert.ok(hand,'other pointer cannot release');listeners.get('pointerup')({pointerId:1});assert.equal(hand,null,'first release without motion puts pitcher down');assert.equal(listeners.size,0);
+down(event);listeners.get('pointermove')({pointerId:1,clientX:280,clientY:324});const tick=[...frames.values()][0];frames.clear();tick(100);assert.ok(added>0,'held pitcher pours over mouth');listeners.get('pointerup')({pointerId:1});assert.equal(hand,null);assert.equal(frames.size,0);assert.equal(active.at(-1),false);
+console.log('Passed: immediate pickup, first-release cleanup, foreign pointer ignored, held pouring and release stop.');
