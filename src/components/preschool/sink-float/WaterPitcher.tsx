@@ -30,8 +30,8 @@ export function WaterPitcher({disabled,onActive,onAdd,checkMouth,teacher,onFlow,
     const key=(e:KeyboardEvent)=>{if(e.key==='Escape')stop();};
     const tick=(time:number)=>{
       const dt=Math.min(.1,(time-last)/1000);last=time;
-      const p=callbacks.current,spout=pitcherSpout(point.x,point.y),candidate=p.getTarget(spout.x,spout.y);
-      const target=candidate&&candidate.y>spout.y?candidate:null,over=target?.inside ?? false;
+      const p=callbacks.current,spout=pitcherSpout(point.x,point.y),candidate=p.getTarget(point.x,point.y);
+      const target=candidate&&(candidate.inside||candidate.y>spout.y)?candidate:null,over=target?.inside ?? false;
       const amount=p.flowRate*dt;
       const poured=target?(over?p.onAdd(amount):amount):0;
       if(target&&!over&&poured>0)p.onSpill(target.worldX,target.worldZ,poured);

@@ -44,6 +44,8 @@ import { WaterPitcher } from './sink-float/WaterPitcher';
 import {FloorMop} from './sink-float/FloorMop';
 import {BucketSupply,fillBucketSupply,FloorSpill,mergeSpill,splitOverflow,waterCapacity} from './sink-float/waterTransfer';
 import { WaterLadle } from './sink-float/WaterLadle';
+// Temporarily hidden; restore only when requested.
+const LADLE_ENABLED=false;
 import { addedWaterHeight, sandHeight, scoopWater, modelDisplacementVolume } from './sink-float/waterPhysics';
 import { BoatChallenge } from './sink-float/BoatChallenge';
 import { RealLifeActivityCards } from './sink-float/RealLifeActivityCards';
@@ -495,7 +497,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   useEffect(()=>{
     if(overflowAt<=0||cleanupGuidedRef.current.overflow)return;
     cleanupGuidedRef.current.overflow=true;
-    playCleanupGuide('overflow-cleanup',()=>setLadleGuideReady(true));
+    if(LADLE_ENABLED)playCleanupGuide('overflow-cleanup',()=>setLadleGuideReady(true));
+    else setLadleGuideReady(true);
   },[overflowAt]);
   useEffect(()=>{
     if(!floorSpills.length||pouringWater||cleanupGuidedRef.current.floor||cleanupVoiceRef.current)return;
@@ -1201,7 +1204,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                 showXRay={showXRay}
                 onItemObserved={handleItemObserved}
               />
-              {(carriedBucketVisible||bucketWater.ml>0||bucketWater.fullBuckets.length>0)&&<div ref={bucketRef} data-water-bucket aria-label="Các xô hứng nước" className="lab-bucket absolute bottom-5 left-5 z-30 pointer-events-none flex flex-wrap items-end gap-2 max-w-[calc(100%-40px)]">
+              {LADLE_ENABLED&&(carriedBucketVisible||bucketWater.ml>0||bucketWater.fullBuckets.length>0)&&<div ref={bucketRef} data-water-bucket aria-label="Các xô hứng nước" className="lab-bucket absolute bottom-5 left-5 z-30 pointer-events-none flex flex-wrap items-end gap-2 max-w-[calc(100%-40px)]">
                 {bucketWater.fullBuckets.map((_,index)=><div key={index} aria-label="Xô đã đầy" className="relative w-12">
                   <svg viewBox="0 0 120 120" width="48" height="48" aria-hidden="true"><path d="M17 43L27 99Q60 115 93 99L103 43" fill="#ffd59c" stroke="#b87838" strokeWidth="4"/><ellipse cx="60" cy="43" rx="43" ry="15" fill="#86dcea" stroke="#b87838" strokeWidth="4"/><path d="M23 38C15 5 105 5 97 38" fill="none" stroke="#d09450" strokeWidth="5"/></svg>
                 </div>)}
@@ -1253,7 +1256,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             disabled={comparisonMode || introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}
             teacher={isTeacherMode} onActive={setPouringWater}
             flowRate={waterVolumeMl(tankShape,dimensions)*.1}
-            getTarget={(x,y)=>threeTankRef.current?.flowTarget(x,y,dimensions.height+.9)||null}
+            getTarget={(x,y)=>threeTankRef.current?.pitcherTarget(x,y)||null}
             onSpill={addFloorWater}
             onFlow={(x,y)=>threeTankRef.current?.stirAtScreenPoint(x,y,.6)}
             checkMouth={(x,y)=>threeTankRef.current?.checkPointOverTankMouth(x,y).isOver ?? false}
@@ -1266,7 +1269,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               return amount;
             }}/>
           }
-          {(advanced||ladleGuideReady) && !comparisonMode && (activityMode==='discovery'||activityMode==='egg-challenge') && <WaterLadle
+          {LADLE_ENABLED && (advanced||ladleGuideReady) && !comparisonMode && (activityMode==='discovery'||activityMode==='egg-challenge') && <WaterLadle
             highlighted={ladleGuideReady&&!ladleActive} isBucket={overBucket} canPourBucket={()=>performance.now()>=bucketReadyAfterRef.current} onCarriedOutside={setCarriedBucketVisible}
             disabled={comparisonMode || introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}
             teacher={isTeacherMode} capacity={waterVolumeMl(tankShape,dimensions)*.2}

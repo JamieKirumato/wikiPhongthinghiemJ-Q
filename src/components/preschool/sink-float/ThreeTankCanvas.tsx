@@ -14,12 +14,13 @@ import { configureWaterSurface } from './waterSurfaceShader';
 import { advanceAirFall, itemKind } from './playPhysics';
 import { SceneBackdrop, SceneSetting } from './SceneBackdrop';
 import { advanceSinking,sinkingDrag, displacedWaterLevel, sandHeight, modelDisplacementVolume } from './waterPhysics';
-import {boundedZoom,releasePosition,predictedContact} from './interactionPreview';
+import {boundedZoom,releasePosition,predictedContact,throwVelocity} from './interactionPreview';
 import {FloorSpill,FlowTarget,nearestHandTarget} from './waterTransfer';
 import {IntroAction,introPose} from './introGuide';
 
 export interface ThreeTankCanvasHandle {
   flowTarget: (x:number,y:number,sourceHeight?:number)=>FlowTarget|null;
+  pitcherTarget: (x:number,y:number)=>FlowTarget|null;
   floorPoint: (x:number,y:number)=>{x:number;z:number}|null;
   showIntroFrame: (action:IntroAction|null,progress:number)=>{x:number;y:number;carrying:boolean;fromTray:number;tool:string;toolFill:number;item:string|null}|null;
   checkPointInWater: (screenX: number, screenY: number) => boolean;
@@ -296,6 +297,22 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     // IMPERATIVE API EXPOSED TO PARENT
     useImperativeHandle(ref, () => ({
       flowTarget,floorPoint,
+      pitcherTarget:(x,y)=>{
+        const mount=mountRef.current,camera=cameraRef.current;
+        if(!mount||!camera)return null;
+        const rect=mount.getBoundingClientRect(),d=dimsRef.current;
+        if(x<rect.left||x>rect.right||y<rect.top||y>rect.bottom)return null;
+        const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((x-rect.left)/rect.width*2-1,-(y-rect.top)/rect.height*2+1),camera);
+        const hit=new THREE.Vector3();
+        if(!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-d.height),hit))return null;
+        const safe=clampToTankBoundary(hit.x,hit.z,.15,shapeRef.current,d);
+        const rim=new THREE.Vector3(safe.x,d.height,safe.z).project(camera);
+        const rimX=rect.left+(rim.x+1)*rect.width/2,rimY=rect.top+(1-rim.y)*rect.height/2;
+        // A generous screen-space mouth target works from every viewing direction.
+        if(Math.hypot(rimX-x,rimY-y)>65)return flowTarget(x,y);
+        const target=new THREE.Vector3(safe.x,Math.max(sandHeight(d),displayedWaterLevelRef.current),safe.z).project(camera);
+        return {x:rect.left+(target.x+1)*rect.width/2,y:rect.top+(1-target.y)*rect.height/2,worldX:safe.x,worldZ:safe.z,inside:true};
+      },
       showIntroFrame:(action,progress)=>{
         const scene=sceneRef.current,camera=cameraRef.current,mount=mountRef.current;
         if(!scene||!camera||!mount)return null;
@@ -460,9 +477,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const hand=projectScreenToWorldInternal(screenX,screenY,0);
         const pos=releasePosition(raycasterRef.current.ray,dimsRef.current,shapeRef.current,displayedWaterLevelRef.current,Math.max(radius-.6,Math.min(dimsRef.current.height+4,hand?.y??dimsRef.current.height+1)),radius);
         if(!pos){setDropPreview(null);return;}
-        const right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);right.y=0;right.normalize();
-        const vx=Math.max(-4,Math.min(4,(screenVelocity?.vx||0)*.005)),vy=Math.max(-6,Math.min(6,-(screenVelocity?.vy||0)*.006));
-        const contact=predictedContact(pos,new THREE.Vector3(right.x*vx,vy,right.z*vx),dimsRef.current,shapeRef.current,displayedWaterLevelRef.current,radius);
+        const velocity=throwVelocity(camera,screenVelocity||{vx:0,vy:0});
+        const contact=predictedContact(pos,velocity,dimsRef.current,shapeRef.current,displayedWaterLevelRef.current,radius);
         if(!contact){setDropPreview(null);return;}
         const projected=contact.point.project(camera);setDropPreview({x:(projected.x+1)*rect.width/2,y:(1-projected.y)*rect.height/2,inside:contact.inside});
       },
@@ -509,14 +525,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         let vz = 0;
 
         if (screenVelocity) {
-          const screenRight = new THREE.Vector3(1, 0, 0).applyQuaternion(cameraRef.current!.quaternion);
-          screenRight.y = 0;
-          screenRight.normalize();
-          const horizontalSpeed = Math.max(-4.0, Math.min(4.0, screenVelocity.vx * 0.005));
-          vx = screenRight.x * horizontalSpeed;
-          vz = screenRight.z * horizontalSpeed;
-          // vy kéo lên ném bổng, kéo xuống ném thẳng vào nước
-          vy = Math.max(-6.0, Math.min(6.0, -screenVelocity.vy * 0.006));
+          const velocity=throwVelocity(cameraRef.current!,screenVelocity);
+          vx=velocity.x;vy=velocity.y;vz=velocity.z;
         }
 
         onUpdateItems(
@@ -1743,8 +1753,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
               : item
           );
           const firstSample=samples[0],velocity=firstSample?gestureVelocity(e.clientX-firstSample.x,e.clientY-firstSample.y,(performance.now()-firstSample.t)/1000):{vx:0,vy:0};
-          const right=new THREE.Vector3(1,0,0).applyQuaternion(cameraRef.current.quaternion);right.y=0;right.normalize();
-          const contact=predictedContact(new THREE.Vector3(clampedPos.x,clampedY,clampedPos.z),new THREE.Vector3(right.x*velocity.vx*.005,-velocity.vy*.006,right.z*velocity.vx*.005),d,s,surfaceY,itemR);
+          const worldVelocity=throwVelocity(cameraRef.current,velocity);
+          const contact=predictedContact(new THREE.Vector3(clampedPos.x,clampedY,clampedPos.z),worldVelocity,d,s,surfaceY,itemR);
           if(contact){const projected=contact.point.project(cameraRef.current);setDropPreview({x:(projected.x+1)*rect.width/2,y:(1-projected.y)*rect.height/2,inside:contact.inside});}else setDropPreview(null);
           const heldMesh=itemMeshesRef.current.get(holdingItemId);
           heldMesh?.position.set(clampedPos.x,clampedY,clampedPos.z);
@@ -1765,14 +1775,14 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       if (orbitRef.current.isDragging===2 && id) {
         const samples=dragSamplesRef.current, first=samples[0], last=samples[samples.length-1];
         const v=e.type==='pointercancel'||!first||!last ? {vx:0,vy:0} : gestureVelocity(last.x-first.x,last.y-first.y,(performance.now()-first.t)/1000);
-        const right=new THREE.Vector3(1,0,0).applyQuaternion(cameraRef.current!.quaternion);right.y=0;right.normalize();
+        const worldVelocity=throwVelocity(cameraRef.current!,v);
         const next=itemsRef.current.map(item=>{
           if(item.id!==id)return item;
           const radius=(ITEM_WORLD_SCALES[itemKind(item.id)]||{radius:.4}).radius;
           const submerged=!item.outsideTank && item.y-radius<=displayedWaterLevelRef.current;
           const status:TankObject['status']=submerged ? (item.weightGrams/item.volumeMl<=waterDensityRef.current?'floating':'sunk'):'falling';
           const safe=clampToTankBoundary(item.x,item.z,radius,shapeRef.current,dimsRef.current);
-          return {...item,x:safe.x,z:safe.z,outsideTank:false,vRot:itemKind(item.id)==='item-leaf'?Math.max(-90,Math.min(90,40+v.vx*.12)):['item-spoon','item-keys'].includes(itemKind(item.id))?Math.max(60,Math.min(240,Math.hypot(v.vx,v.vy)*.3))*(v.vx<0?-1:1):item.vRot,vx:right.x*v.vx*0.005,vz:right.z*v.vx*0.005,vy:-v.vy*0.006,settled:false,status};
+          return {...item,x:safe.x,z:safe.z,outsideTank:false,vRot:itemKind(item.id)==='item-leaf'?Math.max(-90,Math.min(90,40+v.vx*.12)):['item-spoon','item-keys'].includes(itemKind(item.id))?Math.max(60,Math.min(240,Math.hypot(v.vx,v.vy)*.3))*(v.vx<0?-1:1):item.vRot,vx:worldVelocity.x,vz:worldVelocity.z,vy:worldVelocity.y,settled:false,status};
         });
         itemsRef.current=next; onUpdateItems(next); onMessageUpdate('Con vừa buông tay. Hãy quan sát vật sẽ đi đâu nhé!');
       }

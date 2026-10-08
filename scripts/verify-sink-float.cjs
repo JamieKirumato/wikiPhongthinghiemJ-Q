@@ -346,9 +346,17 @@ for(const shape of ['rectangle','square','cylinder','triangle']){
   assert.ok(edgeDrop&&geometry.isPointInsideFootprint(edgeDrop.x,edgeDrop.z,shape,dims,-.49),'visible water near an edge must release safely inside');
   const contact=controls.predictedContact(pos,new THREE.Vector3(),dims,shape,dims.waterHeight,.45);assert.equal(contact.inside,true);assert.equal(contact.point.y,dims.waterHeight);
   const outsideRay=new THREE.Ray(new THREE.Vector3(12,10,0),new THREE.Vector3(0,-1,0));
-  const out=controls.releasePosition(outsideRay,dims,shape,dims.waterHeight,5,.45);assert.ok(geometry.isPointInsideFootprint(out.x,out.z,shape,dims,-.45));
+  const out=controls.releasePosition(outsideRay,dims,shape,dims.waterHeight,5,.45);assert.ok(geometry.isPointInsideFootprint(out.x,out.z,shape,dims,-.45));assert.equal(out.y,Math.max(5,dims.waterHeight+.57));
   const floorContact=controls.predictedContact(out,new THREE.Vector3(),dims,shape,dims.waterHeight,.45);assert.equal(floorContact.inside,true);assert.equal(floorContact.point.y,dims.waterHeight);
 }
+const camera=new THREE.PerspectiveCamera(45,1,.1,100);camera.position.set(8,8,12);camera.lookAt(0,2,0);camera.updateMatrixWorld();
+for(const gesture of [{vx:300,vy:0},{vx:0,vy:-300},{vx:-300,vy:200}]){
+ const velocity=controls.throwVelocity(camera,gesture),local=velocity.clone().applyQuaternion(camera.quaternion.clone().invert());
+ assert.ok(Math.sign(local.x)===Math.sign(gesture.vx)||Math.abs(local.x)<1e-9);
+ assert.ok(Math.sign(local.y)===Math.sign(-gesture.vy)||Math.abs(local.y)<1e-9);
+ assert.ok(Math.abs(local.z)<1e-9);
+}
+assert.ok(Math.abs(controls.throwVelocity(camera,{vx:0,vy:-300}).z)>.1,'vertical flick also travels into depth');
 const prefsSelection=source('src/components/preschool/sink-float/teacherExperience.ts');
 assert.equal(prefsSelection.normalizeExperience({}).introActions.length,8);
 const pickOnly=prefsSelection.normalizeExperience({introActions:['pick','unknown','pick']});assert.equal(pickOnly.introActions.join(','),'pick');
