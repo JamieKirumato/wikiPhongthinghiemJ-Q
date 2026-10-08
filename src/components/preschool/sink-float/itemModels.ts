@@ -16,7 +16,7 @@ export function createItemModel(id: string, size: number, image?:string, radius=
     const fit=()=>{
       const bitmap=texture!.image as {width:number;height:number}|undefined;
       const ratio=bitmap&&bitmap.height ? bitmap.width/bitmap.height : 1;
-      const height=2*radius/size/Math.sqrt(1+ratio*ratio);
+      const height=2*radius/size/Math.max(1,ratio);
       sprite.scale.set(height*ratio,height,1);
     };
     fit();

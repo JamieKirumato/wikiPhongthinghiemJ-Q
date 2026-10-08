@@ -23,6 +23,7 @@ export interface ThreeTankCanvasHandle {
   flowTarget: (x:number,y:number,sourceHeight?:number)=>FlowTarget|null;
   pitcherTarget: (x:number,y:number)=>FlowTarget|null;
   saltTarget: (x:number,y:number)=>THREE.Vector3|null;
+  toolAnchor:()=>{x:number;y:number}|null;
   floorPoint: (x:number,y:number)=>{x:number;z:number}|null;
   showIntroFrame: (action:IntroAction|null,progress:number)=>{x:number;y:number;carrying:boolean;fromTray:number;tool:string;toolFill:number;item:string|null}|null;
   checkPointInWater: (screenX: number, screenY: number) => boolean;
@@ -75,20 +76,8 @@ interface ThreeTankCanvasProps {
 }
 
 // Cấu hình vật thể 3D thế giới (World Units)
-export const ITEM_WORLD_SCALES: Record<string, { size: number; radius: number }> = {
-  'item-pebble': { size: 1.0, radius: 0.5 },
-  'item-keys': { size: 0.78, radius: 0.50 },
-  'item-spoon': { size: 0.88, radius: 0.50 },
-  'item-egg': { size: 1.05, radius: 0.525 },
-  'item-apple': { size: 0.90, radius: 0.45 },
-  'item-wood': { size: 0.85, radius: 0.49 },
-  'item-duck': { size: 0.98, radius: 0.60 },
-  'item-pingpong': { size: 0.96, radius: 0.48 },
-  'item-leaf': { size: 0.82, radius: 0.41 },
-  'item-bottle': { size: .85, radius: .58 },
-  'item-coin': {size:.65,radius:.325},
-  'item-marble': {size:.65,radius:.325}
-};
+export {ITEM_WORLD_SCALES} from './itemScale';
+import {ITEM_WORLD_SCALES} from './itemScale';
 
 export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvasProps>(
   (
@@ -299,6 +288,11 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     // IMPERATIVE API EXPOSED TO PARENT
     useImperativeHandle(ref, () => ({
       flowTarget,floorPoint,
+      toolAnchor:()=>{
+        const mount=mountRef.current,camera=cameraRef.current;if(!mount||!camera)return null;
+        const d=dimsRef.current,p=new THREE.Vector3(d.width*.3,d.height,d.depth*.32).project(camera),r=mount.getBoundingClientRect();
+        return {x:r.left+(p.x+1)*r.width/2,y:r.top+(1-p.y)*r.height/2};
+      },
       saltTarget:(x,y)=>{
         const mount=mountRef.current,camera=cameraRef.current;if(!mount||!camera)return null;
         const point=pitcherMouthPoint(x,y,camera,mount.getBoundingClientRect(),shapeRef.current,dimsRef.current,0);
@@ -786,7 +780,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     }, []);
 
     useEffect(() => {
-      floorRef.current?.material.color.setHex(sceneSetting === 'laboratory' ? 0xe6eee8 : 0xffedc7);
+      const floorColors:Record<SceneSetting,number>={laboratory:0xe6eee8,seaside:0xffedc7,classroom:0xeee6d6,'home-yard':0xe6e9d8,'school-garden':0xdce8d6,picnic:0xe0ead7,'nature-corner':0xeee5d5,'discovery-island':0xf3e8ca};
+      floorRef.current?.material.color.setHex(floorColors[sceneSetting]);
     }, [sceneSetting]);
 
     // 2. DỰNG HÌNH HỌC BỂ KÍNH VÀ NƯỚC (RENDER ORDER & PALE CYAN TRANSPARENCY)
@@ -1519,7 +1514,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           if(holdingItemRef.current===egg.id||itemKind(egg.id)!=='item-egg'||!egg.outsideTank||egg.status!=='grounded'||egg.damage==='broken')continue;
           for(const other of currentTankItems){
             if(other.id===egg.id||other.id===holdingItemRef.current)continue;
-            const damage=floorEggDamage(egg,other,dt,.525,ITEM_WORLD_SCALES[itemKind(other.id)]?.radius||.4);
+            const damage=floorEggDamage(egg,other,dt,ITEM_WORLD_SCALES['item-egg'].radius,ITEM_WORLD_SCALES[itemKind(other.id)]?.radius||.4);
             if(damage!==egg.damage){egg.damage=damage;itemsChanged=true;const mesh=itemMeshesRef.current.get(egg.id);if(mesh)applyItemDamage(mesh,egg.id,damage);if(soundEnabled)playImpact('egg',Math.abs(other.vy));}
           }
         }

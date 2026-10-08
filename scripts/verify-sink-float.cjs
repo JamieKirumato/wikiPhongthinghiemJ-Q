@@ -473,3 +473,11 @@ for(const shape of ['rectangle','square','cylinder','triangle']) {
   }
 }
 console.log('Passed: camera fills portrait, landscape and desktop frames without clipping all four tank shapes at multiple angles.');
+
+const physicalScales=source('src/components/preschool/sink-float/itemScale.ts').ITEM_WORLD_SCALES;
+assert.ok(physicalScales['item-pingpong'].size>physicalScales['item-apple'].size*3);
+assert.ok(physicalScales['item-spoon'].size>physicalScales['item-egg'].size*2);
+assert.ok(physicalScales['item-apple'].size>physicalScales['item-egg'].size);
+assert.ok(physicalScales['item-coin'].size<physicalScales['item-egg'].size/2);
+assert.ok(physicalScales['item-marble'].size<physicalScales['item-coin'].size);
+console.log('Passed: shared real-size ratios keep football and spoon larger, coin and marble smaller than egg and apple.');

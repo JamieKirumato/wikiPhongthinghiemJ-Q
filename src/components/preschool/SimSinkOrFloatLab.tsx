@@ -257,8 +257,8 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     icon: '⚪',
     image: '/assets/items/approved/football.png',
     size: 0.96,
-    weightGrams: 60,
-    volumeMl: 500,
+    weightGrams: 430,
+    volumeMl: 5500,
     floatsDefault: true,
     desc: 'Bóng đá bơm hơi, kín khí',
     densityNote: 'Bóng bơm hơi chứa không khí, khối lượng riêng trung bình nhỏ hơn nước',
@@ -474,7 +474,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const [workflowStep, setWorkflowStep] = useState<SaltWorkflowStep>('idle');
 
   // Khối lượng riêng cập nhật LIÊN TỤC theo lượng muối tan (D >= 1.0)
-  const dissolvedFraction = saltSpoons + (workflowStep === 'stirring' ? activeStirProgress / 100 * pendingSaltSpoons : 0);
+  const dissolvedFraction = saltSpoons + activeStirProgress / 100 * pendingSaltSpoons;
   const [items, setItems] = useState<TankObject[]>(PLAY_ITEMS_PRESETS);
   const [holdingItemId, setHoldingItemId] = useState<string | null>(null);
   const waterDensity = brineDensity(Math.max(0,dissolvedFraction * SALT_GRAMS_PER_SPOON-removedSaltGrams), waterVolumeMl(tankShape, dimensions)+addedWaterMl);
@@ -1002,17 +1002,18 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       setMessage('Muối đang rơi vào nước. Con cùng quan sát nhé!');
       if (soundEnabled) soundEngine.playSaltPour();
       threeTankRef.current?.spawnSaltGrains(Math.round(40 * spoonFraction), point);
+      setActiveStirProgress(progress=>progress*pendingSaltSpoons/(pendingSaltSpoons+spoonFraction));
       setPendingSaltSpoons(total=>Math.min(MAX_SALT_SPOONS-saltSpoons,total+spoonFraction));
 
       if (pourTimeoutRef.current) clearTimeout(pourTimeoutRef.current);
       pourTimeoutRef.current = window.setTimeout(() => {
         pourTimeoutRef.current=null;
         setWorkflowStep('scoopMode');
-        setActiveStirProgress(0);
+
         setMessage('Thìa đã trống. Con có thể xúc thêm muối, hoặc chọn que khuấy.');
       }, 1400);
     },
-    [workflowStep, soundEnabled, spoonFraction,saltSpoons]
+    [workflowStep, soundEnabled, spoonFraction,saltSpoons,pendingSaltSpoons]
   );
 
   // Bắt đầu đua thả 2 vật
@@ -1316,11 +1317,12 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               const next=spills.map((spill,i)=>i===index?{...spill,ml:spill.ml-absorbed}:spill).filter(spill=>spill.ml>.01);
               floorSpillsRef.current=next;setFloorSpills(next);return absorbed;
             }}/>
-          {advanced && (activityMode==='discovery'||activityMode==='egg-challenge') && (
-          <SaltWorkflow key="salt-workflow" visualOnly={!isTeacherMode}
+          {(activityMode==='discovery'||activityMode==='egg-challenge') && (
+          <SaltWorkflow toolsEnabled={advanced} key="salt-workflow" visualOnly={!isTeacherMode}
             disabled={interactionMode === 'orbit' || pouringWater}
             saltSpoons={saltSpoons+pendingSaltSpoons}
             pendingSaltSpoons={pendingSaltSpoons}
+            getToolAnchor={()=>threeTankRef.current?.toolAnchor()||null}
             spoonFraction={spoonFraction}
             onDoseChange={setSpoonFraction}
             onStirAtScreenPoint={(x,y) => threeTankRef.current?.stirAtScreenPoint(x,y,.35)}
