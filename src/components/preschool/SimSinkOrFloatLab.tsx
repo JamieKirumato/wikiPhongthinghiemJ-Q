@@ -1242,8 +1242,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             <button disabled={comparisonBusy} aria-label="Thả cùng vật vào hai bể" onClick={releaseComparison} className="w-full min-h-[52px] rounded-xl bg-violet-600 text-white font-bold disabled:opacity-50">{isTeacherMode?'Thả cùng vật vào hai bể':<span aria-hidden="true" className="text-3xl">⬇️⬇️</span>}</button>
             {isTeacherMode&&<p className="text-xs">Thử trước, rồi thêm muối và khuấy ở bể A. Bể B giữ nước ngọt; lượng nước giữ nguyên.</p>}
           </div>}
-          {isTeacherMode&&!comparisonMode&&<button aria-pressed={showSecondTank} onClick={()=>setShowSecondTank(!showSecondTank)} className="min-h-[48px] rounded-2xl bg-violet-100 font-bold">{showSecondTank?'Ẩn bể 2':'Thêm bể 2'}</button>}
-          {isTeacherMode&&<button aria-expanded={showGuideModal} onClick={()=>setShowGuideModal(!showGuideModal)} className="min-h-[48px] rounded-2xl bg-amber-100 font-bold">📖 Hướng dẫn</button>}
+          {false&&isTeacherMode&&!comparisonMode&&<button aria-pressed={showSecondTank} onClick={()=>setShowSecondTank(!showSecondTank)} className="min-h-[48px] rounded-2xl bg-violet-100 font-bold">{showSecondTank?'Ẩn bể 2':'Thêm bể 2'}</button>}
+          {false&&isTeacherMode&&<button aria-expanded={showGuideModal} onClick={()=>setShowGuideModal(!showGuideModal)} className="min-h-[48px] rounded-2xl bg-amber-100 font-bold">📖 Hướng dẫn</button>}
           <button disabled={pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle'} aria-label={advanced?'Thả đồ vật':'Khám phá thêm'} aria-pressed={advanced} onClick={()=>switchExploration(!advanced)} className="min-h-[52px] rounded-2xl bg-sky-100 px-2 font-bold disabled:opacity-50">{isTeacherMode?(advanced?'🧺 Thả đồ vật':'🔎 Khám phá thêm'):<span aria-hidden="true" className="text-3xl">{advanced?'🧺':'🔎'}</span>}</button>
           {isTeacherMode&&advanced&&!comparisonMode&&<p className="text-sm px-2 text-sky-800">Thêm nước, thêm muối rồi khuấy. Con thấy điều gì thay đổi?</p>}
           {isTeacherMode&&<button onClick={()=>setShowExperienceSettings(true)} className="min-h-[48px] w-full rounded-2xl border border-sky-200 bg-white font-bold text-sm">Hướng dẫn và âm thanh</button>}
@@ -1426,6 +1426,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
 
       </div>
 
+          {!isTeacherMode&&<>
           {/* BỘ CHUYỂN CHẾ ĐỘ HOẠT ĐỘNG (COMPACT ACTIVITY MODE SELECTOR) */}
           <div className="p-1.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-amber-300 dark:border-amber-700 shadow-sm space-y-1">
             <span className="text-[10px] font-black text-amber-900 dark:text-amber-300 uppercase tracking-wide block px-1">
@@ -1482,6 +1483,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             </div>
           </div>
 
+          </>}
           {activityMode === 'boat-challenge' && <div ref={setBoatControlsHost} />}
           {(activityMode === 'discovery' || activityMode === 'egg-challenge') && <>
           {/* CHẾ ĐỘ TƯƠNG TÁC NGHIÊM NGẶT (STRICT MODES) */}
@@ -1504,6 +1506,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
 
           </>}
               {/* Thanh điều khiển góc nhìn và chế độ bên trong khung cảnh 3D */}
+              {!isTeacherMode&&<>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={handleResetDefaultView}
@@ -1525,6 +1528,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               </div>
 
 
+              </>}
                 {/* Mở bảng quan sát */}
                 <button
                   onClick={() => setShowObservationBoard(true)}
@@ -1594,6 +1598,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
 
 </details>
           {(activityMode === 'discovery' || activityMode === 'egg-challenge') && <>
+          {!isTeacherMode&&<>
           {/* ĐUA THẢ 2 VẬT CÙNG LÚC */}
           <div className="p-2 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-sky-200 dark:border-slate-800 shadow-sm space-y-1.5">
             <div className="flex items-center justify-between">
@@ -1650,6 +1655,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             )}
           </div>
 
+          </>}
           {/* NGĂN KÉO MỞ RỘNG DÀNH CHO NGƯỜI LỚN & GIÁO VIÊN */}
           </>}
           <div className="rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
@@ -1798,6 +1804,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                   </div>
                 </div>
 
+                {!isTeacherMode&&<>
                 {/* Hướng dẫn sư phạm */}
                 <div className="space-y-1 text-[10px] text-slate-600 dark:text-slate-400 leading-relaxed">
                   <div className="font-bold text-slate-800 dark:text-slate-200">
@@ -1810,6 +1817,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                     * Lưu ý: Lượng thìa muối ngoài đời thực tùy thuộc vào lượng nước trong cốc hay chậu của lớp học.
                   </p>
                 </div>
+                </>}
               </div>
             )}
           </div>
@@ -2001,7 +2009,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       {/* ======================================================== */}
       {/* 6. MODAL HƯỚNG DẪN THÍ NGHIỆM                            */}
       {/* ======================================================== */}
-      {showGuideModal && (
+      {!isTeacherMode && showGuideModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
           <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border-4 border-amber-300 dark:border-amber-600 shadow-2xl p-5 space-y-3.5 relative">
             <button
