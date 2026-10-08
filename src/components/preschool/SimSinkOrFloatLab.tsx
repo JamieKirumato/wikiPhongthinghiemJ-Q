@@ -1325,7 +1325,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               setAddedWaterMl(addedWaterRef.current);setRemovedSaltGrams(removedSaltRef.current);
             }}/>
           }
-          {floorSpills.length>0&&<FloorMop available={floorSpills.length>0} highlighted={clothGuideReady&&floorSpills.length>0}
+          {<FloorMop available={floorSpills.length>0} highlighted={clothGuideReady&&floorSpills.length>0}
             clearBucketsToken={clearClothBucketsToken} onWringComplete={completeFloorCleanup}
             disabled={introLocked||pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle'||interactionMode==='orbit'}
             teacher={false} onActive={setPouringWater}

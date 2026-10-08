@@ -1,0 +1,13 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict'),ts=require('typescript');
+const code=ts.transpileModule(fs.readFileSync('src/components/preschool/sink-float/FloorMop.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.React,esModuleInterop:true}}).outputText;
+let hand=null,cleanCalls=0,finish;const refs=[],listeners=new Map(),states=[];
+const react={createElement:(type,props,...children)=>({type,props,children}),useState:v=>{const i=states.length;states.push(v);return [v,value=>{states[i]=typeof value==='function'?value(states[i]):value;if(i===0)hand=states[i];}];},useRef:v=>{const ref={current:v};refs.push(ref);return ref;},useEffect:()=>{}};
+const m={exports:{}};vm.runInNewContext(code,{module:m,exports:m.exports,require:()=>react,setTimeout:f=>{finish=f;return 1;},clearTimeout(){},window:{addEventListener:(n,f)=>listeners.set(n,f),removeEventListener:n=>listeners.delete(n)}});
+const tree=m.exports.FloorMop({disabled:false,available:true,onActive(){},onClean:()=>{cleanCalls++;return 20;},onWringComplete(){}});refs[2].current={getBoundingClientRect:()=>({left:300,right:400,top:600,bottom:700})};
+const down=tree.children[0].props.onPointerDown;down({button:0,pointerId:1,clientX:600,clientY:700,preventDefault(){}});listeners.get('pointerup')({type:'pointerup',pointerId:1});assert.ok(hand,'click release retains cloth');
+listeners.get('pointermove')({pointerId:1,clientX:100,clientY:300});assert.equal(cleanCalls,1);assert.equal(refs[0].current,20);
+listeners.get('pointermove')({pointerId:1,clientX:20,clientY:20});assert.equal(hand.x,100,'wet cloth cannot move away from bucket');assert.equal(hand.y,300);assert.equal(cleanCalls,1,'wet cloth cannot keep cleaning');
+listeners.get('pointerup')({type:'pointerup',pointerId:1});assert.ok(hand,'wet cloth cannot be dropped away from bucket');
+listeners.get('pointermove')({pointerId:1,clientX:350,clientY:650});assert.equal(refs[1].current,true);assert.equal(listeners.size,0,'wringing cleans up held interaction');finish();assert.equal(refs[0].current,0);assert.equal(hand,null);assert.equal(refs[1].current,false);
+down({button:0,pointerId:1,clientX:600,clientY:700,preventDefault(){}});listeners.get('pointerup')({type:'pointerup',pointerId:1});listeners.get('pointermove')({pointerId:1,clientX:110,clientY:310});assert.equal(cleanCalls,2,'wrung cloth can clean again');
+console.log('Passed: click pickup, wet-only bucket travel, no extra wiping or dropping, wringing cleanup and repeat wiping.');
