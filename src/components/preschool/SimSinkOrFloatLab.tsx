@@ -1293,6 +1293,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               return amount;
             }}/>
           }
+          <div data-stir-tool-slot style={{gridColumn:1}} />
           {LADLE_ENABLED && (advanced||ladleGuideReady) && !comparisonMode && (activityMode==='discovery'||activityMode==='egg-challenge') && <WaterLadle
             highlighted={ladleGuideReady&&!ladleActive} isBucket={overBucket} canPourBucket={()=>performance.now()>=bucketReadyAfterRef.current} onCarriedOutside={setCarriedBucketVisible}
             disabled={comparisonMode || introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}
