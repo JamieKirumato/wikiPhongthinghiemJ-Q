@@ -17,3 +17,14 @@ holding.dispose();assert.equal(holding.listeners.has('pointermove'),false);
 const pouring=mount('pouring');pouring.listeners.get('pointermove')({clientX:700,clientY:600});assert.equal(pouring.calls.length,0,'a pouring spoon stays in place and does not pour again');pouring.dispose();
 const empty=mount('scoopMode');empty.listeners.get('pointermove')({clientX:250,clientY:300});assert.equal(empty.calls.length,0,'an empty spoon cannot pour');empty.dispose();
 console.log('Passed: filled spoon auto-pours on pointer movement without a press/tilt, freezes while pouring, ignores an empty spoon, and cleans up listeners.');
+
+// Exercise the actual parent callbacks: multiple pours accumulate before any stirring.
+const parent=fs.readFileSync('src/components/preschool/SimSinkOrFloatLab.tsx','utf8');
+const completed=parent.slice(parent.indexOf('  const handleSpoonCompleted ='),parent.indexOf('  // Thay nước ngọt ban đầu'));
+const pour=parent.slice(parent.indexOf('  const handlePourSaltAtPoint ='),parent.indexOf('  // Bắt đầu đua thả 2 vật'));
+const state={workflowStep:'holdingSpoon',spoonFraction:1,pendingSaltSpoons:0,saltSpoons:0,soundEnabled:false,MAX_SALT_SPOONS:5,pourTimeoutRef:{current:null},setMessage(){},setActiveStirProgress(){},setItems(){},useCallback:fn=>fn,window:{setTimeout:fn=>{state.timer=fn;return 1;}},clearTimeout(){},threeTankRef:{current:{spawnSaltGrains(){},clearSaltGrains(){},refreshObservations(){}}}};
+state.setWorkflowStep=step=>state.workflowStep=step;state.setPendingSaltSpoons=value=>state.pendingSaltSpoons=typeof value==='function'?value(state.pendingSaltSpoons):value;state.setSaltSpoons=value=>state.saltSpoons=typeof value==='function'?value(state.saltSpoons):value;
+vm.runInNewContext(ts.transpileModule(completed+pour+'\nthis.handlers={handleSpoonCompleted,handlePourSaltAtPoint};',{compilerOptions:{target:ts.ScriptTarget.ES2020}}).outputText,state);
+for(let i=0;i<2;i++){state.workflowStep='holdingSpoon';state.handlers.handlePourSaltAtPoint({x:0,y:5,z:0});assert.equal(state.workflowStep,'pouring');state.timer();assert.equal(state.workflowStep,'scoopMode');assert.equal(state.pendingSaltSpoons,i+1);assert.equal(state.saltSpoons,0);}
+state.handlers.handleSpoonCompleted();assert.equal(state.saltSpoons,2);assert.equal(state.pendingSaltSpoons,0);
+console.log('Passed: two pours retain an empty spoon, accumulate two undissolved doses, and dissolve both exactly once on stirring completion.');

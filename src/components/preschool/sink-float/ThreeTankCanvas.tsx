@@ -22,6 +22,7 @@ import {pitcherMouthPoint} from './pitcherMouth';
 export interface ThreeTankCanvasHandle {
   flowTarget: (x:number,y:number,sourceHeight?:number)=>FlowTarget|null;
   pitcherTarget: (x:number,y:number)=>FlowTarget|null;
+  saltTarget: (x:number,y:number)=>THREE.Vector3|null;
   floorPoint: (x:number,y:number)=>{x:number;z:number}|null;
   showIntroFrame: (action:IntroAction|null,progress:number)=>{x:number;y:number;carrying:boolean;fromTray:number;tool:string;toolFill:number;item:string|null}|null;
   checkPointInWater: (screenX: number, screenY: number) => boolean;
@@ -153,7 +154,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     const splashEffectsRef = useRef<Array<{mesh: THREE.Mesh; age: number; velocity: THREE.Vector3}>>([]);
     const squashUntilRef = useRef(new Map<string,number>());
     const dissolveProgressRef = useRef(0);
-    const liveSaltCountRef = useRef(200);
+    const liveSaltCountRef = useRef(0);
     const saltParticlesGroupRef = useRef<THREE.Points | null>(null);
     const saltDataRef = useRef<{ positions: Float32Array; velocities: Float32Array } | null>(null);
 
@@ -298,6 +299,11 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     // IMPERATIVE API EXPOSED TO PARENT
     useImperativeHandle(ref, () => ({
       flowTarget,floorPoint,
+      saltTarget:(x,y)=>{
+        const mount=mountRef.current,camera=cameraRef.current;if(!mount||!camera)return null;
+        const point=pitcherMouthPoint(x,y,camera,mount.getBoundingClientRect(),shapeRef.current,dimsRef.current,0);
+        return point?new THREE.Vector3(point.x,dimsRef.current.height,point.z):null;
+      },
       pitcherTarget:(x,y)=>{
         const mount=mountRef.current,camera=cameraRef.current;
         if(!mount||!camera)return null;
@@ -422,16 +428,18 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         if (!saltDataRef.current || !saltParticlesGroupRef.current) return;
         const { positions, velocities } = saltDataRef.current;
         dissolveProgressRef.current = 0;
-        liveSaltCountRef.current = Math.min(200, count);
+        const first=liveSaltCountRef.current;
+        const added=Math.min(count,200-first);
+        liveSaltCountRef.current=first+added;
         const d = dimsRef.current;
         const spawnX = center ? center.x : 0;
         const spawnY = (center?.y ?? d.height) + 0.15;
         const spawnZ = center ? center.z : 0;
 
-        for (let i = 0; i < count; i++) {
-          const idx = (i % 200) * 3;
+        for (let i = 0; i < added; i++) {
+          const idx = (first+i) * 3;
           positions[idx] = spawnX + (Math.random() - 0.5) * 0.28;
-          positions[idx + 1] = spawnY + (i / Math.max(1,count)) * 1.4;
+          positions[idx + 1] = spawnY + Math.random() * .08;
           positions[idx + 2] = spawnZ + (Math.random() - 0.5) * 0.28;
 
           velocities[idx] = (Math.random() - 0.5) * 0.25;
@@ -446,6 +454,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       clearSaltGrains: () => {
         if (!saltDataRef.current || !saltParticlesGroupRef.current) return;
         const { positions, velocities } = saltDataRef.current;
+        liveSaltCountRef.current=0;
         for (let i = 0; i < 200; i++) {
           positions[i * 3 + 1] = -999;
           velocities[i * 3] = 0;

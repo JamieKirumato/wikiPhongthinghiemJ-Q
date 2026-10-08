@@ -468,12 +468,13 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
 
   // 4. QUY TRÌNH HÒA TAN MUỐI VÀ KHỐI LƯỢNG RIÊNG NƯỚC LIÊN TỤC
   const [spoonFraction, setSpoonFraction] = useState(1);
+  const [pendingSaltSpoons,setPendingSaltSpoons]=useState(0);
   const [saltSpoons, setSaltSpoons] = useState<number>(0); // 0 đến 5 thìa
   const [activeStirProgress, setActiveStirProgress] = useState<number>(0); // 0 đến 100% của thìa hiện tại
   const [workflowStep, setWorkflowStep] = useState<SaltWorkflowStep>('idle');
 
   // Khối lượng riêng cập nhật LIÊN TỤC theo lượng muối tan (D >= 1.0)
-  const dissolvedFraction = saltSpoons + (workflowStep === 'stirring' ? activeStirProgress / 100 * spoonFraction : 0);
+  const dissolvedFraction = saltSpoons + (workflowStep === 'stirring' ? activeStirProgress / 100 * pendingSaltSpoons : 0);
   const [items, setItems] = useState<TankObject[]>(PLAY_ITEMS_PRESETS);
   const [holdingItemId, setHoldingItemId] = useState<string | null>(null);
   const waterDensity = brineDensity(Math.max(0,dissolvedFraction * SALT_GRAMS_PER_SPOON-removedSaltGrams), waterVolumeMl(tankShape, dimensions)+addedWaterMl);
@@ -968,11 +969,12 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const handleSpoonCompleted = useCallback(() => {
     threeTankRef.current?.clearSaltGrains();
     threeTankRef.current?.refreshObservations();
-    setSaltSpoons(previous => Math.min(MAX_SALT_SPOONS, previous + spoonFraction));
+    setSaltSpoons(previous => Math.min(MAX_SALT_SPOONS, previous + pendingSaltSpoons));
     setActiveStirProgress(0);
     setItems(previous => previous.map(item => item.inTank ? {...item, settled: false} : item));
     setMessage('Muối đã tan. Con thấy quả trứng thay đổi thế nào?');
-  }, [spoonFraction]);
+    setPendingSaltSpoons(0);
+  }, [pendingSaltSpoons]);
 
   // Thay nước ngọt ban đầu & dọn sạch hạt muối
   const handleResetSalt = useCallback(() => {
@@ -983,7 +985,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       clearTimeout(pourTimeoutRef.current);
       pourTimeoutRef.current = null;
     }
-    setSaltSpoons(0);
+    setSaltSpoons(0);setPendingSaltSpoons(0);
     setActiveStirProgress(0);
     setWorkflowStep('idle');
     threeTankRef.current?.clearSaltGrains();
@@ -994,21 +996,23 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   // Đổ muối vào miệng bể
   const handlePourSaltAtPoint = useCallback(
     (point: THREE.Vector3) => {
-      if (workflowStep !== 'holdingSpoon') return;
+      if (workflowStep !== 'holdingSpoon'||pourTimeoutRef.current) return;
 
       setWorkflowStep('pouring');
       setMessage('Muối đang rơi vào nước. Con cùng quan sát nhé!');
       if (soundEnabled) soundEngine.playSaltPour();
-      threeTankRef.current?.spawnSaltGrains(Math.round(80 * spoonFraction), point);
+      threeTankRef.current?.spawnSaltGrains(Math.round(40 * spoonFraction), point);
+      setPendingSaltSpoons(total=>Math.min(MAX_SALT_SPOONS-saltSpoons,total+spoonFraction));
 
       if (pourTimeoutRef.current) clearTimeout(pourTimeoutRef.current);
       pourTimeoutRef.current = window.setTimeout(() => {
-        setWorkflowStep('stirring');
+        pourTimeoutRef.current=null;
+        setWorkflowStep('scoopMode');
         setActiveStirProgress(0);
-        setMessage('Con đưa đũa vào nước và khuấy vòng tròn để muối tan dần nhé!');
+        setMessage('Thìa đã trống. Con có thể xúc thêm muối, hoặc chọn que khuấy.');
       }, 1400);
     },
-    [workflowStep, soundEnabled, spoonFraction]
+    [workflowStep, soundEnabled, spoonFraction,saltSpoons]
   );
 
   // Bắt đầu đua thả 2 vật
@@ -1315,13 +1319,14 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           {advanced && (activityMode==='discovery'||activityMode==='egg-challenge') && (
           <SaltWorkflow key="salt-workflow" visualOnly={!isTeacherMode}
             disabled={interactionMode === 'orbit' || pouringWater}
-            saltSpoons={saltSpoons}
+            saltSpoons={saltSpoons+pendingSaltSpoons}
+            pendingSaltSpoons={pendingSaltSpoons}
             spoonFraction={spoonFraction}
             onDoseChange={setSpoonFraction}
             onStirAtScreenPoint={(x,y) => threeTankRef.current?.stirAtScreenPoint(x,y,.35)}
             onPourAtScreenPoint={(x,y) => {
-              const target=threeTankRef.current?.pitcherTarget(x,y);
-              if(target?.inside)handlePourSaltAtPoint(new THREE.Vector3(target.worldX,dimensions.height+.4,target.worldZ));
+              const target=threeTankRef.current?.saltTarget(x,y);
+              if(target)handlePourSaltAtPoint(target);
             }}
             activeStirProgress={activeStirProgress}
             currentDensity={waterDensity}

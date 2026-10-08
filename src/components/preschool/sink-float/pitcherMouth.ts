@@ -3,7 +3,7 @@ import {TankDimensions,TankShape} from './types';
 import {clampToTankBoundary} from './tankGeometry';
 
 // Only the visible mouth matters: no ray/plane intersection or spout orientation gate.
-export function pitcherMouthPoint(x:number,y:number,camera:THREE.Camera,rect:{left:number;top:number;width:number;height:number},shape:TankShape,d:TankDimensions){
+export function pitcherMouthPoint(x:number,y:number,camera:THREE.Camera,rect:{left:number;top:number;width:number;height:number},shape:TankShape,d:TankDimensions,tolerance=65){
   const vertices=shape==='cylinder'
     ?Array.from({length:48},(_,i)=>({x:Math.cos(i*Math.PI/24)*d.width/2,z:Math.sin(i*Math.PI/24)*d.depth/2}))
     :shape==='triangle'?[{x:0,z:-d.depth/2},{x:d.width/2,z:d.depth/2},{x:-d.width/2,z:d.depth/2}]
@@ -28,5 +28,5 @@ export function pitcherMouthPoint(x:number,y:number,camera:THREE.Camera,rect:{le
     const gap=Math.hypot(x-a.x-t*dx,y-a.y-t*dy);
     if(gap<distance){distance=gap;closest={x:a.world.x+t*(b.world.x-a.world.x),z:a.world.z+t*(b.world.z-a.world.z)};}
   }
-  return distance<=65?clampToTankBoundary(closest.x,closest.z,.15,shape,d):null;
+  return distance<=tolerance?clampToTankBoundary(closest.x,closest.z,.15,shape,d):null;
 }

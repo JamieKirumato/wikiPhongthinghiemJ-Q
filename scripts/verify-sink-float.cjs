@@ -367,6 +367,11 @@ for(const shape of ['rectangle','square','cylinder','triangle'])for(const yaw of
   assert.ok(target,'mouth accepts the pitcher from every screen direction and camera angle');
   assert.ok(geometry.isPointInsideFootprint(target.x,target.z,shape,d));
  }
+ assert.ok(mouth.pitcherMouthPoint(cx,cy,view,rect,shape,d,0),'salt accepts only the actual mouth');
+ const rimVertices=shape==='cylinder'?Array.from({length:48},(_,i)=>[Math.cos(i*Math.PI/24)*d.width/2,Math.sin(i*Math.PI/24)*d.depth/2]):shape==='triangle'?[[0,-d.depth/2],[d.width/2,d.depth/2],[-d.width/2,d.depth/2]]:[[-d.width/2,-d.depth/2],[d.width/2,-d.depth/2],[d.width/2,d.depth/2],[-d.width/2,d.depth/2]];
+ const leftmost=rimVertices.map(([x,z])=>new THREE.Vector3(x,d.height,z).project(view)).sort((a,b)=>a.x-b.x)[0];
+ const sideX=rect.left+(leftmost.x+1)*rect.width/2-10,sideY=rect.top+(1-leftmost.y)*rect.height/2;
+ assert.equal(mouth.pitcherMouthPoint(sideX,sideY,view,rect,shape,d,0),null,'salt beside the rim must stay in the spoon');
  assert.equal(mouth.pitcherMouthPoint(-1000,-1000,view,rect,shape,d),null,'away from mouth does not pour');
 }
 console.log('Passed: 2D pitcher mouth targets from five directions, twelve camera views and all four tank shapes.');
