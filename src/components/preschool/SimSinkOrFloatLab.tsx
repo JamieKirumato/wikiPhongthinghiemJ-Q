@@ -1320,8 +1320,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             onDoseChange={setSpoonFraction}
             onStirAtScreenPoint={(x,y) => threeTankRef.current?.stirAtScreenPoint(x,y,.35)}
             onPourAtScreenPoint={(x,y) => {
-              const hit = threeTankRef.current?.checkPointOverTankMouth(x,y);
-              if (hit?.isOver && hit.point) handlePourSaltAtPoint(hit.point);
+              const target=threeTankRef.current?.pitcherTarget(x,y);
+              if(target?.inside)handlePourSaltAtPoint(new THREE.Vector3(target.worldX,dimensions.height+.4,target.worldZ));
             }}
             activeStirProgress={activeStirProgress}
             currentDensity={waterDensity}

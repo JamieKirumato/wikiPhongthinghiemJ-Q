@@ -1564,7 +1564,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       // 1. Nếu đang trong quy trình muối: khóa camera và đồ vật
       if (currentStep !== 'idle') {
         if (currentStep === 'holdingSpoon') {
-          onMessageUpdate('Đưa thìa vào miệng bể rồi giữ và kéo để nghiêng thìa nhé!');
+          onMessageUpdate('Đưa thìa lên miệng bể, thìa sẽ tự nghiêng để thả muối nhé!');
         }
         return;
       }
