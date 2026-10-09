@@ -1075,8 +1075,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     }, 2000);
   };
 
-  // Danh sách đồ vật hiển thị theo lứa tuổi (3-4 tuổi: 4 món quen thuộc; 5-6 tuổi: cả 12 món)
-  const basketPresets = isTeacherMode ? PLAY_ITEMS_PRESETS.filter(i => teacherLesson.itemIds.includes(i.id)) : activityMode==='egg-challenge' ? PLAY_ITEMS_PRESETS.filter(i=>i.id==='item-egg') : !advanced&&activityMode==='discovery' ? PLAY_ITEMS_PRESETS.filter(i=>['item-pebble','item-pingpong'].includes(i.id)) : PLAY_ITEMS_PRESETS;
+  // Trẻ luôn được chọn đủ 12 món; bài học do giáo viên chuẩn bị có thể chọn bộ vật riêng.
+  const basketPresets = isTeacherMode ? PLAY_ITEMS_PRESETS.filter(i => teacherLesson.itemIds.includes(i.id)) : PLAY_ITEMS_PRESETS;
   const displayItems = basketSlots(items, basketPresets);
 
   // Replenish real, uniquely identified objects; keep previous trials in the tank.
@@ -1289,7 +1289,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           </div>}
           {false&&isTeacherMode&&!comparisonMode&&<button aria-pressed={showSecondTank} onClick={()=>setShowSecondTank(!showSecondTank)} className="min-h-[48px] rounded-2xl bg-violet-100 font-bold">{showSecondTank?'Ẩn bể 2':'Thêm bể 2'}</button>}
           {false&&isTeacherMode&&<button aria-expanded={showGuideModal} onClick={()=>setShowGuideModal(!showGuideModal)} className="min-h-[48px] rounded-2xl bg-amber-100 font-bold">📖 Hướng dẫn</button>}
-          {!isTeacherMode&&activityMode!=='boat-challenge'&&<button disabled={pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle'} aria-label={advanced?'Thả đồ vật':'Khám phá thêm'} aria-pressed={advanced} onClick={()=>switchExploration(!advanced)} className="min-h-[52px] rounded-2xl bg-sky-100 px-2 font-bold disabled:opacity-50">{isTeacherMode?(advanced?'🧺 Thả đồ vật':'🔎 Khám phá thêm'):<span aria-hidden="true" className="text-3xl">{advanced?'🧺':'🔎'}</span>}</button>}
+          {!isTeacherMode&&activityMode!=='boat-challenge'&&<button disabled={pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle'} aria-label={advanced?'Thu gọn dụng cụ':'Mở thêm dụng cụ'} aria-pressed={advanced} onClick={()=>switchExploration(!advanced)} className="min-h-[52px] rounded-2xl bg-sky-100 px-2 font-bold disabled:opacity-50"><span aria-hidden="true" className="text-3xl">{advanced?'↩':'🧪'}</span></button>}
           {activityMode!=='boat-challenge'&&<div className="lab-tools" aria-label="Dụng cụ thí nghiệm">
           {(advanced||ladleGuideReady) && !comparisonMode && (activityMode==='discovery'||activityMode==='egg-challenge') && <WaterPitcher
             disabled={comparisonMode || introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}
