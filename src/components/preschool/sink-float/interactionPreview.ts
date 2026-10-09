@@ -13,12 +13,33 @@ export function releasePosition(ray:THREE.Ray,dims:TankDimensions,shape:TankShap
   return new THREE.Vector3(safe.x,surface,safe.z);
 }
 
+/** Keep the eventual water contact horizontally aligned with the child's finger.
+ * With a tilted camera, a vertical fall can otherwise appear to drift sideways.
+ */
+export function alignDropToScreenX(position:THREE.Vector3,camera:THREE.Camera,targetNdcX:number,dims:TankDimensions,shape:TankShape,water:number,radius:number){
+  const projected=new THREE.Vector3();
+  let best=position.clone(),bestScore=Infinity;
+  const score=(x:number,z:number)=>{
+    const safe=clampToTankBoundary(x,z,radius,shape,dims);
+    projected.set(safe.x,water+radius,safe.z).project(camera);
+    const screenError=projected.x-targetNdcX;
+    const travel=Math.hypot(safe.x-position.x,safe.z-position.z);
+    const value=screenError*screenError*120+travel*travel*.012;
+    if(value<bestScore){bestScore=value;best.set(safe.x,position.y,safe.z);}
+  };
+  score(position.x,position.z);
+  for(let xi=0;xi<=24;xi++)for(let zi=0;zi<=12;zi++){
+    score((xi/24-.5)*dims.width,(zi/12-.5)*dims.depth);
+  }
+  return best;
+}
+
 // Map the gesture onto the camera's screen plane, including its depth component.
 export function throwVelocity(camera:THREE.Camera,velocity:{vx:number;vy:number}){
   const right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
   const up=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);
-  return right.multiplyScalar(Math.max(-4,Math.min(4,velocity.vx*.005)))
-    .addScaledVector(up,Math.max(-6,Math.min(6,-velocity.vy*.006)));
+  return right.multiplyScalar(Math.max(-2.5,Math.min(2.5,velocity.vx*.003)))
+    .addScaledVector(up,Math.max(-4,Math.min(4,-velocity.vy*.004)));
 }
 
 export function predictedContact(position:THREE.Vector3,velocity:THREE.Vector3,dims:TankDimensions,shape:TankShape,water:number,radius:number){

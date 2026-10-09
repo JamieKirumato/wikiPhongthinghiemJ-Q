@@ -97,12 +97,17 @@ for(let i=0;i<10;i++)slow=waterPhysics.advanceSinking(slow.y,slow.vy,.1,2.6,1);
 for(let i=0;i<100;i++)fine=waterPhysics.advanceSinking(fine.y,fine.vy,.01,2.6,1);
 assert.ok(Math.abs(slow.y-fine.y)<1e-8);
 assert.ok(slow.y>1); // stone takes observable time to descend, not a teleport to the bed
-function sampleSinkTime(id,mass,volume,waterDensity=1){let state={y:3,vy:0},time=0;while(state.y>1&&time<30){state=waterPhysics.advanceSinking(state.y,state.vy,1/120,mass/volume,waterDensity,waterPhysics.sinkingDrag(id,mass,volume));time+=1/120;}return time;}
+function sampleSinkTime(id,mass,volume,waterDensity=1,entrySpeed=0){let state={y:3,vy:entrySpeed},time=0;while(state.y>1&&time<30){state=waterPhysics.advanceSinking(state.y,state.vy,1/120,mass/volume,waterDensity,waterPhysics.sinkingDrag(id,mass,volume));time+=1/120;}return time;}
 const samples=[['item-pebble',50,20],['item-keys',42,10],['item-spoon',35,7],['item-egg',55,50],['item-coin',6,.8],['item-marble',12,5]];
 const sinkTimes=samples.map(args=>sampleSinkTime(...args));
 assert.equal(new Set(sinkTimes.map(time=>time.toFixed(2))).size,6);
 assert.ok(sampleSinkTime('item-pebble',100,20)<sampleSinkTime('item-pebble',50,20));
 assert.ok(sampleSinkTime('item-egg',55,50,1.05)>sampleSinkTime('item-egg',55,50));
+const splashSpeed=waterPhysics.waterEntryVelocity(-6,false);
+assert.ok(splashSpeed> -1.01&&splashSpeed<0,'a water entry must remove most of the shared impact speed');
+const splashTimes=samples.map(args=>sampleSinkTime(...args,1,splashSpeed));
+assert.ok(splashTimes[3]>splashTimes[0]+2,'an egg must remain visibly slower than a pebble after a real splash');
+assert.ok(splashTimes[4]>splashTimes[5]+.7,'a broad coin must descend more slowly than a marble');
 console.log('Passed: six sinking samples have different arrival times; mass and brine change descent consistently.',sinkTimes.map(time=>time.toFixed(2)));
 function descentTime(start){let state={y:start,vy:0},time=0;while(state.y>.9&&time<20){state=waterPhysics.advanceSinking(state.y,state.vy,1/60,2.6,1);time+=1/60;}return time;}
 assert.ok(descentTime(4)>descentTime(2)+1);
@@ -350,6 +355,14 @@ for(const shape of ['rectangle','square','cylinder','triangle']){
   const floorContact=controls.predictedContact(out,new THREE.Vector3(),dims,shape,dims.waterHeight,.45);assert.equal(floorContact.inside,true);assert.equal(floorContact.point.y,dims.waterHeight);
 }
 const camera=new THREE.PerspectiveCamera(45,1,.1,100);camera.position.set(8,8,12);camera.lookAt(0,2,0);camera.updateMatrixWorld();
+{
+ const dims=geometry.getTankDimensions('rectangle','normal'),start=new THREE.Vector3(0,5,0),target=.25;
+ const aligned=controls.alignDropToScreenX(start,camera,target,dims,'rectangle',dims.waterHeight,.3);
+ const before=Math.abs(new THREE.Vector3(start.x,dims.waterHeight+.3,start.z).project(camera).x-target);
+ const after=Math.abs(new THREE.Vector3(aligned.x,dims.waterHeight+.3,aligned.z).project(camera).x-target);
+ assert.ok(after<before*.2,'vertical drop should land at the pointer’s horizontal position');
+ assert.ok(geometry.isPointInsideFootprint(aligned.x,aligned.z,'rectangle',dims,-.3));
+}
 for(const gesture of [{vx:300,vy:0},{vx:0,vy:-300},{vx:-300,vy:200}]){
  const velocity=controls.throwVelocity(camera,gesture),local=velocity.clone().applyQuaternion(camera.quaternion.clone().invert());
  assert.ok(Math.sign(local.x)===Math.sign(gesture.vx)||Math.abs(local.x)<1e-9);

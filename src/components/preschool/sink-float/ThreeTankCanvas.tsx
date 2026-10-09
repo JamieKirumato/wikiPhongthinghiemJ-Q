@@ -13,8 +13,8 @@ import { WaterImpulse } from './waterMotion';
 import { configureWaterSurface } from './waterSurfaceShader';
 import { advanceAirFall, itemKind } from './playPhysics';
 import { SceneBackdrop, SceneSetting } from './SceneBackdrop';
-import { advanceSinking,sinkingDrag, displacedWaterLevel, sandHeight, modelDisplacementVolume } from './waterPhysics';
-import {boundedZoom,releasePosition,predictedContact,throwVelocity} from './interactionPreview';
+import { advanceSinking,sinkingDrag,waterEntryVelocity, displacedWaterLevel, sandHeight, modelDisplacementVolume } from './waterPhysics';
+import {boundedZoom,releasePosition,alignDropToScreenX,predictedContact,throwVelocity} from './interactionPreview';
 import {FloorSpill,FlowTarget,nearestHandTarget} from './waterTransfer';
 import {IntroAction,introPose} from './introGuide';
 import {pitcherMouthPoint} from './pitcherMouth';
@@ -509,7 +509,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const rect=mount.getBoundingClientRect(),radius=(ITEM_WORLD_SCALES[itemKind(item.id)]||{radius:.4}).radius;
         raycasterRef.current.setFromCamera(new THREE.Vector2((screenX-rect.left)/rect.width*2-1,-(screenY-rect.top)/rect.height*2+1),camera);
         const hand=projectScreenToWorldInternal(screenX,screenY,0);
-        const pos=releasePosition(raycasterRef.current.ray,dimsRef.current,shapeRef.current,displayedWaterLevelRef.current,Math.max(radius-.6,Math.min(dimsRef.current.height+4,hand?.y??dimsRef.current.height+1)),radius);
+        const rawPos=releasePosition(raycasterRef.current.ray,dimsRef.current,shapeRef.current,displayedWaterLevelRef.current,Math.max(radius-.6,Math.min(dimsRef.current.height+4,hand?.y??dimsRef.current.height+1)),radius);
+        const pos=alignDropToScreenX(rawPos,camera,(screenX-rect.left)/rect.width*2-1,dimsRef.current,shapeRef.current,displayedWaterLevelRef.current,radius);
         if(!pos){setDropPreview(null);return;}
         const velocity=throwVelocity(camera,screenVelocity||{vx:0,vy:0});
         const contact=predictedContact(pos,velocity,dimsRef.current,shapeRef.current,displayedWaterLevelRef.current,radius);
@@ -540,7 +541,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         raycasterRef.current.setFromCamera(new THREE.Vector2((screenX-rect.left)/rect.width*2-1, -(screenY-rect.top)/rect.height*2+1), cameraRef.current!);
         const handPoint = projectScreenToWorldInternal(screenX,screenY,0);
         const handHeight = Math.max(itemR-0.6,Math.min(d.height+4,handPoint?.y ?? d.height+1.1));
-        const worldPos=releasePosition(raycasterRef.current.ray,d,s,displayedWaterLevelRef.current,handHeight,itemR);
+        const rawPos=releasePosition(raycasterRef.current.ray,d,s,displayedWaterLevelRef.current,handHeight,itemR);
+        const worldPos=alignDropToScreenX(rawPos,cameraRef.current!,(screenX-rect.left)/rect.width*2-1,d,s,displayedWaterLevelRef.current,itemR);
         if(!worldPos)return;
         setDropPreview(null);
 
@@ -1451,7 +1453,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
               if (soundEnabled) {
                 playWaterContact(item.id, Math.abs(vy));
               }
-              vy *= 0.65; // Initial splash dissipates some speed; water drag slows the rest gradually.
+              vy=waterEntryVelocity(vy,willFloat);
               status = willFloat ? 'floating' : 'sunk';
             }
             itemsChanged = true;
@@ -1460,7 +1462,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             if (status === 'falling' && !settled) {
               spawnWaterReaction(x, z, Math.min(6, Math.abs(vy)), true);
               if (soundEnabled) playWaterContact(item.id, Math.abs(vy));
-              vy *= 0.65;
+              vy=waterEntryVelocity(vy,willFloat);
             }
             // Nằm trong nước
             if (willFloat) {
@@ -1503,7 +1505,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             } else {
               // Vật nặng chìm xuống đáy cát
               if(['item-spoon','item-keys'].includes(itemKind(item.id))){angle+=vRot*dt;vRot*=Math.exp(-.55*dt);}
-              const sinking=advanceSinking(y,itemKind(item.id)==='item-marble'?Math.max(-1.2,vy):vy,dt,itemDensity,currentWaterDensity,sinkingDrag(item.id,item.weightGrams,item.volumeMl));
+              const sinking=advanceSinking(y,vy,dt,itemDensity,currentWaterDensity,sinkingDrag(item.id,item.weightGrams,item.volumeMl));
               vy=sinking.vy; y=sinking.y;
 
               vx *= 1 - 4.0 * dt;

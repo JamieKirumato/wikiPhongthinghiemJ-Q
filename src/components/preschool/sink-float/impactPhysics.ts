@@ -13,7 +13,7 @@ export function damageFromImpact(id: string, speed: number, previous?: TankObjec
 export function gestureVelocity(dx: number, dy: number, seconds: number) {
   if (seconds <= 0.01 || seconds > 0.16) return {vx: 0, vy: 0};
   const speed = Math.hypot(dx, dy) / seconds;
-  if (speed < 250) return {vx: 0, vy: 0};
+  if (speed < 700) return {vx: 0, vy: 0};
   return {vx: Math.max(-1200, Math.min(1200, dx / seconds)), vy: Math.max(-1200, Math.min(1200, dy / seconds))};
 }
 

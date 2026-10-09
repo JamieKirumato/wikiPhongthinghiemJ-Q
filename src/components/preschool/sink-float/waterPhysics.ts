@@ -35,9 +35,14 @@ export function displacedWaterLevel(base:number,shape:TankShape,dims:TankDimensi
  */
 export function sinkingDrag(id:string,massGrams:number,volumeMl:number):number {
   const kind=id.split('#')[0];
-  const shapeFactor:Record<string,number>={'item-pebble':.8,'item-keys':2,'item-spoon':3,'item-egg':.5,'item-coin':4,'item-marble':1.6};
+  const shapeFactor:Record<string,number>={'item-pebble':.8,'item-keys':2,'item-spoon':3,'item-egg':.5,'item-coin':8,'item-marble':1.2};
   const radiusCm=Math.cbrt(3*Math.max(.01,volumeMl)/(4*Math.PI));
   return Math.max(.8,Math.min(30,35*Math.PI*radiusCm*radiusCm*(shapeFactor[kind]??1)/Math.max(.1,massGrams)));
+}
+/** Entry splash loses most of its downward speed; underwater drag then separates objects visibly. */
+export function waterEntryVelocity(vy:number,willFloat:boolean):number {
+  if(vy>=0)return Math.min(vy,.4);
+  return Math.max(willFloat?-2:-1,vy*(willFloat?.3:.16));
 }
 export function advanceSinking(y:number,vy:number,dt:number,density:number,waterDensity:number,effectiveDrag?:number):{y:number;vy:number} {
   const acceleration=19.62*Math.max(.01,1-waterDensity/density);
