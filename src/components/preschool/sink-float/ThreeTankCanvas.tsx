@@ -47,7 +47,7 @@ export interface ThreeTankCanvasHandle {
   resetDefaultView: () => void;
   resetSideView: () => void;
   refreshObservations: () => void;
-  stirAtScreenPoint: (x: number, y: number, strength?: number) => void;
+  stirAtScreenPoint: (x: number, y: number, strength?: number, direction?: number) => void;
   setSaltDissolveProgress: (progress: number) => void;
   toggleAutoRotate: (enabled?: boolean) => boolean;
 }
@@ -609,7 +609,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         orbitRef.current.isAutoRotating = false;
       },
       setSaltDissolveProgress: (progress: number) => { dissolveProgressRef.current = progress; },
-      stirAtScreenPoint: (x: number, y: number, strength = 1) => {
+      stirAtScreenPoint: (x: number, y: number, strength = 1, direction = 0) => {
         if(!mountRef.current||!cameraRef.current)return;
         const rect=mountRef.current.getBoundingClientRect();
         raycasterRef.current.setFromCamera(new THREE.Vector2((x-rect.left)/rect.width*2-1,-(y-rect.top)/rect.height*2+1),cameraRef.current);
@@ -621,8 +621,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const now=performance.now()/1000;
         waterImpulsesRef.current.push({x:point.x,z:point.z,time:now,strength:Math.max(1.8,strength*1.8)});
         waterImpulsesRef.current=waterImpulsesRef.current.slice(-8);
-        const bounded=clampToTankBoundary(point.x,point.z,.55,shapeRef.current,dimsRef.current);
-        stirWaterRef.current={x:bounded.x,z:bounded.z,time:now,strength:Math.max(1,strength)};
+        if(direction!==0)stirWaterRef.current={x:0,z:0,time:now,strength:Math.sign(direction)*Math.max(1,strength)};
         if (soundEnabled) playWaterSwish(strength);
         const data = saltDataRef.current;
         if (data) for (let i = 0; i < 200; i++) {

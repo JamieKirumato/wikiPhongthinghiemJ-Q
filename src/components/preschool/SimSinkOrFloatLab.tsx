@@ -1360,7 +1360,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             getToolAnchor={()=>threeTankRef.current?.toolAnchor()||null}
             spoonFraction={spoonFraction}
             onDoseChange={setSpoonFraction}
-            onStirAtScreenPoint={(x,y) => threeTankRef.current?.stirAtScreenPoint(x,y,.35)}
+            onStirAtScreenPoint={(x,y,direction) => threeTankRef.current?.stirAtScreenPoint(x,y,.35,direction)}
             onPourAtScreenPoint={(x,y) => {
               const target=threeTankRef.current?.saltTarget(x,y);
               if(target)handlePourSaltAtPoint(target);

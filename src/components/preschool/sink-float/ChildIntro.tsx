@@ -60,7 +60,7 @@ export function ChildIntro({onComplete,onFrame,onCleanup,guide=INTRO_GUIDE}:{gui
     </div>}
     {frame&&(frame.tool==='🥄'||frame.tool==='🥢')&&<div aria-hidden="true" className="fixed left-0 top-0 z-[91] pointer-events-none">
       {frame.tool==='🥄'?<RealisticHandSpoon x={frame.x} y={frame.y} hasSalt={frame.toolFill>0} isPouring={phaseProgress>.7&&phaseProgress<.85}/>:
-        <RealisticStirringHand x={frame.x} y={frame.y} angle={phaseProgress*1080} isInWater/>}
+        <RealisticStirringHand x={frame.x} y={frame.y} angle={phaseProgress*1080}/>}
     </div>}
     <span data-child-intro role="status" className="sr-only">{waiting?'Hướng dẫn sẽ phát khi chạm vào màn chơi.':'Đang hướng dẫn cách chơi.'}</span>
   </>;

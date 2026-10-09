@@ -35,13 +35,15 @@ float waterWave(vec2 p) {
     }
   }
   float stirAge=waterTime-waterStir.z;
-  if(stirAge>=0. && stirAge<1.2 && waterStir.w>0.) {
+  if(stirAge>=0. && stirAge<1.2 && abs(waterStir.w)>0.) {
     vec2 offset=p-waterStir.xy;
     float radius=length(offset);
     float whirl=atan(offset.y,offset.x);
     float fade=exp(-radius*radius*1.8)*(1.-smoothstep(0.,1.2,stirAge));
-    h+=sin(whirl*3.-waterTime*8.+radius*7.)*.07*fade*waterStir.w;
-    h+=sin(radius*17.-waterTime*12.)*.028*fade*waterStir.w;
+    float spin=sign(waterStir.w);
+    h-=.035*exp(-radius*radius*12.)*fade;
+    h+=sin(whirl*3.-waterTime*8.*spin+radius*7.)*.07*fade*abs(waterStir.w);
+    h+=sin(radius*17.-waterTime*12.)*.028*fade*abs(waterStir.w);
   }
   return clamp(h,-.13,.13)*smoothstep(0.,.25,edge);
 }

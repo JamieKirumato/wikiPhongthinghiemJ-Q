@@ -11,7 +11,7 @@ interface SaltWorkflowProps {
   visualOnly?: boolean;
   spoonFraction?: number;
   onDoseChange?: (fraction: number) => void;
-  onStirAtScreenPoint?: (x: number, y: number) => void;
+  onStirAtScreenPoint?: (x: number, y: number, direction: number) => void;
   onPourAtScreenPoint?: (x: number, y: number) => void;
   checkPointOverMouth?: (x: number, y: number) => boolean;
   getStirCentre?: () => {x:number;y:number}|null;
@@ -111,8 +111,7 @@ export const RealisticStirringHand: React.FC<{
   x: number;
   y: number;
   angle: number;
-  isInWater: boolean;
-}> = ({ x, y, angle, isInWater }) => createPortal(
+}> = ({ x, y, angle }) => createPortal(
   <div
     style={{
       left: `${x}px`,
@@ -149,10 +148,6 @@ export const RealisticStirringHand: React.FC<{
       </defs>
     </svg>
 
-    {/* Vòng xoáy nước sủi bọt khi đũa đang ở trong nước */}
-    {isInWater && (
-      <svg className="absolute left-[-10px] bottom-[-18px] w-[120px] h-[52px]" viewBox="0 0 120 52" aria-hidden="true"><g transform={`translate(60 26) scale(1 .38) rotate(${angle})`} fill="none" stroke="#77bbc8" strokeWidth="2" opacity=".7"><path d="M0 0C12-15 29 0 15 17C-9 43-45 10-27-20C-3-60 58-30 46 14"/><path d="M-43 5A44 44 0 0 1 12-42" stroke="white"/></g></svg>
-    )}
   </div>, document.body
 );
 
@@ -199,12 +194,10 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   progressRef.current = activeStirProgress;
   const [stirWobble, setStirWobble] = useState<number>(0);
   const [isHoveringJarMouth, setIsHoveringJarMouth] = useState<boolean>(false);
-  const [isInWaterState, setIsInWaterState] = useState<boolean>(false);
   const [mouthReady, setMouthReady] = useState(false);
   const stirCirclesRef = useRef<StirCircleState>({last:null,radians:0});
-  const stirIdleTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
-  useEffect(()=>()=>{if(stirIdleTimer.current)clearTimeout(stirIdleTimer.current);},[]);
-  useEffect(()=>{if(workflowStep!=='stirring'){setIsInWaterState(false);if(stirIdleTimer.current)clearTimeout(stirIdleTimer.current);}if(workflowStep!=='holdingSpoon')setMouthReady(false);},[workflowStep]);
+  const stirMotionRef = useRef({direction:0,sweep:0,lastAt:0});
+  useEffect(()=>{if(workflowStep!=='holdingSpoon')setMouthReady(false);},[workflowStep]);
 
   useEffect(()=>{
     const cancel=(event:KeyboardEvent)=>{if(event.key==='Escape'&&(workflowStep==='scoopMode'||workflowStep==='holdingSpoon')){scoopStartRef.current=null;setIsJarOpen(false);onStepChange('idle');onMessageUpdate('Đã cất thìa và trả muối về hũ.');}};
@@ -269,9 +262,18 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
       }
       if (workflowStep === 'stirring') {
         const isInsideWater = checkPointInWater(px, py);
-        if(!isInsideWater)setIsInWaterState(false);
+        if(!isInsideWater)stirMotionRef.current={direction:0,sweep:0,lastAt:0};
         const centre=getStirCentre?.();
+        const previousRadians=stirCirclesRef.current.radians;
         if(centre)stirCirclesRef.current=advanceStirCircles(stirCirclesRef.current,{x:px,y:py},centre,isInsideWater);
+        const turnDelta=stirCirclesRef.current.radians-previousRadians;
+        if(Math.abs(turnDelta)>.01){
+          const motionAt=performance.now();
+          const direction=Math.sign(turnDelta);
+          stirMotionRef.current=direction===stirMotionRef.current.direction&&motionAt-stirMotionRef.current.lastAt<500
+            ?{direction,sweep:stirMotionRef.current.sweep+Math.abs(turnDelta),lastAt:motionAt}
+            :{direction,sweep:Math.abs(turnDelta),lastAt:motionAt};
+        }
 
         if (isInsideWater && lastStirPosRef.current.wasInside) {
           // CHỈ TÍNH QUÃNG ĐƯỜNG KHI CẢ ĐIỂM TRƯỚC VÀ ĐIỂM NÀY ĐỀU Ở TRONG NƯỚC
@@ -282,9 +284,6 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
 
           // Lọc các bước nhảy bất thường (> 70px)
           if (dist > 2 && dist < 70) {
-            setIsInWaterState(true);
-            if(stirIdleTimer.current)clearTimeout(stirIdleTimer.current);
-            stirIdleTimer.current=setTimeout(()=>setIsInWaterState(false),500);
             setStirWobble((prev) => prev + dist * 0.6);
 
             // Âm thanh khuấy nước
@@ -295,8 +294,9 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
             }
 
             const nowStir = performance.now();
-            if (nowStir - lastVisualStirRef.current > 110) {
-              onStirAtScreenPoint?.(px, py); lastVisualStirRef.current = nowStir;
+            if (stirMotionRef.current.sweep >= .8 && Math.abs(turnDelta)>.01 && nowStir-lastVisualStirRef.current>90) {
+              onStirAtScreenPoint?.(px,py,stirMotionRef.current.direction);
+              lastVisualStirRef.current=nowStir;
             }
             if(pendingSaltSpoons<=0){lastStirPosRef.current={x:px,y:py,wasInside:true};return;}
             const previousProgress = progressRef.current;
@@ -309,6 +309,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
               onSpoonCompleted();
               onStepChange('idle');setIsJarOpen(false);
               stirCirclesRef.current = {last:null,radians:0};
+              stirMotionRef.current={direction:0,sweep:0,lastAt:0};
               scoopStartRef.current = null;
               lastStirPosRef.current = { x: px, y: py, wasInside: false };
             }
@@ -357,9 +358,9 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   }, [onResetSalt]);
 
   const rimTools=<RimStirTool active={workflowStep==='stirring'} highlighted={workflowStep==='holdingSpoon'||pendingSaltSpoons>0} disabled={disabled||workflowStep==='pouring'}
-    onTake={()=>{setPointerPos(getToolAnchor?.()||pointerPos);onStepChange('stirring');stirCirclesRef.current={last:null,radians:0};lastStirPosRef.current={x:0,y:0,wasInside:false};onMessageUpdate('Con quay que quanh giữa bể đủ 5 vòng nhé.');}}
-    onPut={()=>{onStepChange(isJarOpen?'scoopMode':'idle');setIsInWaterState(false);}}/>;
-  if(!toolsEnabled)return <>{rimTools}{workflowStep==='stirring'&&<RealisticStirringHand x={pointerPos.x} y={pointerPos.y} angle={stirWobble} isInWater={isInWaterState}/>}</>;
+    onTake={()=>{setPointerPos(getToolAnchor?.()||pointerPos);onStepChange('stirring');stirCirclesRef.current={last:null,radians:0};stirMotionRef.current={direction:0,sweep:0,lastAt:0};lastStirPosRef.current={x:0,y:0,wasInside:false};onMessageUpdate('Con quay que quanh giữa bể đủ 5 vòng nhé.');}}
+    onPut={()=>{onStepChange(isJarOpen?'scoopMode':'idle');stirMotionRef.current={direction:0,sweep:0,lastAt:0};}}/>;
+  if(!toolsEnabled)return <>{rimTools}{workflowStep==='stirring'&&<RealisticStirringHand x={pointerPos.x} y={pointerPos.y} angle={stirWobble}/>}</>;
   if (visualOnly) return <>
     {rimTools}
     <div className="lab-salt">
@@ -374,7 +375,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
     </div>
     {(workflowStep==='scoopMode'||workflowStep==='holdingSpoon'||workflowStep==='pouring')&&<RealisticHandSpoon x={pointerPos.x} y={pointerPos.y} hasSalt={workflowStep==='holdingSpoon'||workflowStep==='pouring'} isPouring={workflowStep==='pouring'} amount={spoonFraction}/>}
     {workflowStep==='holdingSpoon'&&mouthReady&&getToolAnchor&&(() => {const anchor=getToolAnchor();return anchor&&createPortal(<div className="fixed z-[75] pointer-events-none rounded-2xl bg-amber-300 px-3 py-2 text-sm font-black text-slate-900 shadow-xl ring-4 ring-white/80" style={{left:anchor.x,top:anchor.y,transform:'translate(-50%,-140%)'}} role="status">🧂 Bể đang nhận muối</div>,document.body);})()}
-    {workflowStep==='stirring'&&<RealisticStirringHand x={pointerPos.x} y={pointerPos.y} angle={stirWobble} isInWater={isInWaterState}/>}
+    {workflowStep==='stirring'&&<RealisticStirringHand x={pointerPos.x} y={pointerPos.y} angle={stirWobble}/>}
   </>;
 
   if (!isJarOpen || disabled) {
@@ -509,7 +510,6 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
           x={pointerPos.x}
           y={pointerPos.y}
           angle={stirWobble}
-          isInWater={isInWaterState}
         />
       )}
     </>
