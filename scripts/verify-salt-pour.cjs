@@ -4,8 +4,8 @@ function mount(step){
   const listeners=new Map(),effects=[],calls=[];
   const react={createElement:()=>null,useState:v=>[v,()=>{}],useRef:v=>({current:v}),useCallback:fn=>fn,useEffect:fn=>effects.push(fn)};
   const module={exports:{}};
-  vm.runInNewContext(code,{module,exports:module.exports,require:name=>name==='react'?react:name==='react-dom'?{createPortal:v=>v}:name==='./salinity'?{MAX_SALT_SPOONS:5}:{},window:{addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)},clearTimeout,document:{body:{}},performance});
-  module.exports.SaltWorkflow({visualOnly:true,workflowStep:step,saltSpoons:0,activeStirProgress:0,currentDensity:1,onPourAtScreenPoint:(x,y)=>calls.push({x,y}),onStepChange(){},onStirProgressUpdate(){},onSpoonCompleted(){},onResetSalt(){},checkPointInWater:()=>false,onMessageUpdate(){},soundEnabled:false});
+  vm.runInNewContext(code,{module,exports:module.exports,require:name=>name==='react'?react:name==='react-dom'?{createPortal:v=>v}:name==='./stirCircles'?{advanceStirCircles:()=>({last:null,radians:0}),stirCircleProgress:()=>0}:{},window:{addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)},clearTimeout,document:{body:{}},performance});
+  module.exports.SaltWorkflow({visualOnly:true,workflowStep:step,saltSpoons:0,activeStirProgress:0,currentDensity:1,onPourAtScreenPoint:(x,y)=>calls.push({x,y}),checkPointOverMouth:x=>x>200,onStepChange(){},onStirProgressUpdate(){},onSpoonCompleted(){},onResetSalt(){},checkPointInWater:()=>false,onMessageUpdate(){},soundEnabled:false});
   const cleanup=effects.map(fn=>fn());
   return {listeners,calls,dispose:()=>cleanup.forEach(fn=>fn?.())};
 }
@@ -22,14 +22,32 @@ console.log('Passed: filled spoon auto-pours on pointer movement without a press
 const parent=fs.readFileSync('src/components/preschool/SimSinkOrFloatLab.tsx','utf8');
 const completed=parent.slice(parent.indexOf('  const handleSpoonCompleted ='),parent.indexOf('  // Thay nước ngọt ban đầu'));
 const pour=parent.slice(parent.indexOf('  const handlePourSaltAtPoint ='),parent.indexOf('  // Bắt đầu đua thả 2 vật'));
-const state={workflowStep:'holdingSpoon',spoonFraction:1,pendingSaltSpoons:0,saltSpoons:0,soundEnabled:false,MAX_SALT_SPOONS:5,pourTimeoutRef:{current:null},setMessage(){},activeStirProgress:0,setItems(){},useCallback:fn=>fn,window:{setTimeout:fn=>{state.timer=fn;return 1;}},clearTimeout(){},threeTankRef:{current:{spawnSaltGrains(){},clearSaltGrains(){},refreshObservations(){}}}};
+const state={workflowStep:'holdingSpoon',spoonFraction:1,pendingSaltSpoons:0,saltSpoons:0,soundEnabled:false,SALT_GRAMS_PER_SPOON:50,tankShape:'rectangle',dimensions:{},waterVolumeMl:()=>1000,pourTimeoutRef:{current:null},setMessage(){},activeStirProgress:0,setItems(){},useCallback:fn=>fn,window:{setTimeout:fn=>{state.timer=fn;return 1;}},clearTimeout(){},threeTankRef:{current:{spawnSaltGrains(){},clearSaltGrains(){},setSaltSediment(grams){state.sediment=grams;},refreshObservations(){}}}};
 state.setActiveStirProgress=value=>state.activeStirProgress=typeof value==='function'?value(state.activeStirProgress):value;
 state.setWorkflowStep=step=>state.workflowStep=step;state.setPendingSaltSpoons=value=>state.pendingSaltSpoons=typeof value==='function'?value(state.pendingSaltSpoons):value;state.setSaltSpoons=value=>state.saltSpoons=typeof value==='function'?value(state.saltSpoons):value;
 vm.runInNewContext(ts.transpileModule(completed+pour+'\nthis.handlers={handleSpoonCompleted,handlePourSaltAtPoint};',{compilerOptions:{target:ts.ScriptTarget.ES2020}}).outputText,state);
-for(let i=0;i<2;i++){state.workflowStep='holdingSpoon';state.handlers.handlePourSaltAtPoint({x:0,y:5,z:0});assert.equal(state.workflowStep,'pouring');state.timer();assert.equal(state.workflowStep,'scoopMode');assert.equal(state.pendingSaltSpoons,i+1);assert.equal(state.saltSpoons,0);}
-state.handlers.handleSpoonCompleted();assert.equal(state.saltSpoons,2);assert.equal(state.pendingSaltSpoons,0);
-console.log('Passed: two pours retain an empty spoon, accumulate two undissolved doses, and dissolve both exactly once on stirring completion.');
+for(let i=0;i<9;i++){state.workflowStep='holdingSpoon';state.handlers.handlePourSaltAtPoint({x:0,y:5,z:0});assert.equal(state.workflowStep,'pouring');state.timer();assert.equal(state.workflowStep,'scoopMode');assert.equal(state.pendingSaltSpoons,i+1);assert.equal(state.saltSpoons,0);}
+state.handlers.handleSpoonCompleted();assert.equal(state.saltSpoons,9);assert.equal(state.pendingSaltSpoons,0);assert.equal(state.sediment,90);
+console.log('Passed: nine consecutive pours retain an empty spoon, have no eight-spoon limit, and show excess salt after mixing.');
 
 state.saltSpoons=0;state.pendingSaltSpoons=1;state.activeStirProgress=50;state.workflowStep='holdingSpoon';
 state.handlers.handlePourSaltAtPoint({x:0,y:5,z:0});state.timer();
 assert.equal(state.pendingSaltSpoons,2);assert.equal(state.activeStirProgress,25);assert.equal(state.pendingSaltSpoons*state.activeStirProgress/100,.5,'adding salt after a partial stir preserves the amount already dissolved');
+
+const circleModule={exports:{}};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/components/preschool/sink-float/stirCircles.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{module:circleModule,exports:circleModule.exports});
+const circles=circleModule.exports,centre={x:100,y:100};
+let turn={last:null,radians:0};
+for(let i=0;i<=72*5;i++){
+  const angle=i*Math.PI/36;
+  turn=circles.advanceStirCircles(turn,{x:100+32*Math.cos(angle),y:100+32*Math.sin(angle)},centre,true);
+  if(i<72*5)assert.ok(circles.stirCircleProgress(turn)<100);
+}
+assert.equal(circles.stirCircleProgress(turn),100);
+let square={last:null,radians:0};
+for(let i=0;i<5;i++)for(const [x,y] of [[100,86],[114,100],[100,114],[86,100],[100,86]])square=circles.advanceStirCircles(square,{x,y},centre,true);
+assert.equal(circles.stirCircleProgress(square),100,'five small, brisk hand circles must finish without an on-screen counter');
+let stroke={last:null,radians:0};
+for(let i=0;i<80;i++)stroke=circles.advanceStirCircles(stroke,{x:60+i%2*70,y:100},centre,true);
+assert.equal(circles.stirCircleProgress(stroke),0,'straight back-and-forth strokes cannot dissolve salt');
+console.log('Passed: five circular turns dissolve salt; straight strokes and short movement do not.');

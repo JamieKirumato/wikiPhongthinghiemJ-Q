@@ -7,7 +7,8 @@ export function configureWaterSurface(material: THREE.MeshPhongMaterial, width:n
     waterTime:{value:0},
     waterSize:{value:new THREE.Vector2(width,depth)},
     waterShape:{value:shape==='cylinder'?1:shape==='triangle'?2:0},
-    waterImpulses:{value:Array.from({length:8},()=>new THREE.Vector4(0,0,0,0))}
+    waterImpulses:{value:Array.from({length:8},()=>new THREE.Vector4(0,0,0,0))},
+    waterStir:{value:new THREE.Vector4(0,0,-10,0)}
   };
   material.onBeforeCompile=shader=>{
     Object.assign(shader.uniforms,uniforms);
@@ -16,6 +17,7 @@ uniform float waterTime;
 uniform vec2 waterSize;
 uniform int waterShape;
 uniform vec4 waterImpulses[8];
+uniform vec4 waterStir;
 float waterWave(vec2 p) {
   float edge=min(waterSize.x*.5-abs(p.x),waterSize.y*.5-abs(p.y));
   if(waterShape==1) edge=waterSize.x*.5-length(p);
@@ -32,7 +34,16 @@ float waterWave(vec2 p) {
       h+=sin(front*8.)*exp(-front*front*2.5-age*1.8)*min(3.,impulse.w)*.035;
     }
   }
-  return clamp(h,-.09,.09)*smoothstep(0.,.25,edge);
+  float stirAge=waterTime-waterStir.z;
+  if(stirAge>=0. && stirAge<1.2 && waterStir.w>0.) {
+    vec2 offset=p-waterStir.xy;
+    float radius=length(offset);
+    float whirl=atan(offset.y,offset.x);
+    float fade=exp(-radius*radius*1.8)*(1.-smoothstep(0.,1.2,stirAge));
+    h+=sin(whirl*3.-waterTime*8.+radius*7.)*.07*fade*waterStir.w;
+    h+=sin(radius*17.-waterTime*12.)*.028*fade*waterStir.w;
+  }
+  return clamp(h,-.13,.13)*smoothstep(0.,.25,edge);
 }
 `);
     shader.vertexShader=shader.vertexShader.replace('#include <beginnormal_vertex>',`#include <beginnormal_vertex>
@@ -44,9 +55,10 @@ objectNormal=normalize(vec3(-dx,1.,-dz));
 transformed.y+=waterWave(position.xz);
 `);
   };
-  material.customProgramCacheKey=()=> 'sink-float-water-waves-v1';
-  material.userData.updateWater=(seconds:number,impulses:WaterImpulse[])=>{
+  material.customProgramCacheKey=()=> 'sink-float-water-waves-v2';
+  material.userData.updateWater=(seconds:number,impulses:WaterImpulse[],stir?:{x:number;z:number;time:number;strength:number})=>{
     uniforms.waterTime.value=seconds;
+    uniforms.waterStir.value.set(stir?.x??0,stir?.z??0,stir?.time??-10,stir?.strength??0);
     for(let i=0;i<8;i++) {
       const wave=impulses[i];
       uniforms.waterImpulses.value[i].set(wave?.x??0,wave?.z??0,wave?.time??0,wave?.strength??0);

@@ -35,7 +35,7 @@ import {
 } from './sink-float/types';
 import { getTankDimensions, clampToTankBoundary } from './sink-float/tankGeometry';
 import { ThreeTankCanvas, ITEM_WORLD_SCALES, ThreeTankCanvasHandle } from './sink-float/ThreeTankCanvas';
-import { brineDensity, waterVolumeMl, SALT_GRAMS_PER_SPOON, MAX_SALT_SPOONS } from './sink-float/salinity';
+import { brineDensity, waterVolumeMl, SALT_GRAMS_PER_SPOON } from './sink-float/salinity';
 import { SaltWorkflow } from './sink-float/SaltWorkflow';
 import { WaterPitcher } from './sink-float/WaterPitcher';
 import {FloorMop} from './sink-float/FloorMop';
@@ -467,7 +467,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   // 4. QUY TRÌNH HÒA TAN MUỐI VÀ KHỐI LƯỢNG RIÊNG NƯỚC LIÊN TỤC
   const [spoonFraction, setSpoonFraction] = useState(1);
   const [pendingSaltSpoons,setPendingSaltSpoons]=useState(0);
-  const [saltSpoons, setSaltSpoons] = useState<number>(0); // 0 đến 5 thìa
+  const [saltSpoons, setSaltSpoons] = useState<number>(0);
   const [activeStirProgress, setActiveStirProgress] = useState<number>(0); // 0 đến 100% của thìa hiện tại
   const [workflowStep, setWorkflowStep] = useState<SaltWorkflowStep>('idle');
 
@@ -972,13 +972,16 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   // Hoàn thành tan 1 thìa muối (dựa vào waterDensity, không chỉ báo nổi ở spoons count)
   const handleSpoonCompleted = useCallback(() => {
     threeTankRef.current?.clearSaltGrains();
+    const totalSpoons=saltSpoons+pendingSaltSpoons;
+    const excessGrams=Math.max(0,totalSpoons*SALT_GRAMS_PER_SPOON-waterVolumeMl(tankShape,dimensions)*.36);
+    threeTankRef.current?.setSaltSediment(excessGrams);
     threeTankRef.current?.refreshObservations();
-    setSaltSpoons(previous => Math.min(MAX_SALT_SPOONS, previous + pendingSaltSpoons));
+    setSaltSpoons(previous => previous + pendingSaltSpoons);
     setActiveStirProgress(0);
     setItems(previous => previous.map(item => item.inTank ? {...item, settled: false} : item));
-    setMessage('Muối đã tan. Con thấy quả trứng thay đổi thế nào?');
+    setMessage(excessGrams>0?'Nước đã rất mặn. Muối dư có thể đọng dưới đáy; con vẫn có thể thử thêm.':'Muối đã tan. Con thấy quả trứng thay đổi thế nào?');
     setPendingSaltSpoons(0);
-  }, [pendingSaltSpoons]);
+  }, [pendingSaltSpoons,saltSpoons,tankShape,dimensions]);
 
   // Thay nước ngọt ban đầu & dọn sạch hạt muối
   const handleResetSalt = useCallback(() => {
@@ -1007,7 +1010,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       if (soundEnabled) soundEngine.playSaltPour();
       threeTankRef.current?.spawnSaltGrains(Math.round(40 * spoonFraction), point);
       setActiveStirProgress(progress=>progress*pendingSaltSpoons/(pendingSaltSpoons+spoonFraction));
-      setPendingSaltSpoons(total=>Math.min(MAX_SALT_SPOONS-saltSpoons,total+spoonFraction));
+      setPendingSaltSpoons(total=>total+spoonFraction);
 
       if (pourTimeoutRef.current) clearTimeout(pourTimeoutRef.current);
       pourTimeoutRef.current = window.setTimeout(() => {
@@ -1017,7 +1020,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
         setMessage('Thìa đã trống. Con có thể xúc thêm muối, hoặc chọn que khuấy.');
       }, 1400);
     },
-    [workflowStep, soundEnabled, spoonFraction,saltSpoons,pendingSaltSpoons]
+    [workflowStep, soundEnabled, spoonFraction,pendingSaltSpoons]
   );
 
   // Bắt đầu đua thả 2 vật
@@ -1363,6 +1366,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               if(target)handlePourSaltAtPoint(target);
             }}
             checkPointOverMouth={(x,y)=>!!threeTankRef.current?.saltTarget(x,y)}
+            getStirCentre={()=>threeTankRef.current?.stirCentre()||null}
             activeStirProgress={activeStirProgress}
             currentDensity={waterDensity}
             workflowStep={workflowStep}
@@ -1457,7 +1461,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               )}
               {workflowStep === 'stirring' && (
                 <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-500 text-white font-bold animate-pulse">
-                  Khuấy đũa: {Math.round(activeStirProgress)}%
+                  Muối đang tan trong nước
                 </span>
               )}
             </div>

@@ -5,7 +5,6 @@ import { TankDimensions, TankShape } from './types';
 // Shapes and 50%-per-dimension scaling preserve actual volume ratios.
 export const ML_PER_WORLD_VOLUME = 1000 / (9.6 * 4.6 * 4.8 * 0.52);
 export const SALT_GRAMS_PER_SPOON = 50;
-export const MAX_SALT_SPOONS = 8;
 export function waterVolumeMl(shape: TankShape, dimensions: TankDimensions): number {
   return getFootprintArea(shape, dimensions) * dimensions.waterHeight * ML_PER_WORLD_VOLUME;
 }
