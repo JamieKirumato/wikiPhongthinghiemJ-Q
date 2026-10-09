@@ -13,6 +13,7 @@ interface SaltWorkflowProps {
   onDoseChange?: (fraction: number) => void;
   onStirAtScreenPoint?: (x: number, y: number) => void;
   onPourAtScreenPoint?: (x: number, y: number) => void;
+  checkPointOverMouth?: (x: number, y: number) => boolean;
   toolsEnabled?:boolean;
   getToolAnchor?:()=>{x:number;y:number}|null;
   pendingSaltSpoons?:number;
@@ -161,6 +162,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   onDoseChange,
   onStirAtScreenPoint,
   onPourAtScreenPoint,
+  checkPointOverMouth,
   saltSpoons,
   pendingSaltSpoons=0,
   getToolAnchor,
@@ -198,9 +200,11 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   const [stirWobble, setStirWobble] = useState<number>(0);
   const [isHoveringJarMouth, setIsHoveringJarMouth] = useState<boolean>(false);
   const [isInWaterState, setIsInWaterState] = useState<boolean>(false);
+  const [mouthReady, setMouthReady] = useState(false);
+  const stirMovesRef = useRef(0);
   const stirIdleTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   useEffect(()=>()=>{if(stirIdleTimer.current)clearTimeout(stirIdleTimer.current);},[]);
-  useEffect(()=>{if(workflowStep!=='stirring'){setIsInWaterState(false);if(stirIdleTimer.current)clearTimeout(stirIdleTimer.current);}},[workflowStep]);
+  useEffect(()=>{if(workflowStep!=='stirring'){setIsInWaterState(false);if(stirIdleTimer.current)clearTimeout(stirIdleTimer.current);}if(workflowStep!=='holdingSpoon')setMouthReady(false);},[workflowStep]);
 
   useEffect(()=>{
     const cancel=(event:KeyboardEvent)=>{if(event.key==='Escape'&&(workflowStep==='scoopMode'||workflowStep==='holdingSpoon')){scoopStartRef.current=null;setIsJarOpen(false);onStepChange('idle');onMessageUpdate('Đã cất thìa và trả muối về hũ.');}};
@@ -259,7 +263,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
       // 2. Xử lý khuấy nước khi đang ở bước 'stirring'
       // KIỂM TRA BẰNG RAYCASTER 3D QUA CALLBACK checkPointInWater (ĐÚNG Ở MỌI GÓC NHÌN VÀ 4 LOẠI BỂ)
       if (workflowStep === 'holdingSpoon') {
-        onPourAtScreenPoint?.(px,py);
+        setMouthReady(checkPointOverMouth?.(px,py) ?? false);
       }
       if (workflowStep === 'stirring') {
         const isInsideWater = checkPointInWater(px, py);
@@ -273,7 +277,8 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
           const dist = Math.sqrt(dx * dx + dy * dy);
 
           // Lọc các bước nhảy bất thường (> 70px)
-          if (dist > 1.5 && dist < 70) {
+          if (dist > 8 && dist < 70) {
+            stirMovesRef.current += 1;
             setIsInWaterState(true);
             if(stirIdleTimer.current)clearTimeout(stirIdleTimer.current);
             stirIdleTimer.current=setTimeout(()=>setIsInWaterState(false),140);
@@ -292,12 +297,10 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
               onStirAtScreenPoint?.(px, py); lastVisualStirRef.current = nowStir;
             }
             if(pendingSaltSpoons<=0){lastStirPosRef.current={x:px,y:py,wasInside:true};return;}
-            const elapsed = Math.min(80, Math.max(0, nowStir-lastVisualMotionRef.current));
             lastVisualMotionRef.current=nowStir;
-            const duration = saltSpoons < 1 ? 3000 : saltSpoons < 2 ? 5000 : 8000;
-            const deltaProgress = Math.min(dist * 0.2, elapsed * 100 / duration);
+            const deltaProgress = dist * .8;
             const previousProgress = progressRef.current;
-            const nextProgress = Math.min(nowStir - stirringStartedRef.current >= duration ? 100 : 95, previousProgress + deltaProgress);
+            const nextProgress = Math.min(stirMovesRef.current >= 3 ? 100 : 95, previousProgress + deltaProgress);
             progressRef.current = nextProgress;
             onStirProgressUpdate(nextProgress);
 
@@ -306,6 +309,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
               onSpoonCompleted();
               onStepChange('idle');setIsJarOpen(false);
               stirringStartedRef.current = 0;
+              stirMovesRef.current = 0;
               scoopStartRef.current = null;
               lastStirPosRef.current = { x: px, y: py, wasInside: false };
             }
@@ -327,7 +331,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
 
     };
   }, [
-    workflowStep, isJarOpen, saltSpoons,pendingSaltSpoons, onStirAtScreenPoint, onPourAtScreenPoint,
+    workflowStep, isJarOpen, saltSpoons,pendingSaltSpoons, onStirAtScreenPoint, checkPointOverMouth,
     checkPointInWater,
     activeStirProgress,
     onStirProgressUpdate,
@@ -335,6 +339,16 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
     onStepChange,
     soundEnabled
   ]);
+
+  useEffect(() => {
+    if (workflowStep !== 'holdingSpoon') return;
+    const pourOnTouch = (event: PointerEvent) => {
+      if (checkPointOverMouth?.(event.clientX,event.clientY)) onPourAtScreenPoint?.(event.clientX,event.clientY);
+    };
+    window.addEventListener('pointerdown',pourOnTouch);
+    window.addEventListener('pointerup',pourOnTouch);
+    return () => {window.removeEventListener('pointerdown',pourOnTouch);window.removeEventListener('pointerup',pourOnTouch);};
+  },[workflowStep,checkPointOverMouth,onPourAtScreenPoint]);
 
   // Click xúc muối từ hũ
   const handleScoopClick = () => {
@@ -361,7 +375,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   const isMaxSpoons = saltSpoons >= MAX_SALT_SPOONS;
 
   const rimTools=<RimStirTool getAnchor={getToolAnchor} active={workflowStep==='stirring'} highlighted={workflowStep==='holdingSpoon'||pendingSaltSpoons>0} disabled={disabled||workflowStep==='pouring'} progress={activeStirProgress} hasSalt={pendingSaltSpoons>0}
-    onTake={()=>{setPointerPos(getToolAnchor?.()||pointerPos);onStepChange('stirring');stirringStartedRef.current=0;lastStirPosRef.current={x:0,y:0,wasInside:false};onMessageUpdate('Con di chuyển que trong nước để khuấy nhé.');}}
+    onTake={()=>{setPointerPos(getToolAnchor?.()||pointerPos);onStepChange('stirring');stirringStartedRef.current=0;stirMovesRef.current=0;lastStirPosRef.current={x:0,y:0,wasInside:false};onMessageUpdate('Khuấy vài nét trong nước và nhìn muối tan nhé.');}}
     onPut={()=>{onStepChange(isJarOpen?'scoopMode':'idle');setIsInWaterState(false);}}/>;
   if(!toolsEnabled)return <>{rimTools}{workflowStep==='stirring'&&<RealisticStirringHand x={pointerPos.x} y={pointerPos.y} angle={stirWobble} isInWater={isInWaterState}/>}</>;
   if (visualOnly) return <>
@@ -370,13 +384,14 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
       <button ref={saltTriggerRef} aria-label="Mở hũ muối" aria-expanded={isJarOpen} disabled={disabled || isJarOpen} className="lab-salt-trigger flex items-center justify-center" onClick={event=>{setIsJarOpen(true);setPointerPos({x:event.clientX,y:event.clientY});if(!isMaxSpoons){onDoseChange?.(1);onStepChange('scoopMode');}onMessageUpdate('Hũ muối đã mở. Con đưa thìa vào hũ để xúc muối nhé.');}}><span className="block w-12 h-14"><SaltJar/></span></button>
       {isJarOpen && createPortal(<div className="lab-salt-popover" style={jarPosition} role="group" aria-label="Hũ muối đang mở">
         <button aria-label="Đóng hũ muối" disabled={workflowStep==='pouring'||workflowStep==='stirring'} className="self-end min-h-[44px] min-w-[44px] rounded-full text-xl" onClick={()=>{setIsJarOpen(false);onStepChange('idle');}}>✕</button>
-        <div ref={jarMouthRef} role="button" aria-label="Xúc một thìa muối" tabIndex={0} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();handleScoopClick();}}} className="relative w-28 h-36 cursor-pointer drop-shadow-lg"><SaltJar open/>
+        <div ref={jarMouthRef} role="button" aria-label="Xúc một thìa muối" tabIndex={0} onClick={handleScoopClick} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();handleScoopClick();}}} className="relative w-28 h-36 cursor-pointer drop-shadow-lg"><SaltJar open/>
         </div>
         {(workflowStep==='holdingSpoon'||workflowStep==='scoopMode')&&<button aria-label="Cất thìa" className="min-h-[48px] rounded-xl bg-white px-3 font-bold" onClick={()=>{setIsJarOpen(false);scoopStartRef.current=null;onStepChange('idle');}}><span aria-hidden="true" className="text-2xl">↩</span></button>}
         {isMaxSpoons&&<button aria-label="Thay nước ngọt" className="min-h-[52px] min-w-[52px] text-3xl" onClick={handleResetWithCleanup}>🚰</button>}
       </div>, document.body)}
     </div>
     {(workflowStep==='scoopMode'||workflowStep==='holdingSpoon'||workflowStep==='pouring')&&<RealisticHandSpoon x={pointerPos.x} y={pointerPos.y} hasSalt={workflowStep==='holdingSpoon'||workflowStep==='pouring'} isPouring={workflowStep==='pouring'} amount={spoonFraction}/>}
+    {workflowStep==='holdingSpoon'&&mouthReady&&getToolAnchor&&(() => {const anchor=getToolAnchor();return anchor&&createPortal(<div className="fixed z-[75] pointer-events-none rounded-2xl bg-amber-300 px-3 py-2 text-sm font-black text-slate-900 shadow-xl ring-4 ring-white/80" style={{left:anchor.x,top:anchor.y,transform:'translate(-50%,-140%)'}} role="status">🧂 Chạm để thả muối vào bể</div>,document.body);})()}
     {workflowStep==='stirring'&&<RealisticStirringHand x={pointerPos.x} y={pointerPos.y} angle={stirWobble} isInWater={isInWaterState}/>}
   </>;
 

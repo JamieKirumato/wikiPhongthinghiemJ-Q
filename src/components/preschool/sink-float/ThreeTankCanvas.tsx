@@ -73,6 +73,7 @@ interface ThreeTankCanvasProps {
   onMessageUpdate: (msg: string) => void;
   showXRay: boolean;
   onItemObserved?: (itemId: string, status: 'floating' | 'sunk') => void;
+  onDipFloater?: () => void;
 }
 
 // Cấu hình vật thể 3D thế giới (World Units)
@@ -102,7 +103,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       soundEnabled,
       onMessageUpdate,
       showXRay,
-      onItemObserved
+      onItemObserved,
+      onDipFloater
     },
     ref
   ) => {
@@ -1772,6 +1774,10 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       setDropPreview(null);
       const id=heldIdRef.current;
       if (orbitRef.current.isDragging===2 && id) {
+        const heldItem=itemsRef.current.find(item=>item.id===id);
+        if (heldItem && heldItem.weightGrams/heldItem.volumeMl < waterDensityRef.current && !heldItem.outsideTank && heldItem.y < displayedWaterLevelRef.current-.1) {
+          onDipFloater?.();
+        }
         const samples=dragSamplesRef.current, first=samples[0], last=samples[samples.length-1];
         const v=e.type==='pointercancel'||!first||!last ? {vx:0,vy:0} : gestureVelocity(last.x-first.x,last.y-first.y,(performance.now()-first.t)/1000);
         const worldVelocity=throwVelocity(cameraRef.current!,v);

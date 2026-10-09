@@ -536,6 +536,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const [draggingTrayItem, setDraggingTrayItem] = useState<TankObject | null>(null);
   const [dragCursorPos, setDragCursorPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [selectedTrayItem, setSelectedTrayItem] = useState<TankObject | null>(null);
+  const [hasDippedFloater,setHasDippedFloater] = useState(false);
 
   const pointerVelocityRef = useRef<Array<{ x: number; y: number; t: number }>>([]);
   const activeDragItemRef = useRef<TankObject | null>(null);
@@ -702,6 +703,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     setRaceRunning(false);
     setWorkflowStep('idle');
     setActiveStirProgress(0);
+    setHasDippedFloater(false);
     if (pourTimeoutRef.current) {
       clearTimeout(pourTimeoutRef.current);
       pourTimeoutRef.current = null;
@@ -1071,7 +1073,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   };
 
   // Danh sách đồ vật hiển thị theo lứa tuổi (3-4 tuổi: 4 món quen thuộc; 5-6 tuổi: cả 12 món)
-  const basketPresets = isTeacherMode ? PLAY_ITEMS_PRESETS.filter(i => teacherLesson.itemIds.includes(i.id)) : PLAY_ITEMS_PRESETS;
+  const basketPresets = isTeacherMode ? PLAY_ITEMS_PRESETS.filter(i => teacherLesson.itemIds.includes(i.id)) : activityMode==='egg-challenge' ? PLAY_ITEMS_PRESETS.filter(i=>i.id==='item-egg') : !advanced&&activityMode==='discovery' ? PLAY_ITEMS_PRESETS.filter(i=>['item-pebble','item-pingpong'].includes(i.id)) : PLAY_ITEMS_PRESETS;
   const displayItems = basketSlots(items, basketPresets);
 
   // Replenish real, uniquely identified objects; keep previous trials in the tank.
@@ -1230,7 +1232,17 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                 onMessageUpdate={setMessage}
                 showXRay={showXRay}
                 onItemObserved={handleItemObserved}
+                onDipFloater={()=>setHasDippedFloater(true)}
               />
+              {!isTeacherMode&&!introLocked&&activityMode==='discovery'&&!advanced&&<div className="absolute top-3 left-3 z-20 max-w-[min(280px,68%)] rounded-2xl bg-white/95 px-3 py-2 shadow-lg border-2 border-amber-300 text-slate-900 pointer-events-none" role="status">
+                <p className="text-xs font-black text-amber-800">🔎 Vòng khám phá ngắn</p>
+                <p className="text-sm font-bold">{observations['item-pebble']!=='sunk'||!items.some(i=>i.id==='item-pebble'&&i.inTank)?'1. Sỏi nhỏ sẽ chìm hay nổi? Con thả thử nhé.':observations['item-pingpong']!=='floating'||!items.some(i=>i.id==='item-pingpong'&&i.inTank)?'2. Bóng lớn sẽ chìm hay nổi? Con thử xem.':!hasDippedFloater?'3. Con dìm bóng xuống nước rồi buông tay nhé.':'Con thấy bóng đi đâu khi buông tay?'}</p>
+                {hasDippedFloater&&observations['item-pebble']==='sunk'&&observations['item-pingpong']==='floating'&&<button className="pointer-events-auto mt-2 min-h-[44px] rounded-xl bg-amber-400 px-3 font-black text-xs shadow-sm" onClick={()=>{handleResetAllTank();handleSelectActivityMode('egg-challenge');}}>🥚 Thử trứng và đổi nước</button>}
+              </div>}
+              {!isTeacherMode&&activityMode==='egg-challenge'&&<div className="absolute top-3 left-3 z-20 max-w-[min(290px,70%)] rounded-2xl bg-white/95 px-3 py-2 shadow-lg border-2 border-amber-300 text-sm font-bold text-slate-900">
+                <p>🥚 Thả trứng vào nước ngọt. Sau đó thêm muối, khuấy và nhìn lại trứng.</p>
+                {saltSpoons>0&&workflowStep==='idle'&&<button className="mt-2 min-h-[44px] rounded-xl bg-sky-200 px-3 font-black text-xs" onClick={handleResetSalt}>🚰 Đổi lại nước ngọt</button>}
+              </div>}
               {LADLE_ENABLED&&(carriedBucketVisible||bucketWater.ml>0||bucketWater.fullBuckets.length>0)&&<div ref={bucketRef} data-water-bucket aria-label="Các xô hứng nước" className="lab-bucket absolute bottom-5 left-5 z-30 pointer-events-none flex flex-wrap items-end gap-2 max-w-[calc(100%-40px)]">
                 {bucketWater.fullBuckets.map((_,index)=><div key={index} aria-label="Xô đã đầy" className="relative w-12">
                   <svg viewBox="0 0 120 120" width="48" height="48" aria-hidden="true"><path d="M17 43L27 99Q60 115 93 99L103 43" fill="#ffd59c" stroke="#b87838" strokeWidth="4"/><ellipse cx="60" cy="43" rx="43" ry="15" fill="#86dcea" stroke="#b87838" strokeWidth="4"/><path d="M23 38C15 5 105 5 97 38" fill="none" stroke="#d09450" strokeWidth="5"/></svg>
@@ -1350,6 +1362,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               const target=threeTankRef.current?.saltTarget(x,y);
               if(target)handlePourSaltAtPoint(target);
             }}
+            checkPointOverMouth={(x,y)=>!!threeTankRef.current?.saltTarget(x,y)}
             activeStirProgress={activeStirProgress}
             currentDensity={waterDensity}
             workflowStep={workflowStep}
