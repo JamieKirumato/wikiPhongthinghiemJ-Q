@@ -1,6 +1,6 @@
 import {overflowOutlets} from './overflowVisual';
 import {freshComparisonItem} from './comparisonTrial';
-import { tankCameraDistance, waterObservationDistance } from './cameraFraming';
+import { tankCameraDistance, objectObservationDistance } from './cameraFraming';
 import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import * as THREE from 'three';
 import { TankDimensions, TankObject, TankScale, TankShape, InteractionMode, SaltWorkflowStep, StirRodProjection } from './types';
@@ -152,7 +152,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     const lastSandPointRef=useRef<{x:number;z:number;time:number}|null>(null);
     const dipFocusRef = useRef<{itemId:string;expiresAt:number;kind?:'drop';settledAt?:number}|null>(null);
     const dipFocusBlendRef = useRef(0);
-    const dipFocusPointRef = useRef({x:0,z:0});
+    const dipFocusPointRef = useRef({x:0,y:dims.height*.4,z:0});
     const focusKindRef = useRef<'drop'|'dip'>('dip');
     const dropFocusRatioRef = useRef(1);
     const lastDipRippleRef = useRef(0);
@@ -1263,27 +1263,44 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const focusTarget=focusItem&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches?1:0;
         const focusEase=1-Math.exp(-wallDt*1.35);
         dipFocusBlendRef.current+=(focusTarget-dipFocusBlendRef.current)*focusEase;
-        dipFocusPointRef.current.x+=((focusTarget?focusItem?.x??0:0)-dipFocusPointRef.current.x)*focusEase;
-        dipFocusPointRef.current.z+=((focusTarget?focusItem?.z??0:0)-dipFocusPointRef.current.z)*focusEase;
+        // Tracking responds faster than zoom, keeping a moving object in view.
+        // Retain the last point on exit, then blend gently back to the tank view.
+        if(focusTarget&&focusItem){
+          const trackingEase=1-Math.exp(-wallDt*7);
+          dipFocusPointRef.current.x+=(focusItem.x-dipFocusPointRef.current.x)*trackingEase;
+          dipFocusPointRef.current.y+=(focusItem.y-dipFocusPointRef.current.y)*trackingEase;
+          dipFocusPointRef.current.z+=(focusItem.z-dipFocusPointRef.current.z)*trackingEase;
+        }
         if(focusItem)focusKindRef.current=focus?.kind==='drop'?'drop':'dip';
         const dropFocus=focusKindRef.current==='drop';
-        const targetY = d.height * .4*(1-dipFocusBlendRef.current)+displayedWaterLevelRef.current*(dropFocus ? .65 : .92)*dipFocusBlendRef.current;
+        const focusBlend=dipFocusBlendRef.current;
+        const targetX=dipFocusPointRef.current.x*focusBlend;
+        const targetZ=dipFocusPointRef.current.z*focusBlend;
+        const targetY=d.height*.4+(dipFocusPointRef.current.y-d.height*.4)*focusBlend;
         if(dropFocus&&focusItem){
           const radius=ITEM_WORLD_SCALES[itemKind(focusItem.id)]?.radius??.4;
-          const observationDistance=waterObservationDistance(r,d,displayedWaterLevelRef.current,camera?.aspect||1,orbit.yaw,orbit.pitch,{x:dipFocusPointRef.current.x,y:targetY,z:dipFocusPointRef.current.z},focusItem,radius);
+          const observationDistance=objectObservationDistance(r,camera?.aspect||1,orbit.yaw,orbit.pitch,{x:targetX,y:targetY,z:targetZ},focusItem,radius);
           dropFocusRatioRef.current=observationDistance/r;
         }
         r*=dropFocus ? 1+(dropFocusRatioRef.current-1)*dipFocusBlendRef.current : 1-.27*dipFocusBlendRef.current;
         r*=zoomRef.current;
         if(mountRef.current){mountRef.current.dataset.observationFocus=String(!!focusItem&&dropFocus);mountRef.current.dataset.observationZoom=(tankCameraDistance(fitDims,camera?.aspect||1,orbit.yaw,orbit.pitch)*zoomRef.current/r).toFixed(3);}
-        if(mountRef.current)mountRef.current.dataset.observationSpeed=observing?'0.4':'1';
+        if(mountRef.current){
+          mountRef.current.dataset.observationSpeed=observing?'0.4':'1';
+          mountRef.current.dataset.observationTracking=focusTarget?'object':'tank';
+          // Project the tracked object for focused browser verification.
+          if(focusItem&&camera){
+            mountRef.current.dataset.observationObjectY=focusItem.y.toFixed(3);
+            mountRef.current.dataset.observationTargetY=targetY.toFixed(3);
+          }
+        }
         const cx = r * Math.sin(orbit.yaw) * Math.cos(orbit.pitch);
         const cy = targetY + r * Math.sin(orbit.pitch);
         const cz = r * Math.cos(orbit.yaw) * Math.cos(orbit.pitch);
 
         if (camera) {
-          camera.position.set(cx+dipFocusPointRef.current.x, cy, cz+dipFocusPointRef.current.z);
-          camera.lookAt(dipFocusPointRef.current.x, targetY, dipFocusPointRef.current.z);
+          camera.position.set(cx+targetX, cy, cz+targetZ);
+          camera.lookAt(targetX, targetY, targetZ);
         }
 
         // TÍNH THỂ TÍCH PHẦN CHÌM THỰC TẾ (SUBMERGED VOLUME)
