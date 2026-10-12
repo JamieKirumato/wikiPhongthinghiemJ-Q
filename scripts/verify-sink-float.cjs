@@ -196,6 +196,19 @@ console.log('Passed: volume/salinity, displaced-volume equilibrium, solid 3D mod
 
 // Real-time trajectories accelerate consistently at different frame rates.
 const motion = source('src/components/preschool/sink-float/playPhysics.ts');
+const leafDrag=motion.objectAirDrag('item-leaf',1,5),stoneDrag=motion.objectAirDrag('item-pebble',50,20);
+assert.equal(motion.objectAirDrag('item-leaf#copy',1,5),leafDrag);
+assert.ok(leafDrag>stoneDrag*100,'broad light samples must experience stronger air resistance');
+let leafAir={y:5,vy:0},stoneAir={y:5,vy:0};
+for(let n=0;n<60;n++){
+  leafAir=motion.advanceAirFall(leafAir.y,leafAir.vy,1/120,leafDrag);
+  stoneAir=motion.advanceAirFall(stoneAir.y,stoneAir.vy,1/120,stoneDrag);
+}
+assert.ok(leafAir.y>stoneAir.y+.6,'a leaf must visibly lag a compact stone from an identical release');
+let thrownLeaf={y:5,vy:-40};
+for(let n=0;n<15;n++)thrownLeaf=motion.advanceAirFall(thrownLeaf.y,thrownLeaf.vy,1/15,leafDrag);
+assert.ok(Number.isFinite(thrownLeaf.y)&&Number.isFinite(thrownLeaf.vy)&&thrownLeaf.vy<0,'drag must stay stable under a strong throw');
+console.log('Passed: shape/mass-dependent air resistance separates a leaf from a stone without changing gravity.');
 const expectedFall = 4 - .5 * motion.DISPLAY_GRAVITY * .4 ** 2;
 for (const fps of [30, 60, 120]) {
   let state = {y:4,vy:0};
@@ -486,6 +499,23 @@ for(const shape of ['rectangle','square','cylinder','triangle']) {
   }
 }
 console.log('Passed: camera fills portrait, landscape and desktop frames without clipping all four tank shapes at multiple angles.');
+for(const shape of ['rectangle','square','cylinder','triangle']){
+  const dims=geometry.getTankDimensions(shape,'normal'),water=dims.waterHeight;
+  for(const aspect of [.45,1.5,2.2])for(const radius of [.2,.55,1.32]){
+    const target={x:.3,y:water*.5,z:.2},yaw=.56,pitch=.24;
+    const base=framing.tankCameraDistance(dims,aspect,yaw,pitch);
+    const distance=framing.waterObservationDistance(base,dims,water,aspect,yaw,pitch,target,target,radius);
+    const camera=new THREE.PerspectiveCamera(40,aspect,.1,100);
+    camera.position.set(target.x+distance*Math.sin(yaw)*Math.cos(pitch),target.y+distance*Math.sin(pitch),target.z+distance*Math.cos(yaw)*Math.cos(pitch));
+    camera.lookAt(target.x,target.y,target.z);camera.updateMatrixWorld();
+    for(const x of [target.x-radius,target.x+radius])for(const y of [dims.height*.085-.05,water+radius*2+.08])for(const z of [target.z-radius,target.z+radius]){
+      const point=new THREE.Vector3(x,y,z).project(camera);
+      assert.ok(Math.abs(point.x)<=.901&&Math.abs(point.y)<=.901,'auto-observation must keep the whole surface-to-bed trajectory visible');
+    }
+    if(radius<.6)assert.ok(distance<base,'ordinary objects should be shown closer after water entry');
+  }
+}
+console.log('Passed: observation zoom preserves the entire object path, including large balls, in portrait and landscape tanks.');
 
 const physicalScales=source('src/components/preschool/sink-float/itemScale.ts').ITEM_WORLD_SCALES;
 assert.ok(physicalScales['item-pingpong'].size>physicalScales['item-apple'].size*3);

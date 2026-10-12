@@ -46,6 +46,11 @@ export interface TankDimensions {
 
 export type SaltWorkflowStep = 'idle' | 'scoopMode' | 'holdingSpoon' | 'pouring' | 'stirring';
 
+export interface StirRodProjection {
+  top: {x:number;y:number};
+  bottom: {x:number;y:number};
+}
+
 export interface SaltGrain {
   id: number;
   x: number;

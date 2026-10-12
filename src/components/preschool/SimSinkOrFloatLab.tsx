@@ -1367,6 +1367,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             }}
             checkPointOverMouth={(x,y)=>!!threeTankRef.current?.saltTarget(x,y)}
             getStirCentre={()=>threeTankRef.current?.stirCentre()||null}
+            getStirRod={(x,y)=>threeTankRef.current?.stirRod(x,y)||null}
             activeStirProgress={activeStirProgress}
             currentDensity={waterDensity}
             workflowStep={workflowStep}

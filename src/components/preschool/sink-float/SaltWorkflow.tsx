@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import {RimStirTool} from './RimStirTool';
-import { SaltWorkflowStep } from './types';
+import { SaltWorkflowStep, StirRodProjection } from './types';
 import { soundEngine } from '../../../utils/audioEffects';
 import {advanceStirCircles,stirCircleProgress,StirCircleState} from './stirCircles';
 import { RotateCcw, Sparkles } from 'lucide-react';
@@ -15,6 +15,7 @@ interface SaltWorkflowProps {
   onPourAtScreenPoint?: (x: number, y: number) => void;
   checkPointOverMouth?: (x: number, y: number) => boolean;
   getStirCentre?: () => {x:number;y:number}|null;
+  getStirRod?: (x:number,y:number) => StirRodProjection|null;
   toolsEnabled?:boolean;
   getToolAnchor?:()=>{x:number;y:number}|null;
   pendingSaltSpoons?:number;
@@ -111,7 +112,15 @@ export const RealisticStirringHand: React.FC<{
   x: number;
   y: number;
   angle: number;
-}> = ({ x, y, angle }) => createPortal(
+  rod?: StirRodProjection|null;
+}> = ({ x, y, angle, rod }) => rod ? createPortal(
+  <svg data-held-stir-rod aria-hidden="true" width="14" height={Math.hypot(rod.bottom.x-rod.top.x,rod.bottom.y-rod.top.y)}
+    className="fixed pointer-events-none z-[80] drop-shadow-lg"
+    style={{left:rod.top.x-7,top:rod.top.y,transformOrigin:'7px 0',transform:`rotate(${-Math.atan2(rod.bottom.x-rod.top.x,rod.bottom.y-rod.top.y)*180/Math.PI}deg)`}}>
+    <rect x="3" width="8" height="100%" rx="4" fill="#d6aa6e" stroke="#93642e" strokeWidth="1.5"/>
+    <path d={`M6 5V${Math.max(5,Math.hypot(rod.bottom.x-rod.top.x,rod.bottom.y-rod.top.y)-5)}`} stroke="#f5dbaa" strokeWidth="2"/>
+  </svg>,document.body
+) : createPortal(
   <div
     style={{
       left: `${x}px`,
@@ -160,6 +169,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   onPourAtScreenPoint,
   checkPointOverMouth,
   getStirCentre,
+  getStirRod,
   saltSpoons,
   pendingSaltSpoons=0,
   getToolAnchor,
@@ -193,10 +203,34 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   const progressRef = useRef(activeStirProgress);
   progressRef.current = activeStirProgress;
   const [stirWobble, setStirWobble] = useState<number>(0);
+  const [rodProjection,setRodProjection] = useState<StirRodProjection|null>(null);
+  const stirStartProgressRef = useRef(activeStirProgress);
   const [isHoveringJarMouth, setIsHoveringJarMouth] = useState<boolean>(false);
   const [mouthReady, setMouthReady] = useState(false);
   const stirCirclesRef = useRef<StirCircleState>({last:null,radians:0});
   const stirMotionRef = useRef({direction:0,sweep:0,lastAt:0});
+  const putStirringAway = useCallback((keepJar=false)=>{
+    if(!keepJar)setIsJarOpen(false);setRodProjection(null);
+    lastStirPosRef.current={x:0,y:0,wasInside:false};
+    stirMotionRef.current={direction:0,sweep:0,lastAt:0};
+    onStepChange('idle');
+  },[onStepChange]);
+  useEffect(()=>{
+    if(workflowStep!=='stirring')return;
+    // Cancel before the next control's pointer handler so one click can select it.
+    // Hover also enables controls that were disabled while the rod was held.
+    const switchControl=(event:Event)=>{
+      const target=event.target instanceof Element?event.target:null;
+      if(!target?.closest('button,a,input,select,summary,[role="button"]')||target.closest('[data-stir-tool]'))return;
+      flushSync(()=>putStirringAway(!!target.closest('.lab-salt-popover')));
+    };
+    const escape=(event:KeyboardEvent)=>{if(event.key==='Escape')putStirringAway();};
+    window.addEventListener('pointerover',switchControl,true);
+    window.addEventListener('pointerdown',switchControl,true);
+    window.addEventListener('keydown',escape);
+    return()=>{window.removeEventListener('pointerover',switchControl,true);window.removeEventListener('pointerdown',switchControl,true);window.removeEventListener('keydown',escape);};
+  },[workflowStep,putStirringAway]);
+  useEffect(()=>{if(!toolsEnabled&&workflowStep==='stirring')putStirringAway();},[toolsEnabled,workflowStep,putStirringAway]);
   useEffect(()=>{if(workflowStep!=='holdingSpoon')setMouthReady(false);},[workflowStep]);
 
   useEffect(()=>{
@@ -262,6 +296,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
       }
       if (workflowStep === 'stirring') {
         const isInsideWater = checkPointInWater(px, py);
+        setRodProjection(getStirRod?.(px,py)||null);
         if(!isInsideWater)stirMotionRef.current={direction:0,sweep:0,lastAt:0};
         const centre=getStirCentre?.();
         const previousRadians=stirCirclesRef.current.radians;
@@ -294,13 +329,13 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
             }
 
             const nowStir = performance.now();
-            if (stirMotionRef.current.sweep >= .8 && Math.abs(turnDelta)>.01 && nowStir-lastVisualStirRef.current>90) {
-              onStirAtScreenPoint?.(px,py,stirMotionRef.current.direction);
+            if (nowStir-lastVisualStirRef.current>90) {
+              onStirAtScreenPoint?.(px,py,Math.sign(turnDelta));
               lastVisualStirRef.current=nowStir;
             }
             if(pendingSaltSpoons<=0){lastStirPosRef.current={x:px,y:py,wasInside:true};return;}
             const previousProgress = progressRef.current;
-            const nextProgress = Math.max(previousProgress,stirCircleProgress(stirCirclesRef.current));
+            const nextProgress = Math.min(100,Math.max(previousProgress,stirStartProgressRef.current+stirCircleProgress(stirCirclesRef.current)));
             progressRef.current = nextProgress;
             onStirProgressUpdate(nextProgress);
 
@@ -331,7 +366,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
 
     };
   }, [
-    workflowStep, isJarOpen, saltSpoons,pendingSaltSpoons, onStirAtScreenPoint, onPourAtScreenPoint, checkPointOverMouth, getStirCentre,
+    workflowStep, isJarOpen, saltSpoons,pendingSaltSpoons, onStirAtScreenPoint, onPourAtScreenPoint, checkPointOverMouth, getStirCentre,getStirRod,
     checkPointInWater,
     activeStirProgress,
     onStirProgressUpdate,
@@ -358,15 +393,15 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   }, [onResetSalt]);
 
   const rimTools=<RimStirTool active={workflowStep==='stirring'} highlighted={workflowStep==='holdingSpoon'||pendingSaltSpoons>0} disabled={disabled||workflowStep==='pouring'}
-    onTake={()=>{setPointerPos(getToolAnchor?.()||pointerPos);onStepChange('stirring');stirCirclesRef.current={last:null,radians:0};stirMotionRef.current={direction:0,sweep:0,lastAt:0};lastStirPosRef.current={x:0,y:0,wasInside:false};onMessageUpdate('Con quay que quanh giữa bể đủ 5 vòng nhé.');}}
-    onPut={()=>{onStepChange(isJarOpen?'scoopMode':'idle');stirMotionRef.current={direction:0,sweep:0,lastAt:0};}}/>;
-  if(!toolsEnabled)return <>{rimTools}{workflowStep==='stirring'&&<RealisticStirringHand x={pointerPos.x} y={pointerPos.y} angle={stirWobble}/>}</>;
+    onTake={()=>{const centre=getStirCentre?.()||getToolAnchor?.()||pointerPos;setPointerPos(centre);setRodProjection(getStirRod?.(centre.x,centre.y)||null);onStepChange('stirring');stirStartProgressRef.current=progressRef.current;stirCirclesRef.current={last:null,radians:0};stirMotionRef.current={direction:0,sweep:0,lastAt:0};lastStirPosRef.current={...centre,wasInside:checkPointInWater(centre.x,centre.y)};if(checkPointInWater(centre.x,centre.y))onStirAtScreenPoint?.(centre.x,centre.y,0);onMessageUpdate(pendingSaltSpoons>0?'Con khuấy để muối tan rồi quan sát nhé.':'Con thử khuấy và quan sát mặt nước nhé.');}}
+    onPut={()=>putStirringAway()}/>;
+  if(!toolsEnabled)return null;
   if (visualOnly) return <>
     {rimTools}
     <div className="lab-salt">
       <button ref={saltTriggerRef} aria-label="Mở hũ muối" aria-expanded={isJarOpen} disabled={disabled || isJarOpen} className="lab-salt-trigger flex items-center justify-center" onClick={event=>{setIsJarOpen(true);setPointerPos({x:event.clientX,y:event.clientY});onDoseChange?.(1);onStepChange('scoopMode');onMessageUpdate('Hũ muối đã mở. Con đưa thìa vào hũ để xúc muối nhé.');}}><span className="block w-12 h-14"><SaltJar/></span></button>
       {isJarOpen && createPortal(<div className="lab-salt-popover" style={jarPosition} role="group" aria-label="Hũ muối đang mở">
-        <button aria-label="Đóng hũ muối" disabled={workflowStep==='pouring'||workflowStep==='stirring'} className="self-end min-h-[44px] min-w-[44px] rounded-full text-xl" onClick={()=>{setIsJarOpen(false);onStepChange('idle');}}>✕</button>
+        <button aria-label="Đóng hũ muối" disabled={workflowStep==='pouring'} className="self-end min-h-[44px] min-w-[44px] rounded-full text-xl" onClick={()=>putStirringAway()}>✕</button>
         <div ref={jarMouthRef} role="button" aria-label="Xúc một thìa muối" tabIndex={0} onClick={handleScoopClick} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();handleScoopClick();}}} className="relative w-28 h-36 cursor-pointer drop-shadow-lg"><SaltJar open/>
         </div>
         {(workflowStep==='holdingSpoon'||workflowStep==='scoopMode')&&<button aria-label="Cất thìa" className="min-h-[48px] rounded-xl bg-white px-3 font-bold" onClick={()=>{setIsJarOpen(false);scoopStartRef.current=null;onStepChange('idle');}}><span aria-hidden="true" className="text-2xl">↩</span></button>}
@@ -375,7 +410,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
     </div>
     {(workflowStep==='scoopMode'||workflowStep==='holdingSpoon'||workflowStep==='pouring')&&<RealisticHandSpoon x={pointerPos.x} y={pointerPos.y} hasSalt={workflowStep==='holdingSpoon'||workflowStep==='pouring'} isPouring={workflowStep==='pouring'} amount={spoonFraction}/>}
     {workflowStep==='holdingSpoon'&&mouthReady&&getToolAnchor&&(() => {const anchor=getToolAnchor();return anchor&&createPortal(<div className="fixed z-[75] pointer-events-none rounded-2xl bg-amber-300 px-3 py-2 text-sm font-black text-slate-900 shadow-xl ring-4 ring-white/80" style={{left:anchor.x,top:anchor.y,transform:'translate(-50%,-140%)'}} role="status">🧂 Bể đang nhận muối</div>,document.body);})()}
-    {workflowStep==='stirring'&&<RealisticStirringHand x={pointerPos.x} y={pointerPos.y} angle={stirWobble}/>}
+    {workflowStep==='stirring'&&<RealisticStirringHand x={pointerPos.x} y={pointerPos.y} angle={stirWobble} rod={rodProjection}/>}
   </>;
 
   if (!isJarOpen || disabled) {
@@ -405,7 +440,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
       {rimTools}
       {/* 1. HŨ MUỐI LỚN MỞ NẮP ĐẶT CẠNH BỂ (LUÔN NHÌN THẤY CẢ BỂ VÀ HŨ) */}
       <div className="flex flex-col items-center p-3 rounded-3xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-2 border-amber-300 dark:border-amber-700 shadow-xl space-y-2.5 max-w-[240px] flex-shrink-0 transition-all">
-        <button aria-label="Đóng hũ muối" disabled={workflowStep === 'stirring' || workflowStep === 'pouring'} onClick={() => {setIsJarOpen(false); onStepChange('idle');}} className="self-end text-xs font-bold text-slate-500 disabled:opacity-30">Đóng ✕</button>
+        <button aria-label="Đóng hũ muối" disabled={workflowStep === 'pouring'} onClick={()=>putStirringAway()} className="self-end text-xs font-bold text-slate-500 disabled:opacity-30">Đóng ✕</button>
         <div className="w-full text-center space-y-0.5">
           <div className="flex items-center justify-center gap-1.5 text-xs font-black text-amber-800 dark:text-amber-300">
             <span className="text-base">🧂</span>
@@ -510,6 +545,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
           x={pointerPos.x}
           y={pointerPos.y}
           angle={stirWobble}
+          rod={rodProjection}
         />
       )}
     </>
