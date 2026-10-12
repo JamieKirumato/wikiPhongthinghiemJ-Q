@@ -14,7 +14,7 @@ import { configureWaterSurface } from './waterSurfaceShader';
 import { advanceAirFall, itemKind, objectAirDrag } from './playPhysics';
 import { SceneBackdrop, SceneSetting } from './SceneBackdrop';
 import { advanceSinking,sinkingDrag,waterEntryVelocity, displacedWaterLevel, sandHeight, modelDisplacementVolume } from './waterPhysics';
-import {boundedZoom,releasePosition,alignDropToScreenX,predictedContact,throwVelocity} from './interactionPreview';
+import {boundedZoom,releasePosition,alignDropToScreenX,predictedContact,throwVelocity,PreviewVelocity} from './interactionPreview';
 import {FloorSpill,FlowTarget,nearestHandTarget} from './waterTransfer';
 import {IntroAction,introPose} from './introGuide';
 import {pitcherMouthPoint} from './pitcherMouth';
@@ -34,7 +34,7 @@ export interface ThreeTankCanvasHandle {
   clearSaltGrains: () => void;
   setSaltSediment: (grams:number) => void;
   projectScreenToWorld: (screenX: number, screenY: number, targetPlaneZ?: number) => THREE.Vector3 | null;
-  previewDropAtScreenPos: (item:TankObject,x:number,y:number,velocity?:{vx:number;vy:number})=>void;
+  previewDropAtScreenPos: (item:TankObject,x:number,y:number,velocity?:PreviewVelocity)=>void;
   clearDropPreview: ()=>void;
   dropItemAtTankCenter: (item:TankObject)=>void;
   dropOrThrowItemAtScreenPos: (
@@ -77,6 +77,7 @@ interface ThreeTankCanvasProps {
   showXRay: boolean;
   onItemObserved?: (itemId: string, status: 'floating' | 'sunk') => void;
   onDipFloater?: () => void;
+  onTrayPreviewPosition?: (point:{x:number;y:number})=>void;
 }
 
 // Cấu hình vật thể 3D thế giới (World Units)
@@ -107,11 +108,15 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       onMessageUpdate,
       showXRay,
       onItemObserved,
-      onDipFloater
+      onDipFloater,
+      onTrayPreviewPosition
     },
     ref
   ) => {
     const [dropPreview,setDropPreview]=useState<{x:number;y:number;inside:boolean}|null>(null);
+    const trayPreviewRef=useRef<{item:TankObject;x:number;y:number;velocity?:PreviewVelocity}|null>(null);
+    const previewPositionCallbackRef=useRef(onTrayPreviewPosition);previewPositionCallbackRef.current=onTrayPreviewPosition;
+    const previewContactRef=useRef<THREE.Vector3|null>(null);
     const overflowRef=useRef<THREE.Group|null>(null);
     const overflowTimeRef=useRef(overflowAt);overflowTimeRef.current=overflowAt;
     const puddlesRef=useRef<THREE.Group|null>(null);
@@ -293,6 +298,31 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       const target=new THREE.Vector3(point.x,inside?Math.max(sandHeight(d),displayedWaterLevelRef.current):-.585,point.z);
       const projected=target.clone().project(camera);
       return {x:rect.left+(projected.x+1)*rect.width/2,y:rect.top+(1-projected.y)*rect.height/2,worldX:target.x,worldZ:target.z,inside};
+    };
+
+    const trayReleasePlan=(item:TankObject,screenX:number,screenY:number,screenVelocity?:PreviewVelocity)=>{
+      const mount=mountRef.current,camera=cameraRef.current;if(!mount||!camera)return null;
+      const rect=mount.getBoundingClientRect(),d=dimsRef.current,s=shapeRef.current;
+      const radius=ITEM_WORLD_SCALES[itemKind(item.id)]?.radius??.4;
+      const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((screenX-rect.left)/rect.width*2-1,-(screenY-rect.top)/rect.height*2+1),camera);
+      const hand=projectScreenToWorldInternal(screenX,screenY,0);
+      const height=Math.max(radius-.6,Math.min(d.height+4,hand?.y??d.height+1.1));
+      const raw=releasePosition(ray.ray,d,s,displayedWaterLevelRef.current,height,radius);
+      const position=alignDropToScreenX(raw,camera,(screenX-rect.left)/rect.width*2-1,d,s,displayedWaterLevelRef.current,radius);
+      position.y=Math.max(radius-.6,Math.min(d.height+4,position.y));
+      if(position.y-radius<d.height)Object.assign(position,resolveTankWall(position.x,position.z,radius,s,d,true));
+      const age=screenVelocity?.sampledAt===undefined?0:Math.max(0,(performance.now()-screenVelocity.sampledAt)/1000);
+      const decay=screenVelocity?.duration?screenVelocity.duration/(screenVelocity.duration+age):1;
+      const velocity=throwVelocity(camera,{vx:(screenVelocity?.vx??0)*decay,vy:(screenVelocity?.vy??0)*decay});
+      const contact=predictedContact(position,velocity,d,s,displayedWaterLevelRef.current,radius,objectAirDrag(item.id,item.weightGrams,item.volumeMl));
+      return {position,velocity,contact,rect,camera};
+    };
+    const updateTrayPreview=()=>{
+      const request=trayPreviewRef.current;if(!request)return;
+      const plan=trayReleasePlan(request.item,request.x,request.y,request.velocity);if(!plan)return;
+      const held=plan.position.clone().project(plan.camera);
+      previewPositionCallbackRef.current?.({x:plan.rect.left+(held.x+1)*plan.rect.width/2,y:plan.rect.top+(1-held.y)*plan.rect.height/2});
+      previewContactRef.current=plan.contact?.point??null;
     };
 
     // IMPERATIVE API EXPOSED TO PARENT
@@ -507,28 +537,23 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         return projectScreenToWorldInternal(screenX, screenY, targetPlaneZ);
       },
 
-      clearDropPreview:()=>setDropPreview(null),
+      clearDropPreview:()=>{trayPreviewRef.current=null;previewContactRef.current=null;setDropPreview(null);},
       dropItemAtTankCenter:(item)=>{
         if(inputLockedRef.current||workflowStepRef.current!=='idle')return;
-        const next=itemsRef.current.map(i=>i.id===item.id?{...i,inTank:true,outsideTank:false,status:'falling' as const,settled:false,x:0,z:0,y:dimsRef.current.height+.8,vx:0,vy:0,vz:0,vRot:itemKind(i.id)==='item-leaf'?45:['item-spoon','item-keys'].includes(itemKind(i.id))?85:0}:i);
+        const request=trayPreviewRef.current;
+        const plan=request?.item.id===item.id?trayReleasePlan(item,request.x,request.y):null;
+        const next=itemsRef.current.map(i=>i.id===item.id?{...i,inTank:true,outsideTank:false,status:'falling' as const,settled:false,x:plan?.position.x??0,z:plan?.position.z??0,y:plan?.position.y??dimsRef.current.height+.8,vx:0,vy:0,vz:0,vRot:itemKind(i.id)==='item-leaf'?45:['item-spoon','item-keys'].includes(itemKind(i.id))?85:0}:i);
+        trayPreviewRef.current=null;previewContactRef.current=null;
         itemsRef.current=next;onUpdateItems(next);setDropPreview(null);
       },
       previewDropAtScreenPos:(item,screenX,screenY,screenVelocity)=>{
-        const mount=mountRef.current,camera=cameraRef.current;if(!mount||!camera||inputLockedRef.current)return;
-        const rect=mount.getBoundingClientRect(),radius=(ITEM_WORLD_SCALES[itemKind(item.id)]||{radius:.4}).radius;
-        raycasterRef.current.setFromCamera(new THREE.Vector2((screenX-rect.left)/rect.width*2-1,-(screenY-rect.top)/rect.height*2+1),camera);
-        const hand=projectScreenToWorldInternal(screenX,screenY,0);
-        const rawPos=releasePosition(raycasterRef.current.ray,dimsRef.current,shapeRef.current,displayedWaterLevelRef.current,Math.max(radius-.6,Math.min(dimsRef.current.height+4,hand?.y??dimsRef.current.height+1)),radius);
-        const pos=alignDropToScreenX(rawPos,camera,(screenX-rect.left)/rect.width*2-1,dimsRef.current,shapeRef.current,displayedWaterLevelRef.current,radius);
-        if(!pos){setDropPreview(null);return;}
-        const velocity=throwVelocity(camera,screenVelocity||{vx:0,vy:0});
-        const contact=predictedContact(pos,velocity,dimsRef.current,shapeRef.current,displayedWaterLevelRef.current,radius);
-        if(!contact){setDropPreview(null);return;}
-        const projected=contact.point.project(camera);setDropPreview({x:(projected.x+1)*rect.width/2,y:(1-projected.y)*rect.height/2,inside:contact.inside});
+        if(inputLockedRef.current)return;
+        trayPreviewRef.current={item,x:screenX,y:screenY,velocity:screenVelocity};updateTrayPreview();
       },
       dropComparisonItem:(item)=>{
         if(inputLockedRef.current||workflowStepRef.current!=='idle')return;
         setDropPreview(null);
+        trayPreviewRef.current=null;previewContactRef.current=null;
         // Identical world-space release, independent of camera angle or viewport.
         onUpdateItems(itemsRef.current.map(i=>i.id===item.id?{...freshComparisonItem(item),inTank:true,status:'falling',y:dimsRef.current.height+.8}:freshComparisonItem(i)));
       },
@@ -539,29 +564,17 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         screenVelocity?: { vx: number; vy: number }
       ) => {
         if (inputLockedRef.current || interactionModeRef.current !== 'interact' || workflowStepRef.current !== 'idle') return;
-        const d = dimsRef.current;
-        const s = shapeRef.current;
-        const scaleCfg = ITEM_WORLD_SCALES[itemKind(item.id)] || { size: 0.8, radius: 0.4 };
-        const itemR = scaleCfg.radius;
-
-        // Chiếu tia từ tọa độ màn hình vào không gian 3D
-        // A horizontal release plane makes screen position choose both X and Z.
-        const rect = mountRef.current!.getBoundingClientRect();
-        raycasterRef.current.setFromCamera(new THREE.Vector2((screenX-rect.left)/rect.width*2-1, -(screenY-rect.top)/rect.height*2+1), cameraRef.current!);
-        const handPoint = projectScreenToWorldInternal(screenX,screenY,0);
-        const handHeight = Math.max(itemR-0.6,Math.min(d.height+4,handPoint?.y ?? d.height+1.1));
-        const rawPos=releasePosition(raycasterRef.current.ray,d,s,displayedWaterLevelRef.current,handHeight,itemR);
-        const worldPos=alignDropToScreenX(rawPos,cameraRef.current!,(screenX-rect.left)/rect.width*2-1,d,s,displayedWaterLevelRef.current,itemR);
-        if(!worldPos)return;
+        const plan=trayReleasePlan(item,screenX,screenY,screenVelocity);if(!plan)return;
+        const worldPos=plan.position;
+        trayPreviewRef.current=null;previewContactRef.current=null;
         setDropPreview(null);
 
         // Clamp Y hợp lý (trên đáy bể và không bay khỏi nóc trời)
-        const dropY = Math.max(itemR - 0.6, Math.min(d.height + 4.0, worldPos.y));
+        const dropY = worldPos.y;
 
         // Clamp footprint để vật rơi vào trong thành bể
         const clampedPos = { x: worldPos.x, z: worldPos.z };
         const startsOutside = false;
-        if(dropY-itemR<d.height)Object.assign(clampedPos,resolveTankWall(worldPos.x,worldPos.z,itemR,s,d,!startsOutside));
         if (startsOutside) onMessageUpdate('Vật đang ở ngoài miệng bể. Con thử ném vào bể hoặc kéo vật lại nhé!');
 
         // Vận tốc ném cử chỉ từ cử chỉ tay (gesture velocity)
@@ -569,10 +582,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         let vy = 0; // Release at rest; gravity accelerates the object.
         let vz = 0;
 
-        if (screenVelocity) {
-          const velocity=throwVelocity(cameraRef.current!,screenVelocity);
-          vx=velocity.x;vy=velocity.y;vz=velocity.z;
-        }
+        vx=plan.velocity.x;vy=plan.velocity.y;vz=plan.velocity.z;
 
         onUpdateItems(
           itemsRef.current.map((i) =>
@@ -600,6 +610,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       cancelActiveGesture: () => {
         activePointerRef.current = null;
         setDropPreview(null);
+        trayPreviewRef.current=null;previewContactRef.current=null;
         heldIdRef.current = null;
         orbitRef.current.isDragging = 0;
         orbitRef.current.isAutoRotating = false;
@@ -1301,6 +1312,21 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         if (camera) {
           camera.position.set(cx+targetX, cy, cz+targetZ);
           camera.lookAt(targetX, targetY, targetZ);
+          camera.updateMatrixWorld();
+          updateTrayPreview();
+          if(heldIdRef.current&&orbit.isDragging===2){
+            const held=itemsRef.current.find(item=>item.id===heldIdRef.current),samples=dragSamplesRef.current,first=samples[0],last=samples[samples.length-1];
+            if(held&&first&&last){
+              const v=gestureVelocity(last.x-first.x,last.y-first.y,(performance.now()-first.t)/1000);
+              previewContactRef.current=predictedContact(new THREE.Vector3(held.x,held.y,held.z),throwVelocity(camera,v),d,s,displayedWaterLevelRef.current,ITEM_WORLD_SCALES[itemKind(held.id)]?.radius??.4,objectAirDrag(held.id,held.weightGrams,held.volumeMl))?.point??null;
+            }
+          }
+          const contact=previewContactRef.current;
+          if(contact&&mountRef.current){
+            const rect=mountRef.current.getBoundingClientRect(),p=contact.clone().project(camera);
+            const next={x:(p.x+1)*rect.width/2,y:(1-p.y)*rect.height/2,inside:true};
+            setDropPreview(prev=>prev&&Math.abs(prev.x-next.x)<.2&&Math.abs(prev.y-next.y)<.2?prev:next);
+          }else if(trayPreviewRef.current)setDropPreview(null);
         }
 
         // TÍNH THỂ TÍCH PHẦN CHÌM THỰC TẾ (SUBMERGED VOLUME)
@@ -1906,7 +1932,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           );
           const firstSample=samples[0],velocity=firstSample?gestureVelocity(e.clientX-firstSample.x,e.clientY-firstSample.y,(performance.now()-firstSample.t)/1000):{vx:0,vy:0};
           const worldVelocity=throwVelocity(cameraRef.current,velocity);
-          const contact=predictedContact(new THREE.Vector3(clampedPos.x,clampedY,clampedPos.z),worldVelocity,d,s,surfaceY,itemR);
+          const heldItem=nextItems.find(item=>item.id===holdingItemId)!;
+          const contact=predictedContact(new THREE.Vector3(clampedPos.x,clampedY,clampedPos.z),worldVelocity,d,s,surfaceY,itemR,objectAirDrag(heldItem.id,heldItem.weightGrams,heldItem.volumeMl));
+          previewContactRef.current=contact?.point??null;
           if(contact){const projected=contact.point.project(cameraRef.current);setDropPreview({x:(projected.x+1)*rect.width/2,y:(1-projected.y)*rect.height/2,inside:contact.inside});}else setDropPreview(null);
           const heldMesh=itemMeshesRef.current.get(holdingItemId);
           heldMesh?.position.set(clampedPos.x,clampedY,clampedPos.z);
@@ -1923,6 +1951,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       if (activePointerRef.current !== null && activePointerRef.current !== e.pointerId) return;
       activePointerRef.current = null;
       setDropPreview(null);
+      trayPreviewRef.current=null;previewContactRef.current=null;
       const id=heldIdRef.current;
       if (orbitRef.current.isDragging===2 && id) {
         const heldItem=itemsRef.current.find(item=>item.id===id);
@@ -1977,7 +2006,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
               : 'cursor-default'
           }`}
         />
-        {dropPreview&&<div data-drop-preview aria-hidden="true" className="absolute z-20 pointer-events-none" style={{left:dropPreview.x,top:dropPreview.y,transform:'translate(-50%,-100%)'}}><svg className="mx-auto text-sky-700" width="20" height="30" viewBox="0 0 20 30" fill="none"><path d="M10 2V25M6 21L10 25L14 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg><div className="w-12 h-5 rounded-[50%] border-[3px] border-dashed border-sky-600 bg-sky-200/40" /></div>}
+        {dropPreview&&<div data-drop-preview aria-hidden="true" className="absolute z-20 pointer-events-none w-12 h-5" style={{left:dropPreview.x,top:dropPreview.y,transform:'translate(-50%,-50%)'}}><svg className="absolute bottom-full left-1/2 -translate-x-1/2 text-sky-700" width="20" height="30" viewBox="0 0 20 30" fill="none"><path d="M10 2V25M6 21L10 25L14 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg><div className="w-full h-full rounded-[50%] border-[3px] border-dashed border-sky-600 bg-sky-200/40" /></div>}
       </div>
     );
   }

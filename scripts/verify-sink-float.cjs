@@ -356,6 +356,23 @@ assert.equal(reflection.reflectionObservations([appleTrial,freshEgg,saltyEgg,rep
 assert.equal(reflection.reflectionObservations([appleTrial,repeatApple])[0].id,repeatApple.id);
 console.log('Passed: reflection uses actual recent observations; egg comparisons require ordered trials of the same physical egg and retain actual results.');
 const controls=source('src/components/preschool/sink-float/interactionPreview.ts');
+for(const shape of ['rectangle','square','cylinder','triangle'])for(const fps of [30,60])for(const drag of [stoneDrag,leafDrag]){
+  const d=geometry.getTankDimensions(shape,'normal'),radius=.3;
+  const start=new THREE.Vector3(0,d.height+1,0),velocity=new THREE.Vector3(1.2,1,-.4);
+  const predicted=controls.predictedContact(start,velocity,d,shape,d.waterHeight,radius,drag);
+  let p=start.clone(),v=velocity.clone(),hit=null;
+  const dt=.4/fps;
+  for(let n=0;n<2000;n++){
+    const prev=p.clone(),fall=motion.advanceAirFall(p.y,v.y,dt,drag);
+    const safe=geometry.clampToTankBoundary(p.x+v.x*dt,p.z+v.z*dt,radius,shape,d);
+    if(safe.x!==p.x+v.x*dt)v.x*=-.25;if(safe.z!==p.z+v.z*dt)v.z*=-.25;
+    p.set(safe.x,fall.y,safe.z);v.y=fall.vy;
+    if(p.y-radius<=d.waterHeight){hit=prev.lerp(p,(prev.y-radius-d.waterHeight)/(prev.y-p.y));break;}
+  }
+  assert.ok(predicted&&hit,'Every displayed throw has a water contact.');
+  assert.ok(Math.hypot(predicted.point.x-hit.x,predicted.point.z-hit.z)<.035,'Marker agrees with simulated contact for dense and drag-sensitive objects.');
+}
+console.log('Passed: landing marker matches air-drag trajectories at 30/60 fps and across all tank shapes.');
 assert.equal(controls.boundedZoom(1,-10000),.96);assert.equal(controls.boundedZoom(1.6,10000),1.65);
 assert.ok(controls.boundedZoom(1.12,-50)<1.12);assert.ok(controls.boundedZoom(1.12,50)>1.12);
 for(const shape of ['rectangle','square','cylinder','triangle']){
