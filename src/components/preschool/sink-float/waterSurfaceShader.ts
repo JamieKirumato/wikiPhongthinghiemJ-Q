@@ -30,8 +30,12 @@ float waterWave(vec2 p) {
     vec4 impulse=waterImpulses[i];
     float age=waterTime-impulse.z;
     if(age>=0. && age<2.4 && impulse.w>0.) {
-      float front=length(p-impulse.xy)-age*2.8;
-      h+=sin(front*8.)*exp(-front*front*2.5-age*1.8)*min(3.,impulse.w)*.035;
+      float distance=length(p-impulse.xy);
+      float front=distance-age*1.6;
+      float width=.16+age*.1;
+      float packet=sin(front*18.)*exp(-front*front/(width*width))*(1.-exp(-age*20.))*exp(-age*1.5)/sqrt(1.+distance*3.);
+      float depression=-exp(-distance*distance*14.-age*9.)*.04;
+      h+=min(3.,impulse.w)*(packet*.025+depression);
     }
   }
   float stirAge=waterTime-waterStir.z;
@@ -57,7 +61,7 @@ objectNormal=normalize(vec3(-dx,1.,-dz));
 transformed.y+=waterWave(position.xz);
 `);
   };
-  material.customProgramCacheKey=()=> 'sink-float-water-waves-v2';
+  material.customProgramCacheKey=()=> 'sink-float-water-contact-v3';
   material.userData.updateWater=(seconds:number,impulses:WaterImpulse[],stir?:{x:number;z:number;time:number;strength:number})=>{
     uniforms.waterTime.value=seconds;
     uniforms.waterStir.value.set(stir?.x??0,stir?.z??0,stir?.time??-10,stir?.strength??0);
