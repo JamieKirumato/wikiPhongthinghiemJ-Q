@@ -113,12 +113,16 @@ export const RealisticStirringHand: React.FC<{
   y: number;
   angle: number;
   rod?: StirRodProjection|null;
-}> = ({ x, y, angle, rod }) => rod ? createPortal(
-  <svg data-held-stir-rod aria-hidden="true" width="14" height={Math.hypot(rod.bottom.x-rod.top.x,rod.bottom.y-rod.top.y)}
+  onGrab?: React.PointerEventHandler<SVGSVGElement>;
+  onRelease?: React.PointerEventHandler<SVGSVGElement>;
+}> = ({ x, y, angle, rod, onGrab, onRelease }) => rod ? createPortal(
+  <svg data-held-stir-rod aria-label={onGrab?'Kéo đũa để khuấy nước':undefined} aria-hidden={onGrab?undefined:true} width="44" height={Math.hypot(rod.bottom.x-rod.top.x,rod.bottom.y-rod.top.y)}
+    onPointerDown={onGrab} onPointerUp={onRelease} onPointerCancel={onRelease} onLostPointerCapture={onRelease}
     className="fixed pointer-events-none z-[80] drop-shadow-lg"
-    style={{left:rod.top.x-7,top:rod.top.y,transformOrigin:'7px 0',transform:`rotate(${-Math.atan2(rod.bottom.x-rod.top.x,rod.bottom.y-rod.top.y)*180/Math.PI}deg)`}}>
-    <rect x="3" width="8" height="100%" rx="4" fill="#d6aa6e" stroke="#93642e" strokeWidth="1.5"/>
-    <path d={`M6 5V${Math.max(5,Math.hypot(rod.bottom.x-rod.top.x,rod.bottom.y-rod.top.y)-5)}`} stroke="#f5dbaa" strokeWidth="2"/>
+    style={{left:rod.top.x-22,top:rod.top.y,touchAction:'none',pointerEvents:onGrab?'auto':undefined,cursor:onGrab?'grab':undefined,transformOrigin:'22px 0',transform:`rotate(${-Math.atan2(rod.bottom.x-rod.top.x,rod.bottom.y-rod.top.y)*180/Math.PI}deg)`}}>
+    <rect width="44" height="100%" fill="transparent"/>
+    <rect x="18" width="8" height="100%" rx="4" fill="#d6aa6e" stroke="#93642e" strokeWidth="1.5"/>
+    <path d={`M21 5V${Math.max(5,Math.hypot(rod.bottom.x-rod.top.x,rod.bottom.y-rod.top.y)-5)}`} stroke="#f5dbaa" strokeWidth="2"/>
   </svg>,document.body
 ) : createPortal(
   <div
@@ -188,12 +192,12 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   const [pointerPos, setPointerPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isJarOpen, setIsJarOpen] = useState(false);
   const saltTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const [jarPosition, setJarPosition] = useState({top: 64, right: 12});
+  const [jarPosition, setJarPosition] = useState({bottom: 96, right: 12, maxHeight: window.innerHeight-160});
   useEffect(() => {
     if (!visualOnly || !isJarOpen) return;
     const place = () => {
       const rect = saltTriggerRef.current?.getBoundingClientRect();
-      if (rect) setJarPosition({top: Math.max(64, Math.min(rect.top - 290, window.innerHeight - 320)), right: Math.max(12, window.innerWidth - rect.right)});
+      if (rect) setJarPosition({bottom: window.innerHeight-rect.top+12, right: Math.max(12, window.innerWidth-rect.right), maxHeight: Math.max(80,rect.top-76)});
     };
     place(); window.addEventListener('resize', place);
     return () => window.removeEventListener('resize', place);
@@ -204,6 +208,19 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   progressRef.current = activeStirProgress;
   const [stirWobble, setStirWobble] = useState<number>(0);
   const [rodProjection,setRodProjection] = useState<StirRodProjection|null>(null);
+  const rodAnchorRef = useRef({x:0,y:0});
+  const rodDragRef = useRef<{pointerId:number;offsetX:number;offsetY:number}|null>(null);
+  const grabRod: React.PointerEventHandler<SVGSVGElement> = event => {
+    if(event.button!==0||rodDragRef.current)return;
+    event.preventDefault();event.stopPropagation();
+    rodDragRef.current={pointerId:event.pointerId,offsetX:event.clientX-rodAnchorRef.current.x,offsetY:event.clientY-rodAnchorRef.current.y};
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const releaseRod: React.PointerEventHandler<SVGSVGElement> = event => {
+    if(rodDragRef.current?.pointerId!==event.pointerId)return;
+    rodDragRef.current=null;
+    if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);
+  };
   const stirStartProgressRef = useRef(activeStirProgress);
   const [isHoveringJarMouth, setIsHoveringJarMouth] = useState<boolean>(false);
   const [mouthReady, setMouthReady] = useState(false);
@@ -211,6 +228,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   const stirMotionRef = useRef({direction:0,sweep:0,lastAt:0});
   const putStirringAway = useCallback((keepJar=false)=>{
     if(!keepJar)setIsJarOpen(false);setRodProjection(null);
+    rodDragRef.current=null;
     lastStirPosRef.current={x:0,y:0,wasInside:false};
     stirMotionRef.current={direction:0,sweep:0,lastAt:0};
     onStepChange('idle');
@@ -218,17 +236,15 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   useEffect(()=>{
     if(workflowStep!=='stirring')return;
     // Cancel before the next control's pointer handler so one click can select it.
-    // Hover also enables controls that were disabled while the rod was held.
     const switchControl=(event:Event)=>{
       const target=event.target instanceof Element?event.target:null;
-      if(!target?.closest('button,a,input,select,summary,[role="button"]')||target.closest('[data-stir-tool]'))return;
+      if(!target?.closest('button,a,input,select,summary,[role="button"]')||target.closest('[data-stir-tool],[data-held-stir-rod]'))return;
       flushSync(()=>putStirringAway(!!target.closest('.lab-salt-popover')));
     };
     const escape=(event:KeyboardEvent)=>{if(event.key==='Escape')putStirringAway();};
-    window.addEventListener('pointerover',switchControl,true);
     window.addEventListener('pointerdown',switchControl,true);
     window.addEventListener('keydown',escape);
-    return()=>{window.removeEventListener('pointerover',switchControl,true);window.removeEventListener('pointerdown',switchControl,true);window.removeEventListener('keydown',escape);};
+    return()=>{window.removeEventListener('pointerdown',switchControl,true);window.removeEventListener('keydown',escape);};
   },[workflowStep,putStirringAway]);
   useEffect(()=>{if(!toolsEnabled&&workflowStep==='stirring')putStirringAway();},[toolsEnabled,workflowStep,putStirringAway]);
   useEffect(()=>{if(workflowStep!=='holdingSpoon')setMouthReady(false);},[workflowStep]);
@@ -267,8 +283,10 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
     }
 
     const handleWindowPointerMove = (e: PointerEvent) => {
-      const px = e.clientX;
-      const py = e.clientY;
+      const drag=rodDragRef.current;
+      if(workflowStep==='stirring'&&(!drag||drag.pointerId!==e.pointerId))return;
+      const px = e.clientX-(workflowStep==='stirring'?drag!.offsetX:0);
+      const py = e.clientY-(workflowStep==='stirring'?drag!.offsetY:0);
       if(workflowStep==='pouring')return;
       setPointerPos({ x: px, y: py });
 
@@ -296,7 +314,11 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
       }
       if (workflowStep === 'stirring') {
         const isInsideWater = checkPointInWater(px, py);
-        setRodProjection(getStirRod?.(px,py)||null);
+        const dx=px-rodAnchorRef.current.x,dy=py-rodAnchorRef.current.y;
+        // Keep the same rod outside the water instead of replacing it with a short cursor icon.
+        const projected=getStirRod?.(px,py);
+        setRodProjection(previous=>projected|| (previous?{top:{x:previous.top.x+dx,y:previous.top.y+dy},bottom:{x:previous.bottom.x+dx,y:previous.bottom.y+dy}}:null));
+        rodAnchorRef.current={x:px,y:py};
         if(!isInsideWater)stirMotionRef.current={direction:0,sweep:0,lastAt:0};
         const centre=getStirCentre?.();
         const previousRadians=stirCirclesRef.current.radians;
@@ -393,7 +415,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   }, [onResetSalt]);
 
   const rimTools=<RimStirTool active={workflowStep==='stirring'} highlighted={workflowStep==='holdingSpoon'||pendingSaltSpoons>0} disabled={disabled||workflowStep==='pouring'}
-    onTake={()=>{const centre=getStirCentre?.()||getToolAnchor?.()||pointerPos;setPointerPos(centre);setRodProjection(getStirRod?.(centre.x,centre.y)||null);onStepChange('stirring');stirStartProgressRef.current=progressRef.current;stirCirclesRef.current={last:null,radians:0};stirMotionRef.current={direction:0,sweep:0,lastAt:0};lastStirPosRef.current={...centre,wasInside:checkPointInWater(centre.x,centre.y)};if(checkPointInWater(centre.x,centre.y))onStirAtScreenPoint?.(centre.x,centre.y,0);onMessageUpdate(pendingSaltSpoons>0?'Con khuấy để muối tan rồi quan sát nhé.':'Con thử khuấy và quan sát mặt nước nhé.');}}
+    onTake={()=>{setIsJarOpen(false);setMouthReady(false);setIsHoveringJarMouth(false);scoopStartRef.current=null;rodDragRef.current=null;const centre=getStirCentre?.()||getToolAnchor?.()||pointerPos;setPointerPos(centre);rodAnchorRef.current=centre;setRodProjection(getStirRod?.(centre.x,centre.y)||null);onStepChange('stirring');stirStartProgressRef.current=progressRef.current;stirCirclesRef.current={last:null,radians:0};stirMotionRef.current={direction:0,sweep:0,lastAt:0};lastStirPosRef.current={...centre,wasInside:checkPointInWater(centre.x,centre.y)};if(checkPointInWater(centre.x,centre.y))onStirAtScreenPoint?.(centre.x,centre.y,0);onMessageUpdate(pendingSaltSpoons>0?'Con khuấy để muối tan rồi quan sát nhé.':'Con kéo thân đũa để khuấy và quan sát mặt nước nhé.');}}
     onPut={()=>putStirringAway()}/>;
   if(!toolsEnabled)return null;
   if (visualOnly) return <>
@@ -410,7 +432,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
     </div>
     {(workflowStep==='scoopMode'||workflowStep==='holdingSpoon'||workflowStep==='pouring')&&<RealisticHandSpoon x={pointerPos.x} y={pointerPos.y} hasSalt={workflowStep==='holdingSpoon'||workflowStep==='pouring'} isPouring={workflowStep==='pouring'} amount={spoonFraction}/>}
     {workflowStep==='holdingSpoon'&&mouthReady&&getToolAnchor&&(() => {const anchor=getToolAnchor();return anchor&&createPortal(<div className="fixed z-[75] pointer-events-none rounded-2xl bg-amber-300 px-3 py-2 text-sm font-black text-slate-900 shadow-xl ring-4 ring-white/80" style={{left:anchor.x,top:anchor.y,transform:'translate(-50%,-140%)'}} role="status">🧂 Bể đang nhận muối</div>,document.body);})()}
-    {workflowStep==='stirring'&&<RealisticStirringHand x={pointerPos.x} y={pointerPos.y} angle={stirWobble} rod={rodProjection}/>}
+    {workflowStep==='stirring'&&<RealisticStirringHand x={pointerPos.x} y={pointerPos.y} angle={stirWobble} rod={rodProjection} onGrab={grabRod} onRelease={releaseRod}/>}
   </>;
 
   if (!isJarOpen || disabled) {
@@ -545,7 +567,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
           x={pointerPos.x}
           y={pointerPos.y}
           angle={stirWobble}
-          rod={rodProjection}
+          rod={rodProjection} onGrab={grabRod} onRelease={releaseRod}
         />
       )}
     </>
