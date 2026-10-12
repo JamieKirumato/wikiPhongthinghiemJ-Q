@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import {TankDimensions,TankShape} from './types';
 import {clampToTankBoundary} from './tankGeometry';
-import {DISPLAY_GRAVITY} from './playPhysics';
+import {advanceAirFall} from './playPhysics';
+export interface PreviewVelocity {vx:number;vy:number;sampledAt?:number;duration?:number}
 
 export function boundedZoom(current:number,delta:number){return Math.max(.96,Math.min(1.65,current*Math.exp(Math.max(-300,Math.min(300,delta))*.001)));}
 
@@ -42,18 +43,25 @@ export function throwVelocity(camera:THREE.Camera,velocity:{vx:number;vy:number}
     .addScaledVector(up,Math.max(-4,Math.min(4,-velocity.vy*.004)));
 }
 
-export function predictedContact(position:THREE.Vector3,velocity:THREE.Vector3,dims:TankDimensions,shape:TankShape,water:number,radius:number){
+export function predictedContact(position:THREE.Vector3,velocity:THREE.Vector3,dims:TankDimensions,shape:TankShape,water:number,radius:number,drag=0){
   let last=position.clone();
   const horizontal=position.clone(),speed=velocity.clone();
-  for(let t=.02;t<=3;t+=.02){
-    horizontal.x+=speed.x*.02;horizontal.z+=speed.z*.02;
+  if(position.y-radius<=water){const safe=clampToTankBoundary(position.x,position.z,radius,shape,dims);return {point:new THREE.Vector3(safe.x,water,safe.z),inside:true};}
+  const dt=1/120;
+  for(let t=dt;t<=12;t+=dt){
+    horizontal.x+=speed.x*dt;horizontal.z+=speed.z*dt;
     const safe=clampToTankBoundary(horizontal.x,horizontal.z,radius,shape,dims);
     if(safe.x!==horizontal.x)speed.x*=-.25;
     if(safe.z!==horizontal.z)speed.z*=-.25;
     horizontal.set(safe.x,0,safe.z);
-    const next=new THREE.Vector3(horizontal.x,position.y+velocity.y*t-.5*DISPLAY_GRAVITY*t*t,horizontal.z);
+    const fall=advanceAirFall(last.y,speed.y,dt,drag);speed.y=fall.vy;
+    const next=new THREE.Vector3(horizontal.x,fall.y,horizontal.z);
     const level=water;
-    if(next.y-radius<=level&&last.y-radius>=level){const safe=clampToTankBoundary(next.x,next.z,radius,shape,dims);return {point:new THREE.Vector3(safe.x,level,safe.z),inside:true};}
+    if(next.y-radius<=level&&last.y-radius>=level){
+      const fraction=(last.y-radius-level)/Math.max(1e-9,last.y-next.y);
+      const hit=last.clone().lerp(next,fraction),safe=clampToTankBoundary(hit.x,hit.z,radius,shape,dims);
+      return {point:new THREE.Vector3(safe.x,level,safe.z),inside:true};
+    }
     last=next;
   }
   return null;

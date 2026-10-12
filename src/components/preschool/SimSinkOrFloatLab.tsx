@@ -338,16 +338,17 @@ const HeldObjectPreview: React.FC<{
   name: string;
 }> = ({ x, y, image, name }) => (
   <div
+    data-held-object-preview
     style={{
       left: `${x}px`,
       top: `${y}px`,
-      transform: 'translate(-50%, -65%)',
+      transform: 'translate(-50%, -50%)',
       pointerEvents: 'none',
       zIndex: 9999
     }}
     className="fixed select-none filter drop-shadow-2xl"
   >
-    <div className="relative w-16 h-16 flex items-center justify-center">
+    <div className="relative w-14 h-14 flex items-center justify-center">
       {/* Hình đồ vật bé đang cầm */}
       <img
         src={image}
@@ -859,14 +860,14 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
 
       if (isDraggingRef.current) {
         setDragCursorPos({ x: curX, y: curY });
-        const samples=pointerVelocityRef.current,first=samples[0];
-        const velocity=first?gestureVelocity(curX-first.x,curY-first.y,(curT-first.t)/1000):{vx:0,vy:0};
-        threeTankRef.current?.previewDropAtScreenPos(item,curX,curY,velocity);
         const history = pointerVelocityRef.current;
         history.push({ x: curX, y: curY, t: curT });
         while (history.length > 1 && curT - history[0].t > 150) {
           history.shift();
         }
+        const first=history[0],duration=first?(curT-first.t)/1000:0;
+        const velocity=first?gestureVelocity(curX-first.x,curY-first.y,duration):{vx:0,vy:0};
+        threeTankRef.current?.previewDropAtScreenPos(item,curX,curY,{...velocity,sampledAt:curT,duration});
       }
     };
 
@@ -927,7 +928,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
         setSelectedTrayItem((prev) => (prev?.id === item.id ? null : item));
         if (selectedTrayItem?.id !== item.id) {
           const scene=playSceneRef.current?.getBoundingClientRect();
-          if(scene)threeTankRef.current?.previewDropAtScreenPos(item,scene.left+scene.width/2,scene.top+scene.height/2);
+          if(scene)threeTankRef.current?.previewDropAtScreenPos(item,scene.left+scene.width/2,scene.top+scene.height*.18);
           setMessage(`Bé đã cầm "${item.name}"! Đưa tay đến chỗ muốn thả, hoặc kéo nhanh rồi buông để ném nhé!`);
           if (soundEnabled) soundEngine.playSpoonClink();
           if (onboardingStep === 1) setOnboardingStep(2);
@@ -1228,6 +1229,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                 onInteractionModeChange={setInteractionMode}
                 carryingTrayItem={!!selectedTrayItem || !!draggingTrayItem || !!activeDragItemRef.current}
                 holdingItemId={holdingItemId}
+                onTrayPreviewPosition={point=>setDragCursorPos(prev=>Math.abs(prev.x-point.x)<.2&&Math.abs(prev.y-point.y)<.2?prev:point)}
                 onHoldItem={setHoldingItemId}
                 workflowStep={workflowStep}
                 onPourSaltAtPoint={handlePourSaltAtPoint}
@@ -1275,7 +1277,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           {!comparisonMode&&(activityMode==='discovery'||activityMode==='egg-challenge') && <div className="lab-object-tray" ref={trayRef}>
             <ObjectBasket items={displayItems} selectedId={selectedTrayItem?.id||null} showLabels={false}
               onPick={(event,item)=>{if(item.damage){const fresh:TankObject={...item,inTank:false,outsideTank:false,damage:undefined,x:0,y:0.45,z:0,vx:0,vy:0,vz:0,status:'basket',settled:false};setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));handleTrayItemPointerDown(event,fresh);}else handleTrayItemPointerDown(event,item);}}
-              onKeyboardPick={item=>{if(!gestureAllowedRef.current)return;const fresh=item.damage?{...item,inTank:false,outsideTank:false,damage:undefined,status:'basket' as const}:item;if(item.damage)setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));const scene=playSceneRef.current?.getBoundingClientRect();if(scene)setDragCursorPos({x:scene.left+scene.width/2,y:scene.top+scene.height*.18});setSelectedTrayItem(fresh);if(scene)threeTankRef.current?.previewDropAtScreenPos(fresh,scene.left+scene.width/2,scene.top+scene.height/2);markUserInteracted();setMessage('Con đang cầm vật. Đưa tay đến chỗ muốn thả nhé.');}}
+              onKeyboardPick={item=>{if(!gestureAllowedRef.current)return;const fresh=item.damage?{...item,inTank:false,outsideTank:false,damage:undefined,status:'basket' as const}:item;if(item.damage)setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));const scene=playSceneRef.current?.getBoundingClientRect();if(scene)setDragCursorPos({x:scene.left+scene.width/2,y:scene.top+scene.height*.18});setSelectedTrayItem(fresh);if(scene)threeTankRef.current?.previewDropAtScreenPos(fresh,scene.left+scene.width/2,scene.top+scene.height*.18);markUserInteracted();setMessage('Con đang cầm vật. Đưa tay đến chỗ muốn thả nhé.');}}
             />
           </div>}
           {(selectedTrayItem||draggingTrayItem)&&<button onPointerDown={e=>e.stopPropagation()} onClick={()=>{dragCleanupRef.current?.();activeDragItemRef.current=null;isDraggingRef.current=false;setSelectedTrayItem(null);setDraggingTrayItem(null);threeTankRef.current?.clearDropPreview();}} className="min-h-[48px] rounded-2xl bg-orange-100 font-bold" aria-label="Đặt vật về khay"><span aria-hidden="true" className="text-2xl">🧺↩</span></button>}
