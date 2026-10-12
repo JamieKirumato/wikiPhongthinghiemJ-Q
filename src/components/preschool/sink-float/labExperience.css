@@ -48,6 +48,8 @@
 .lab-object:focus-visible, .lab-tools button:focus-visible, .lab-utilities button:focus-visible { outline: 3px solid #34816f; outline-offset: 2px; }
 @media (hover: hover) { .lab-object:not(:disabled):hover { transform: translateY(-2px); border-color: #bd9c73; } }
 .lab-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 8px; }
+.lab-tools > [data-stir-tool-slot] { min-width: 0; }
+.lab-tools > [data-stir-tool-slot]:empty { display: none; }
 .lab-tools > button, .lab-salt-trigger { min-height: 72px; width: 100%; border: 1px solid #d6e1d8; border-radius: 18px; background: linear-gradient(145deg, #fffefb, #f0f5ef); box-shadow: 0 5px 10px -7px #2e5846, inset 0 1px 0 #fff; }
 .lab-tools > button[aria-pressed=true] { border-color: #4b9282; background: #e3f1e9; }
 .lab-tools > button svg { width: 58px; height: 58px; }
@@ -133,6 +135,8 @@
   .lab-object-image { width: 56px; height: 56px; }
   .lab-tools { display: flex; gap: 8px; }
   .lab-tools > button, .lab-salt { flex: 1; min-width: 0; }
+  .lab-tools > [data-stir-tool-slot] { flex: 1; }
+  .lab-tools [data-stir-tool] button { min-height: 60px; height: 60px; border-radius: 17px; }
   .lab-tools > button, .lab-salt-trigger { min-height: 60px; height: 60px; border-radius: 17px; }
   .lab-tools > button svg { width: 52px; height: 52px; }
   .lab-bucket { bottom: 12px; left: 12px; width: 78px; height: 78px; }

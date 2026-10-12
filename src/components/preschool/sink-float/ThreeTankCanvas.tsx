@@ -1,9 +1,9 @@
 import {overflowOutlets} from './overflowVisual';
 import {freshComparisonItem} from './comparisonTrial';
-import { tankCameraDistance } from './cameraFraming';
+import { tankCameraDistance, waterObservationDistance } from './cameraFraming';
 import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import * as THREE from 'three';
-import { TankDimensions, TankObject, TankScale, TankShape, InteractionMode, SaltWorkflowStep } from './types';
+import { TankDimensions, TankObject, TankScale, TankShape, InteractionMode, SaltWorkflowStep, StirRodProjection } from './types';
 import { resolveTankWall, clampToTankBoundary, isPointInsideFootprint, getTankDimensions } from './tankGeometry';
 import { floatingCenterY } from './buoyancy';
 import { createItemModel, disposeItemModel, applyItemDamage } from './itemModels';
@@ -11,7 +11,7 @@ import { damageFromImpact, gestureVelocity, floorEggDamage } from './impactPhysi
 import { playImpact, playWaterSwish, unlockImpactAudio } from './impactAudio';
 import { WaterImpulse } from './waterMotion';
 import { configureWaterSurface } from './waterSurfaceShader';
-import { advanceAirFall, itemKind } from './playPhysics';
+import { advanceAirFall, itemKind, objectAirDrag } from './playPhysics';
 import { SceneBackdrop, SceneSetting } from './SceneBackdrop';
 import { advanceSinking,sinkingDrag,waterEntryVelocity, displacedWaterLevel, sandHeight, modelDisplacementVolume } from './waterPhysics';
 import {boundedZoom,releasePosition,alignDropToScreenX,predictedContact,throwVelocity} from './interactionPreview';
@@ -25,6 +25,7 @@ export interface ThreeTankCanvasHandle {
   saltTarget: (x:number,y:number)=>THREE.Vector3|null;
   toolAnchor:()=>{x:number;y:number}|null;
   stirCentre:()=>{x:number;y:number}|null;
+  stirRod:(x:number,y:number)=>StirRodProjection|null;
   floorPoint: (x:number,y:number)=>{x:number;z:number}|null;
   showIntroFrame: (action:IntroAction|null,progress:number)=>{x:number;y:number;carrying:boolean;fromTray:number;tool:string;toolFill:number;item:string|null}|null;
   checkPointInWater: (screenX: number, screenY: number) => boolean;
@@ -146,9 +147,11 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     const rippleEffectsRef = useRef<Array<{mesh: THREE.Mesh; age: number; strength: number}>>([]);
     const splashEffectsRef = useRef<Array<{mesh: THREE.Mesh; age: number; velocity: THREE.Vector3}>>([]);
     const stirWaterRef = useRef<{x:number;z:number;time:number;strength:number}|null>(null);
-    const dipFocusRef = useRef<{itemId:string;expiresAt:number}|null>(null);
+    const dipFocusRef = useRef<{itemId:string;expiresAt:number;kind?:'drop';settledAt?:number}|null>(null);
     const dipFocusBlendRef = useRef(0);
     const dipFocusPointRef = useRef({x:0,z:0});
+    const focusKindRef = useRef<'drop'|'dip'>('dip');
+    const dropFocusRatioRef = useRef(1);
     const lastDipRippleRef = useRef(0);
     const squashUntilRef = useRef(new Map<string,number>());
     const dissolveProgressRef = useRef(0);
@@ -307,6 +310,15 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const mount=mountRef.current,camera=cameraRef.current;if(!mount||!camera)return null;
         const p=new THREE.Vector3(0,displayedWaterLevelRef.current,0).project(camera),r=mount.getBoundingClientRect();
         return {x:r.left+(p.x+1)*r.width/2,y:r.top+(1-p.y)*r.height/2};
+      },
+      stirRod:(x,y)=>{
+        const mount=mountRef.current,camera=cameraRef.current;if(!mount||!camera)return null;
+        const rect=mount.getBoundingClientRect(),d=dimsRef.current;
+        const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((x-rect.left)/rect.width*2-1,-(y-rect.top)/rect.height*2+1),camera);
+        const point=new THREE.Vector3();
+        if(!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-displayedWaterLevelRef.current),point)||!isPointInsideFootprint(point.x,point.z,shapeRef.current,d,.08))return null;
+        const project=(height:number)=>{const p=new THREE.Vector3(point.x,height,point.z).project(camera);return {x:rect.left+(p.x+1)*rect.width/2,y:rect.top+(1-p.y)*rect.height/2};};
+        return {top:project(d.height+.12),bottom:project(sandHeight(d)+.04)};
       },
       saltTarget:(x,y)=>{
         const mount=mountRef.current,camera=cameraRef.current;if(!mount||!camera)return null;
@@ -598,6 +610,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       },
 
       resetDefaultView: () => {
+        dipFocusRef.current=null;
         zoomRef.current = 1;
         orbitRef.current.targetYaw = DEFAULT_YAW;
         orbitRef.current.targetPitch = DEFAULT_PITCH;
@@ -606,6 +619,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
       refreshObservations: () => { itemsRef.current = itemsRef.current.map(item => item.inTank ? {...item, settled:false} : item); },
       resetSideView: () => {
+        dipFocusRef.current=null;
         orbitRef.current.targetYaw = 0;
         orbitRef.current.targetPitch = 0.08;
         orbitRef.current.isAutoRotating = false;
@@ -1212,15 +1226,26 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         // tank so selecting 50% never auto-zooms the small tank back to full size.
         const fitDims = getTankDimensions(s, 'normal');
         let r = tankCameraDistance(fitDims, camera?.aspect || 1, orbit.yaw, orbit.pitch);
+        if(carryingTrayRef.current||holdingItemRef.current||orbit.isDragging||workflowStepRef.current!=='idle'||inputLockedRef.current)dipFocusRef.current=null;
         const focus=dipFocusRef.current;
         const focusItem=focus&&currentTime<focus.expiresAt?itemsRef.current.find(item=>item.id===focus.itemId&&item.inTank):null;
+        if(focus?.kind==='drop'&&focusItem?.settled&&!focus.settledAt){focus.settledAt=currentTime;focus.expiresAt=Math.min(focus.expiresAt,currentTime+2200);}
         const focusTarget=focusItem?1:0;
         const focusEase=1-Math.exp(-dt*4);
         dipFocusBlendRef.current+=(focusTarget-dipFocusBlendRef.current)*focusEase;
         dipFocusPointRef.current.x+=((focusItem?.x??0)-dipFocusPointRef.current.x)*focusEase;
         dipFocusPointRef.current.z+=((focusItem?.z??0)-dipFocusPointRef.current.z)*focusEase;
-        r *= zoomRef.current*(1-.27*dipFocusBlendRef.current);
-        const targetY = d.height * .4*(1-dipFocusBlendRef.current)+displayedWaterLevelRef.current*.92*dipFocusBlendRef.current;
+        if(focusItem)focusKindRef.current=focus?.kind==='drop'?'drop':'dip';
+        const dropFocus=focusKindRef.current==='drop';
+        const targetY = d.height * .4*(1-dipFocusBlendRef.current)+displayedWaterLevelRef.current*(dropFocus ? .5 : .92)*dipFocusBlendRef.current;
+        if(dropFocus&&focusItem){
+          const radius=ITEM_WORLD_SCALES[itemKind(focusItem.id)]?.radius??.4;
+          const observationDistance=waterObservationDistance(r,d,displayedWaterLevelRef.current,camera?.aspect||1,orbit.yaw,orbit.pitch,{x:dipFocusPointRef.current.x,y:targetY,z:dipFocusPointRef.current.z},focusItem,radius);
+          dropFocusRatioRef.current=observationDistance/r;
+        }
+        r*=dropFocus ? 1+(dropFocusRatioRef.current-1)*dipFocusBlendRef.current : 1-.27*dipFocusBlendRef.current;
+        r*=zoomRef.current;
+        if(mountRef.current){mountRef.current.dataset.observationFocus=String(!!focusItem&&dropFocus);mountRef.current.dataset.observationZoom=(tankCameraDistance(fitDims,camera?.aspect||1,orbit.yaw,orbit.pitch)*zoomRef.current/r).toFixed(3);}
         const cx = r * Math.sin(orbit.yaw) * Math.cos(orbit.pitch);
         const cy = targetY + r * Math.sin(orbit.pitch);
         const cz = r * Math.cos(orbit.yaw) * Math.cos(orbit.pitch);
@@ -1357,7 +1382,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             const safe=resolveTankWall(nx,nz,itemR,s,d,false);
             if(item.y-itemR<d.height){nx=safe.x;nz=safe.z;}
             const floorY=item.damage==='broken' ? -0.42 : itemR-0.6;
-            const falling = advanceAirFall(item.y, item.vy, dt);
+            const falling = advanceAirFall(item.y, item.vy, dt,objectAirDrag(item.id,item.weightGrams,item.volumeMl));
             let nextVy=falling.vy;
             const nextY=Math.max(floorY,falling.y);
             const hitFloor=nextY<=floorY && (item.y>floorY+0.001 || item.status==='falling');
@@ -1383,7 +1408,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           if (!hasWater) {
             const floor=itemR+sandHeight(d);
             const safe=clampToTankBoundary(item.x,item.z,itemR,s,d);
-            const falling=advanceAirFall(item.y,item.vy,dt);
+            const falling=advanceAirFall(item.y,item.vy,dt,objectAirDrag(item.id,item.weightGrams,item.volumeMl));
             const y=Math.max(floor,falling.y),resting=y<=floor;
             const mesh=itemMeshesRef.current.get(item.id);
             if(mesh)mesh.position.set(safe.x,y,safe.z);
@@ -1441,7 +1466,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
           if (!isSubmerged) {
             // Rơi tự do trên không
-            const falling = advanceAirFall(y, vy, dt);
+            const falling = advanceAirFall(y, vy, dt,objectAirDrag(item.id,item.weightGrams,item.volumeMl));
             vy = falling.vy;
             y = falling.y;
             x += vx * dt;
@@ -1454,6 +1479,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
                 playWaterContact(item.id, Math.abs(vy));
               }
               vy=waterEntryVelocity(vy,willFloat);
+              if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches)dipFocusRef.current={itemId:item.id,expiresAt:currentTime+12000,kind:'drop'};
               status = willFloat ? 'floating' : 'sunk';
             }
             itemsChanged = true;
@@ -1463,6 +1489,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
               spawnWaterReaction(x, z, Math.min(6, Math.abs(vy)), true);
               if (soundEnabled) playWaterContact(item.id, Math.abs(vy));
               vy=waterEntryVelocity(vy,willFloat);
+              if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches)dipFocusRef.current={itemId:item.id,expiresAt:currentTime+12000,kind:'drop'};
             }
             // Nằm trong nước
             if (willFloat) {
@@ -1476,7 +1503,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
               const displacement = y - targetY;
               const springK = 12.0;
-              const damping = 5.0;
+              const damping = Math.max(3,Math.min(10,sinkingDrag(item.id,item.weightGrams,item.volumeMl)*.35));
               const forceY = -springK * displacement - damping * vy;
 
               vy += forceY * dt;
@@ -1838,6 +1865,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           spawnWaterReaction(heldItem.x,heldItem.z,2.4,false);
           onDipFloater?.();
         }
+        if(e.type!=='pointercancel'&&heldItem&&!heldItem.outsideTank&&heldItem.y-(ITEM_WORLD_SCALES[itemKind(id)]?.radius??.4)<=displayedWaterLevelRef.current&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+          dipFocusRef.current={itemId:id,expiresAt:performance.now()+12000,kind:'drop'};
+        }
         const samples=dragSamplesRef.current, first=samples[0], last=samples[samples.length-1];
         const v=e.type==='pointercancel'||!first||!last ? {vx:0,vy:0} : gestureVelocity(last.x-first.x,last.y-first.y,(performance.now()-first.t)/1000);
         const worldVelocity=throwVelocity(cameraRef.current!,v);
@@ -1857,7 +1887,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
     useEffect(() => {
       const mount=mountRef.current;if(!mount)return;
-      const wheel=(e:WheelEvent)=>{if(inputLockedRef.current||workflowStepRef.current!=='idle'||holdingItemRef.current||carryingTrayRef.current)return;e.preventDefault();zoomRef.current=boundedZoom(zoomRef.current,e.deltaY);};
+      const wheel=(e:WheelEvent)=>{if(inputLockedRef.current||workflowStepRef.current!=='idle'||holdingItemRef.current||carryingTrayRef.current)return;e.preventDefault();dipFocusRef.current=null;zoomRef.current=boundedZoom(zoomRef.current,e.deltaY);};
       mount.addEventListener('wheel',wheel,{passive:false});return()=>mount.removeEventListener('wheel',wheel);
     },[]);
 
