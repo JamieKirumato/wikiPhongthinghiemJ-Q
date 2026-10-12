@@ -1,5 +1,22 @@
 import { TankDimensions } from './types';
 
+/** Follow the object itself, retaining a small margin of water around it. */
+export function objectObservationDistance(base:number,aspect:number,yaw:number,pitch:number,target:{x:number;y:number;z:number},point:{x:number;y:number;z:number},radius:number) {
+  let distance=base*(aspect<1 ? .66 : .62);
+  const margin=Math.max(.7,radius*1.5);
+  const tanVertical=Math.tan(20*Math.PI/180)*.88;
+  const tanHorizontal=tanVertical*Math.max(.1,aspect);
+  for(const x of [point.x-margin-target.x,point.x+margin-target.x])
+    for(const y of [point.y-margin-target.y,point.y+margin-target.y])
+      for(const z of [point.z-margin-target.z,point.z+margin-target.z]){
+        const horizontal=x*Math.cos(yaw)-z*Math.sin(yaw);
+        const vertical=-x*Math.sin(yaw)*Math.sin(pitch)+y*Math.cos(pitch)-z*Math.cos(yaw)*Math.sin(pitch);
+        const depth=x*Math.sin(yaw)*Math.cos(pitch)+y*Math.sin(pitch)+z*Math.cos(yaw)*Math.cos(pitch);
+        distance=Math.max(distance,depth+Math.abs(horizontal)/tanHorizontal,depth+Math.abs(vertical)/tanVertical);
+      }
+  return distance;
+}
+
 /** Fit the normal tank plus a little floor/headroom; compact remains half-size. */
 export function tankCameraDistance(dims: TankDimensions, aspect: number, yaw: number, pitch: number) {
   const targetY = dims.height * .4;

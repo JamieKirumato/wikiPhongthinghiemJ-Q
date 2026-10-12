@@ -520,6 +520,23 @@ for(const shape of ['rectangle','square','cylinder','triangle']){
   }
 }
 console.log('Passed: observation zoom preserves the entire object path, including large balls, in portrait and landscape tanks.');
+for(const aspect of [.45,1.5,2.2])for(const radius of [.2,.55,1.32]){
+  const dims=geometry.getTankDimensions('rectangle','normal'),yaw=.56,pitch=.24;
+  const base=framing.tankCameraDistance(dims,aspect,yaw,pitch);
+  for(const point of [{x:1,y:dims.waterHeight+.8,z:.5},{x:-1,y:dims.height*.085+radius,z:-.5}]){
+    const distance=framing.objectObservationDistance(base,aspect,yaw,pitch,point,point,radius);
+    const camera=new THREE.PerspectiveCamera(40,aspect,.1,100);
+    camera.position.set(point.x+distance*Math.sin(yaw)*Math.cos(pitch),point.y+distance*Math.sin(pitch),point.z+distance*Math.cos(yaw)*Math.cos(pitch));
+    camera.lookAt(point.x,point.y,point.z);camera.updateMatrixWorld();
+    const center=new THREE.Vector3(point.x,point.y,point.z).project(camera);
+    assert.ok(Math.abs(center.x)<1e-8&&Math.abs(center.y)<1e-8,'Tracked object stays centered at every height.');
+    for(const x of [-radius,radius])for(const y of [-radius,radius])for(const z of [-radius,radius]){
+      const corner=new THREE.Vector3(point.x+x,point.y+y,point.z+z).project(camera);
+      assert.ok(Math.abs(corner.x)<.88&&Math.abs(corner.y)<.88,'Close framing does not clip the object.');
+    }
+  }
+}
+console.log('Passed: object-follow framing stays centered from air to sand, with room for large objects in portrait and landscape.');
 
 const physicalScales=source('src/components/preschool/sink-float/itemScale.ts').ITEM_WORLD_SCALES;
 assert.ok(physicalScales['item-pingpong'].size>physicalScales['item-apple'].size*3);
