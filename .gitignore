@@ -28,3 +28,4 @@ scratch/
 .vercel/
 
 .env.local
+.npm-cache/

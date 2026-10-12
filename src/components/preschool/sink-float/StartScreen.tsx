@@ -1,13 +1,28 @@
-export function StartScreen({onStart}:{onStart:(mode:'student'|'teacher')=>void}) {
-  return <section className="flex h-full min-h-0 items-center justify-center overflow-y-auto rounded-3xl bg-gradient-to-b from-sky-100 to-white p-5 text-slate-800">
-    <div className="w-full max-w-xl text-center space-y-6 py-6">
-      <div aria-hidden="true" className="text-6xl">🍎 💧 🪨</div>
-      <h1 className="text-3xl sm:text-4xl font-black text-sky-900">Vật chìm, vật nổi</h1>
-      <p className="text-lg">Chọn một đồ vật, thả vào nước và quan sát.</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <button onClick={()=>onStart('student')} className="min-h-[80px] rounded-2xl bg-sky-600 px-5 py-4 text-xl font-bold text-white shadow hover:bg-sky-700 focus-visible:outline focus-visible:outline-4 focus-visible:outline-amber-400">👶 Học sinh</button>
-        <button onClick={()=>onStart('teacher')} className="min-h-[80px] rounded-2xl bg-amber-300 px-5 py-4 text-xl font-bold text-slate-900 shadow hover:bg-amber-400 focus-visible:outline focus-visible:outline-4 focus-visible:outline-sky-600">🧑‍🏫 Giáo viên</button>
+import { useState } from 'react';
+import { ArrowRight, Play, Users, Waves } from 'lucide-react';
+import { ThreeTankCanvas } from './ThreeTankCanvas';
+import { getTankDimensions } from './tankGeometry';
+import { TankObject } from './types';
+
+const dims = getTankDimensions('rectangle', 'normal');
+export function StartScreen({onStart, presets}:{onStart:(mode:'student'|'teacher')=>void; presets:TankObject[]}) {
+  const [items, setItems] = useState<TankObject[]>(() => presets.filter(i => ['item-apple','item-pebble','item-duck'].includes(i.id)).map((item,index) => ({...item,inTank:true,x:(index-1)*2.2,y:dims.waterHeight+1,z:0,status:'falling' as const})));
+  return <section className="premium-welcome">
+    <header className="premium-welcome-brand"><Waves/><span>Vật nổi, vật chìm</span><span className="premium-edition">KHÁM PHÁ KHOA HỌC</span></header>
+    <div className="premium-welcome-body">
+      <div className="premium-welcome-copy">
+        <span className="premium-kicker">MỘT CHẬU NƯỚC. THẬT NHIỀU KHÁM PHÁ.</span>
+        <h1>Cùng khám phá<br/>với <em>nước!</em></h1>
+        <p>Chọn một đồ vật, thả vào nước.<br/>Điều gì sẽ xảy ra? Con thử nhé!</p>
+        <button className="premium-primary" onClick={()=>onStart('student')}><Play size={22} fill="currentColor"/> Bé khám phá <ArrowRight size={22}/></button>
+        <button className="premium-secondary" onClick={()=>onStart('teacher')}><Users size={22}/> Giáo viên & phụ huynh</button>
+        <span className="premium-welcome-note">Tự chọn · Tự thử · Cùng quan sát</span>
+      </div>
+      <div className="premium-welcome-scene" aria-label="Minh họa đồ vật nổi và chìm trong bể 3D">
+        <ThreeTankCanvas shape="rectangle" scale="normal" dims={dims} items={items} onUpdateItems={setItems} waterDensity={1} interactionMode="interact" onInteractionModeChange={()=>{}} holdingItemId={null} onHoldItem={()=>{}} workflowStep="idle" onPourSaltAtPoint={()=>{}} soundEnabled={false} onMessageUpdate={()=>{}} showXRay={false} inputLocked/>
+        <span className="premium-live-tag"><span/> Bể nước 3D</span>
       </div>
     </div>
+    <footer className="premium-welcome-footer">Bắt đầu trên màn hình, tiếp tục khám phá với đồ vật thật.<a href="https://polyhaven.com/a/food_apple_01" target="_blank" rel="noreferrer">Mô hình táo: Poly Haven · CC0</a></footer>
   </section>;
 }

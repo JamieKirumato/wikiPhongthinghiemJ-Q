@@ -71,6 +71,7 @@ function NewSurroundings({setting}:{setting:SceneSetting}){
 
 /** Quiet illustrative surroundings, leaving the central experiment unobstructed. */
 export function SceneBackdrop({ setting }: { setting: SceneSetting }) {
+  if (['laboratory', 'classroom'].includes(setting)) return <img aria-hidden="true" alt="" src="/assets/sink-float/classroom-studio.png" className="lab-studio-backdrop" draggable={false}/>;
   return <svg aria-hidden="true" className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid slice">
     <defs>
       <linearGradient id="lab-wall" x2="0" y2="1"><stop stopColor="#f9f8f1"/><stop offset=".6" stopColor="#edf2ec"/><stop offset="1" stopColor="#dce9e4"/></linearGradient>
