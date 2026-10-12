@@ -1104,7 +1104,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     setComparisonTrial(undefined);setComparisonMode(false);setFloorSpills([]);setOverflowAt(0);setLadleGuideReady(false);setClothGuideReady(false);cleanupGuidedRef.current={overflow:false,floor:false};cleanupVoiceRef.current?.pause();cleanupVoiceRef.current=null;setAdvanced(next);setActivityMode('discovery');
     setMessage(next?'Con thử thay đổi nước rồi quan sát đồ vật nhé.':STUDENT_PROMPT);
   };
-  const comparisonBusy=pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle';
+  const comparisonBusy=pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||(workflowStep!=='idle'&&workflowStep!=='stirring');
   const openPreparation=(tab:PreparationTab)=>{if(comparisonBusy)return;setPreparationTab(tab);setShowPreparation(true);};
   const beginTeacherLesson=(lesson:TeacherLesson)=>{
     if(comparisonBusy)return;
@@ -1268,7 +1268,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
         <aside aria-label="Đồ vật và dụng cụ khám phá" className="lab-dock">
           <div className="lab-utilities">
             <button aria-label={voiceEnabled ? 'Tắt âm thanh hướng dẫn' : 'Bật âm thanh hướng dẫn'} aria-pressed={voiceEnabled} onClick={handleToggleVoice} className="min-h-[52px] min-w-[52px] rounded-2xl bg-white border border-sky-200 flex items-center justify-center text-sky-700">{voiceEnabled ? <Volume2 className="w-7 h-7"/> : <VolumeX className="w-7 h-7"/>}</button>
-            <button aria-label={isTeacherMode ? 'Chuyển sang khám phá của trẻ' : 'Mở chế độ giáo viên'} aria-pressed={isTeacherMode} disabled={pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle'} onClick={()=>{
+            <button aria-label={isTeacherMode ? 'Chuyển sang khám phá của trẻ' : 'Mở chế độ giáo viên'} aria-pressed={isTeacherMode} disabled={pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||(workflowStep!=='idle'&&workflowStep!=='stirring')} onClick={()=>{
               switchExploration(false);
               const next=!isTeacherMode;setIsTeacherMode(next);setShowPreparation(next);setTeacherConfigured(false);setShowTeacherControls(false);setPreparationTab('lesson');speechEngine.stop();speechEngine.setVoiceEnabled(!next);setVoiceEnabled(!next);setPreviewIntro(false);setIntroComplete(next);setAdvanced(false);
               if(!next){setActivityMode('discovery');setShowObservationBoard(false);setShowGuideModal(false);setShowTeacherObjectives(false);setShowConclusionPicker(false);setShowDemoHand(false);setRaceModeActive(false);setRaceRunning(false);actionTimersRef.current.forEach(clearTimeout);actionTimersRef.current.clear();dragCleanupRef.current?.();activeDragItemRef.current=null;setSelectedTrayItem(null);setDraggingTrayItem(null);threeTankRef.current?.cancelActiveGesture();setInteractionMode('interact');}
@@ -1291,10 +1291,10 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           </div>}
           {false&&isTeacherMode&&!comparisonMode&&<button aria-pressed={showSecondTank} onClick={()=>setShowSecondTank(!showSecondTank)} className="min-h-[48px] rounded-2xl bg-violet-100 font-bold">{showSecondTank?'Ẩn bể 2':'Thêm bể 2'}</button>}
           {false&&isTeacherMode&&<button aria-expanded={showGuideModal} onClick={()=>setShowGuideModal(!showGuideModal)} className="min-h-[48px] rounded-2xl bg-amber-100 font-bold">📖 Hướng dẫn</button>}
-          {!isTeacherMode&&activityMode!=='boat-challenge'&&<button disabled={pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle'} aria-label={advanced?'Thu gọn dụng cụ':'Mở thêm dụng cụ'} aria-pressed={advanced} onClick={()=>switchExploration(!advanced)} className="min-h-[52px] rounded-2xl bg-sky-100 px-2 font-bold disabled:opacity-50"><span aria-hidden="true" className="text-3xl">{advanced?'↩':'🧪'}</span></button>}
+          {!isTeacherMode&&activityMode!=='boat-challenge'&&<button disabled={pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||(workflowStep!=='idle'&&workflowStep!=='stirring')} aria-label={advanced?'Thu gọn dụng cụ':'Mở thêm dụng cụ'} aria-pressed={advanced} onClick={()=>switchExploration(!advanced)} className="min-h-[52px] rounded-2xl bg-sky-100 px-2 font-bold disabled:opacity-50"><span aria-hidden="true" className="text-3xl">{advanced?'↩':'🧪'}</span></button>}
           {activityMode!=='boat-challenge'&&<div className="lab-tools" aria-label="Dụng cụ thí nghiệm">
           {(advanced||ladleGuideReady) && !comparisonMode && (activityMode==='discovery'||activityMode==='egg-challenge') && <WaterPitcher
-            disabled={comparisonMode || introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}
+            disabled={comparisonMode || introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || (workflowStep!=='idle'&&workflowStep!=='stirring') || interactionMode==='orbit'}
             teacher={false} onActive={setPouringWater}
             flowRate={waterVolumeMl(tankShape,dimensions)*.1}
             getTarget={(x,y)=>threeTankRef.current?.pitcherTarget(x,y)||null}
@@ -1313,7 +1313,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           <div data-stir-tool-slot style={{gridColumn:1}} />
           {LADLE_ENABLED && (advanced||ladleGuideReady) && !comparisonMode && (activityMode==='discovery'||activityMode==='egg-challenge') && <WaterLadle
             highlighted={ladleGuideReady&&!ladleActive} isBucket={overBucket} canPourBucket={()=>performance.now()>=bucketReadyAfterRef.current} onCarriedOutside={setCarriedBucketVisible}
-            disabled={comparisonMode || introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || workflowStep!=='idle' || interactionMode==='orbit'}
+            disabled={comparisonMode || introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || (workflowStep!=='idle'&&workflowStep!=='stirring') || interactionMode==='orbit'}
             teacher={false} capacity={waterVolumeMl(tankShape,dimensions)*.2}
             onActive={active=>{setPouringWater(active);setLadleActive(active);}}
             checkWater={(x,y)=>waterVolumeMl(tankShape,dimensions)+addedWaterRef.current>.01 && (threeTankRef.current?.checkPointInWater(x,y) ?? false)}
@@ -1344,7 +1344,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           }
           {<FloorMop available={floorSpills.length>0} highlighted={clothGuideReady&&floorSpills.length>0}
             clearBucketsToken={clearClothBucketsToken} onWringComplete={completeFloorCleanup}
-            disabled={introLocked||pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||workflowStep!=='idle'||interactionMode==='orbit'}
+            disabled={introLocked||pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||(workflowStep!=='idle'&&workflowStep!=='stirring')||interactionMode==='orbit'}
             teacher={false} onActive={setPouringWater}
             onClean={(x,y,capacity)=>{
               const point=threeTankRef.current?.floorPoint(x,y);if(!point)return 0;
