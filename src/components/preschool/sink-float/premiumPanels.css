@@ -1,0 +1,73 @@
+.lab-heading { padding-right: 226px; }
+.premium-dock-tabs { display: flex; gap: 4px; padding: 4px; background: #f3f2ec; border-radius: 13px; }
+.premium-dock-tabs button { flex: 1; min-height: 39px; border-radius: 10px; font-size: 13px; font-weight: 700; }
+.premium-dock-tabs button[aria-pressed=true] { background: white; box-shadow: 0 2px 7px #1838460a; }
+.lab-object-tray[hidden], .premium-comparison-picker[hidden] { display: none; }
+.premium-comparison-tank { border: 1px solid #e9decf; border-radius: 22px; }
+.premium-comparison-tank .premium-water-label { top: 22px; }
+.premium-comparison-picker { border-color: #eee8dd; }
+.premium-paired-release { color: #14384a; background: #ffd56b; }
+.lab-tools > button, .lab-tools .lab-salt-trigger, .lab-tools [data-stir-tool] button { display: flex; flex-direction: column; gap: 6px; min-height: 105px; padding: 10px; border: 1px solid #e7e4da; border-radius: 17px; background: #fffefa; }
+.lab-tools > button::after, .lab-salt-trigger::after, [data-stir-tool] button::after { font: 700 13px 'Segoe UI', sans-serif; color: #183d50; }
+.lab-tools > button[aria-label='Cầm bình nước để rót vào bể']::after { content: 'Nước'; }
+.lab-salt-trigger::after { content: 'Muối'; }
+[data-stir-tool] button::after { content: 'Khuấy'; }
+[data-stir-tool] button[aria-label='Đặt que khuấy xuống']::after { content: 'Cất que khuấy'; }
+.lab-tools > button[aria-label='Cầm giẻ lau sàn']::after { content: 'Khăn'; }
+.lab-salt-popover { color: #14384a; background: #fffdf5; border-color: #e4ded0; }
+.premium-boat-scene { height: 100%; display: block; }
+.premium-boat-scene > .lab-canvas { height: 100%; }
+.premium-boat-controls-host { order: 2; }
+.premium-boat-hint { position: absolute; z-index: 20; top: 86px; left: 18px; right: 18px; border-radius: 16px; padding: 12px 18px; background: #fff2c8f2; font-size: 15px; }
+.premium-boat-status { position: absolute; z-index: 20; bottom: 22px; left: 50%; transform: translateX(-50%); max-width: 90%; padding: 12px 18px; border-radius: 16px; background: #fffdf6ef; font-size: 15px; font-weight: 650; text-align: center; }
+.premium-boat-tools { display: flex; flex-direction: column; gap: 12px; }
+.premium-section-label { font-size: 10px; color: #7a898b; font-weight: 750; letter-spacing: .1em; }
+.premium-boat-tools button { min-height: 46px; display: flex; align-items: center; justify-content: center; gap: 9px; border: 1px solid #e9e4da; border-radius: 14px; padding: 10px; background: #fffefa; font-size: 13px; font-weight: 650; }
+.premium-boat-tools button:disabled { opacity: .4; }
+.premium-hull-choices { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
+.premium-hull-choices button { flex-direction: column; padding: 7px; gap: 4px; }
+.premium-hull-choices button:first-child { grid-column: 1 / -1; flex-direction: row; }
+.premium-hull-choices svg { height: 55px; width: 100%; }
+.premium-hull-choices button:first-child svg { width: 55px; height: 45px; }
+.premium-hull-choices button[aria-pressed=true] { border-color: #13b0b9; background: #e8faf8; }
+.premium-boat-tools .premium-cargo-piece { min-height: 94px; background: #f7eddf; color: #b98141; flex-direction: column; touch-action: none; }
+.premium-cargo-piece span { color: #14384a; }
+.premium-cargo-actions { display: flex; gap: 7px; }
+.premium-cargo-actions .premium-add-cargo { flex: 1; background: #ffda73; border-color: #ffda73; }
+.premium-model-note { color: #758188; font-size: 11px; line-height: 1.5; }
+.premium-model-note summary { min-height: 40px; padding-top: 10px; cursor: pointer; }
+.premium-modal-backdrop { position: fixed; inset: 0; z-index: 140; padding: 28px; display: grid; place-items: center; background: #14344666; backdrop-filter: blur(8px); color: #14384a; }
+.premium-notebook { display: flex; flex-direction: column; width: min(950px,100%); max-height: calc(100dvh - 56px); overflow: hidden; border-radius: 26px; background: #fffcf6; border: 1px solid #fff8; box-shadow: 0 30px 120px #102b4a33; }
+.premium-notebook > header { display: flex; gap: 20px; align-items: center; justify-content: space-between; padding: 24px 28px; border-bottom: 1px solid #ede8de; }
+.premium-notebook h2 { display: flex; align-items: center; gap: 12px; font-size: 27px; font-weight: 800; margin-top: 6px; letter-spacing: -.5px; }
+.premium-notebook > header > button { min-height: 44px; min-width: 44px; display: grid; place-items: center; background: #f0eee5; border-radius: 14px; }
+.premium-notebook-body { min-height: 0; overflow: auto; padding: 22px 28px; }
+.premium-notebook-invitation { color: #6b7c85; font-size: 15px; margin-bottom: 20px; }
+.premium-notebook-empty { display: flex; flex-direction: column; align-items: center; gap: 15px; padding: 65px 20px; text-align: center; }
+.premium-notebook-empty svg { color: #0b9fac; }.premium-notebook-empty h3 { font-size: 24px; font-weight: 750; }.premium-notebook-empty p { color: #6e8087; }
+.premium-observation-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 15px; }
+.premium-observation-card { background: #fff; border-radius: 19px; overflow: hidden; border: 1px solid #e8e5dd; }
+.premium-observation-caption { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 5px; padding: 13px; font-size: 12px; font-weight: 700; }
+.premium-observation-caption span:last-child { display: flex; align-items: center; gap: 4px; color: #328794; }
+.premium-observation-scene { padding: 15px 20px; background: url('/assets/sink-float/classroom-studio.png') center / cover; }
+.premium-mini-tank { height: 150px; border: 3px solid #b3dce0; background: #ffffff2b; border-radius: 7px; position: relative; box-shadow: inset 3px 0 0 #fff9, 0 4px 0 #d2e8e4; }
+.premium-mini-water { position: absolute; top: 45%; bottom: 0; inset-inline: 0; background: linear-gradient(#67d6e077,#08a4bc55); border-top: 2px solid #d0fdff; }
+.premium-mini-tank img { position: absolute; left: 50%; transform: translateX(-50%); width: 64px; height: 64px; object-fit: contain; mix-blend-mode: multiply; filter: drop-shadow(0 3px 2px #21474d22); }
+.premium-mini-tank img.at-surface { top: calc(45% - 31px); }.premium-mini-tank img.at-bottom { bottom: 5px; }
+.premium-observation-result { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px; font-size: 13px; }.premium-observation-result span { color: #26848c; font-weight: 700; }
+.premium-observation-condition { padding: 0 14px 14px; color: #7a8b90; font-size: 10px; }
+.premium-comparison-record { padding: 16px; border-radius: 20px; background: #eaf7f3; margin-bottom: 22px; }.premium-comparison-record h3 { font-size: 16px; font-weight: 750; margin-bottom: 13px; }.premium-comparison-record > div { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.premium-notebook > footer { display: flex; align-items: center; justify-content: space-between; padding: 16px 28px; gap: 15px; border-top: 1px solid #ede8de; }.premium-notebook > footer button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; font-weight: 700; font-size: 14px; }.premium-notebook > footer .premium-primary { width: 190px; min-height: 46px; }
+.premium-reflection { border: 1px solid #eee9dc; border-radius: 25px; background: #fffcf6; box-shadow: 0 25px 100px #102b4a33; }
+.teacher-panel { width: min(1020px,100%); display: grid; grid-template-columns: 180px minmax(0,1fr); grid-template-rows: 94px minmax(0,1fr) 80px; border-radius: 24px 0 0 24px; }
+.teacher-panel-heading { grid-column: 1/-1; padding: 20px 25px; border-bottom: 1px solid #ebe5da; }.teacher-panel-heading .lab-eyebrow { font-size: 10px; color: #64818a; }
+.teacher-panel-tabs { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; gap: 9px; border: 0; border-right: 1px solid #ebe5da; padding: 22px 12px; background: #fbf7ed; }
+.teacher-panel-tabs button { display: flex; gap: 8px; text-align: left; align-items: center; min-height: 48px; font-size: 13px; border: 0; background: transparent; }.teacher-panel-tabs button svg { flex-shrink: 0; }.teacher-panel-tabs button[aria-pressed=true] { background: #ffda75; color: #14384a; box-shadow: none; }
+.teacher-panel-body { grid-column: 2; grid-row: 2; padding: 22px 25px; }
+.teacher-panel-footer { grid-column: 1/-1; padding: 15px 25px; border-color: #ebe5da; background: #fffcf6; }
+.premium-adult-preview { float: right; width: 35%; margin: 0 0 14px 20px; padding: 12px; border-radius: 18px; background: url('/assets/sink-float/classroom-studio.png') center / cover; }
+.premium-adult-preview .premium-mini-tank { height: 112px; }.premium-adult-preview img { width: 35px; height: 35px; bottom: 8px; }.premium-adult-preview > span { display: block; font-size: 9px; text-align: center; padding: 8px 3px; background: #fff9; border-radius: 9px; margin-top: 9px; }
+.teacher-lesson-cards { margin-bottom: 17px; }.teacher-lesson-cards button { display: flex; align-items: center; gap: 10px; padding: 17px 12px; background: #fff; }.teacher-lesson-cards svg { color: #059cac; }
+.teacher-item-picker { clear: both; }.teacher-objective { font-size: 14px; line-height: 1.7; }.teacher-audio-settings { background: #fffcf6; color: #14384a; border-radius: 24px 0 0 24px; padding: 25px; }
+@media(max-width:980px){.lab-heading{padding-right:210px}.teacher-panel{grid-template-columns:150px minmax(0,1fr)}.teacher-panel-heading h2{font-size:23px}.premium-observation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:639px) and (orientation:portrait){.lab-heading{padding-right:142px}.lab-heading h2{font-size:17px}.lab-utilities{gap:4px}.premium-dock-tabs{padding:2px}.premium-dock-tabs button{min-height:32px}.lab-tools{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))}.lab-tools[style*='display: none']{display:none!important}.lab-tools>button,.lab-tools .lab-salt-trigger,.lab-tools [data-stir-tool] button{min-height:84px;height:84px}.lab-tools>button svg,.lab-salt-trigger svg{width:44px;height:44px}.lab-tools>[data-stir-tool-slot]{grid-column:auto!important}.premium-modal-backdrop{padding:10px}.premium-notebook{max-height:calc(100dvh - 20px)}.premium-notebook>header{padding:17px}.premium-notebook h2{font-size:20px}.premium-notebook h2 svg{display:none}.premium-notebook-body{padding:15px}.premium-observation-grid{gap:10px}.premium-observation-scene{padding:10px}.premium-mini-tank{height:120px}.premium-observation-caption{font-size:10px}.premium-observation-result{font-size:11px;padding:10px;flex-direction:column;align-items:flex-start}.premium-notebook>footer{padding:12px}.premium-notebook>footer button{font-size:12px}.premium-notebook>footer .premium-primary{width:120px}.teacher-panel{display:flex;flex-direction:column;border-radius:0}.teacher-panel-tabs{flex-direction:row;overflow:auto;padding:8px;border-bottom:1px solid #ebe5da;flex-shrink:0}.teacher-panel-tabs button{white-space:nowrap;min-width:max-content;padding:8px}.teacher-panel-body{padding:16px}.teacher-panel-heading{padding:17px}.teacher-panel-heading h2{font-size:22px}.premium-adult-preview{display:none}.premium-boat-tools{display:grid;grid-template-columns:1fr 1fr;gap:7px}.premium-boat-tools>.premium-section-label,.premium-boat-tools>.premium-hull-choices{grid-column:1/-1}.premium-hull-choices{grid-template-columns:repeat(3,1fr)}.premium-hull-choices button:first-child{grid-column:auto;flex-direction:column}.premium-hull-choices svg{height:36px}.premium-hull-choices button:first-child svg{height:36px}.premium-boat-tools .premium-cargo-piece{min-height:50px;flex-direction:row}.premium-boat-tools .premium-cargo-piece svg{width:20px}.premium-boat-tools button{font-size:11px}.premium-model-note{display:none}.premium-boat-status{font-size:12px;bottom:12px;white-space:nowrap}}

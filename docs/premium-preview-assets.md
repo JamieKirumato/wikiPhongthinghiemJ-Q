@@ -1,11 +1,12 @@
 # Tài nguyên cho bản thử giao diện 12/10/2026
 
-Chỉ có bản cục bộ; chưa commit, push hoặc deploy. Đây là bản thử đầu, chưa phải toàn bộ giao diện hoàn thiện theo concept.
+Người dùng duyệt hướng thiết kế ngày 12/10/2026 và yêu cầu cập nhật GitHub/Vercel. Giao diện dùng nền kem, xanh nước, nút vàng; bể và đồ vật được render trong cảnh tương tác 3D. Ảnh concept định hướng phong cách, không phải ảnh chụp bản chạy.
 
 - Nền lớp học: `public/assets/sink-float/classroom-studio.png`, tạo bằng công cụ ImageGen tích hợp. Ảnh nền không chứa bể hoặc đồ vật; bể và chuyển động được render riêng.
 - Táo: `public/assets/models/apple/food_apple_01_1k.gltf`, Oliver Harries / Poly Haven, CC0. Nguồn: https://polyhaven.com/a/food_apple_01. File giấy phép đặt cùng mô hình. Chỉ táo dùng mô hình nhập ngoài trong bản thử này; các vật khác dùng mesh hiện có, khay vẫn dùng ảnh cũ.
 - Nguồn ứng viên chưa tích hợp: vịt https://sketchfab.com/3d-models/rubber-duck-f1de4fc390db4266a509b9739350512a; trứng https://sketchfab.com/3d-models/egg-c46d64155bae47d4a0888cdfcf8c27dc. Hai nguồn công bố CC Attribution; cần giữ ghi công khi tích hợp.
-- Kiểm tra: build và test:sink-float qua; trình duyệt desktop đã thử thả táo/sỏi, xoay bể và xem lịch sử. Chưa kiểm tra thiết bị thật, trẻ thật, toàn bộ responsive hoặc toàn bộ công cụ nâng cao. Antigravity CLI nhận yêu cầu review nhưng chưa tạo file kết quả.
+- Thuyền: mesh nhôm mở, hàng khối gỗ, ánh sáng và chuyển động hạ/chìm dùng cùng cảnh bể 3D. Giữ mô hình sức chở trước đó. Sổ khám phá minh họa các lần quan sát đã ghi, không phải ảnh chụp màn hình. Khu vực người lớn có chọn bài, đồ vật, cảnh, âm thanh và thực hành tại nhà.
+- Kiểm tra: build, test:sink-float và verify-salt-pour qua. Trình duyệt đã thử thả táo/sỏi, xoay bể, lịch sử ở bản đầu; lượt cuối kiểm tra bố cục dọc 540 px, desktop 1280 px và thêm hai kiện lên thuyền 3D, không thấy lỗi console. Lượt tiếp theo (quá tải và chuyển hai bể) chưa thực hiện vì bộ duyệt tự động Browser Use gặp lỗi 429. Chưa kiểm tra thiết bị thật hoặc trẻ thật. Antigravity CLI nhận yêu cầu review giới hạn 3 phút nhưng chưa tạo file kết quả; Codex thực hiện tích hợp và kiểm tra.
 
 ## Prompt ảnh nền (ImageGen tích hợp)
 

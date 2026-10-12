@@ -51,14 +51,15 @@ import { basketSlots, replenishBasket } from './sink-float/basketInventory';
 import { itemKind } from './sink-float/playPhysics';
 import { SceneSetting } from './sink-float/SceneBackdrop';
 import { ChildIntro } from './sink-float/ChildIntro';
+import {ObservationNotebook} from './sink-float/ObservationNotebook';
 import {ReflectionPanel} from './sink-float/ReflectionPanel';
-import {eggComparison} from './sink-float/reflectionHistory';
 import {TeacherExperienceSettings} from './sink-float/TeacherExperienceSettings';
 import {TeacherPreparation, LESSONS, PreparationTab, TeacherLesson} from './sink-float/TeacherPreparation';
 import {readExperience,selectedIntroGuide} from './sink-float/teacherExperience';
 import { ObjectBasket } from './sink-float/ObjectBasket';
 import './sink-float/labExperience.css';
 import './sink-float/premiumExperience.css';
+import './sink-float/premiumPanels.css';
 import { GuidedDemoHand } from './sink-float/GuidedDemoHand';
 import { TeacherObjectivesModal } from './sink-float/TeacherObjectivesModal';
 
@@ -530,7 +531,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
 
   // Bé chọn kết luận bằng tranh ảnh trước khi nghe giải thích
   const [showConclusionPicker, setShowConclusionPicker] = useState<boolean>(false);
-  const observedEggPair = eggComparison(trialHistory);
 
   // Thử thách quả trứng (Egg challenge state & attempts)
   const [eggChallengeAttempts, setEggChallengeAttempts] = useState<number>(0);
@@ -554,6 +554,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const [teacherLesson,setTeacherLesson]=useState<TeacherLesson>({mode:'discovery',age:'3-4',itemIds:[...AGE_3_4_ITEM_IDS]});
   const [started, setStarted] = useState(false);
   const [advanced, setAdvanced] = useState(false);
+  const [dockTab,setDockTab]=useState<'objects'|'tools'>('objects');
   const [previewIntro, setPreviewIntro] = useState(false);
   const [introComplete, setIntroComplete] = useState(true);
   useEffect(()=>{
@@ -1105,6 +1106,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     floorCleanupRound.current++;celebratingCleanup.current=false;setClearClothBucketsToken(token=>token+1);
     setAddedWaterMl(0);addedWaterRef.current=0;setBucketWater({ml:0,grams:0,fullBuckets:[]});bucketWaterRef.current={ml:0,grams:0,fullBuckets:[]};
     setComparisonTrial(undefined);setComparisonMode(false);setFloorSpills([]);setOverflowAt(0);setLadleGuideReady(false);setClothGuideReady(false);cleanupGuidedRef.current={overflow:false,floor:false};cleanupVoiceRef.current?.pause();cleanupVoiceRef.current=null;setAdvanced(next);setActivityMode('discovery');
+    setDockTab(next?'tools':'objects');
     setMessage(next?'Con thử thay đổi nước rồi quan sát đồ vật nhé.':STUDENT_PROMPT);
   };
   const comparisonBusy=pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||(workflowStep!=='idle'&&workflowStep!=='stirring');
@@ -1140,6 +1142,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       data-lab-experience
       data-teacher-mode={isTeacherMode}
       data-teacher-ready={teacherConfigured}
+      data-dock-tab={dockTab}
       onPointerMove={(event) => { if (selectedTrayItem) {setDragCursorPos({ x: event.clientX, y: event.clientY });threeTankRef.current?.previewDropAtScreenPos(selectedTrayItem,event.clientX,event.clientY);} }}
       onClick={markUserInteracted}
       className={`lab-experience select-none w-full flex flex-col font-sans text-slate-800 dark:text-slate-100 ${
@@ -1148,7 +1151,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           : 'relative h-full min-h-0 overflow-hidden'
       }`}
     >
-      {isTeacherMode&&showPreparation&&<TeacherPreparation tab={preparationTab} onTab={setPreparationTab} onClose={()=>setShowPreparation(false)} lesson={teacherLesson} onStart={beginTeacherLesson} items={PLAY_ITEMS_PRESETS} shape={tankShape} onShape={setTankShape} scale={tankScale} onScale={setTankScale} scene={sceneSetting} onScene={setSceneSetting}/>}
+      {isTeacherMode&&showPreparation&&<TeacherPreparation tab={preparationTab} onTab={setPreparationTab} onClose={()=>setShowPreparation(false)} lesson={teacherLesson} onStart={beginTeacherLesson} onAudio={()=>{setShowPreparation(false);setShowExperienceSettings(true);}} items={PLAY_ITEMS_PRESETS} shape={tankShape} onShape={setTankShape} scale={tankScale} onScale={setTankScale} scene={sceneSetting} onScene={setSceneSetting}/>}
       {introLocked&&<div className={`absolute top-3 right-3 z-[110] flex items-center gap-2 rounded-2xl bg-white/95 p-3 shadow ${isTeacherMode?'left-3':''}`}>
         {isTeacherMode&&<p className="flex-1 text-sm font-bold">{previewIntro?'Xem thử hướng dẫn':STUDENT_PROMPT}</p>}
         <button aria-label="Tự thử ngay" className="min-h-[48px] min-w-[48px] px-3 rounded-xl bg-sky-100" onClick={()=>setIntroComplete(true)}>{isTeacherMode?'Tự thử ngay':'▶'}</button>
@@ -1282,8 +1285,11 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
         {/* CỘT PHẢI: BẢNG ĐIỀU KHIỂN HỢP NHẤT (~240px - 260px)       */}
         {/* ======================================================== */}
         <aside aria-label="Đồ vật và dụng cụ khám phá" className="lab-dock">
-          <div className="premium-tray-heading"><h3>{comparisonMode?'Cùng thử hai bể':activityMode==='boat-challenge'?'Chiếc thuyền của con':'Chọn đồ vật'}</h3><p>{comparisonMode?'Cùng một vật, chỉ thay đổi nước.':'Chạm chọn, rồi chạm vào bể.'}</p></div>
+          <div className="premium-tray-heading"><h3>{activityMode==='boat-challenge'?'Chiếc thuyền của con':dockTab==='tools'?'Dụng cụ thí nghiệm':comparisonMode?'Cùng thử hai bể':'Chọn đồ vật'}</h3><p>{activityMode==='boat-challenge'?'Thêm từng kiện rồi quan sát.':dockTab==='tools'?'Con tự chọn cách khám phá.':comparisonMode?'Cùng một vật, chỉ thay đổi nước.':'Chạm chọn, rồi chạm vào bể.'}</p></div>
+          {advanced&&activityMode!=='boat-challenge'&&<div className="premium-dock-tabs"><button disabled={comparisonBusy} aria-pressed={dockTab==='objects'} onClick={()=>setDockTab('objects')}>Đồ vật</button><button disabled={comparisonBusy} aria-pressed={dockTab==='tools'} onClick={()=>setDockTab('tools')}>Dụng cụ</button></div>}
+          {activityMode === 'boat-challenge' && <div className="premium-boat-controls-host" ref={setBoatControlsHost} />}
           <div className="lab-utilities">
+            <button aria-label={isFullscreen?'Thu nhỏ':'Toàn màn hình'} onClick={handleToggleFullscreen}>{isFullscreen?<Minimize2 size={21}/>:<Maximize2 size={21}/>}</button>
             <button aria-label={voiceEnabled ? 'Tắt âm thanh hướng dẫn' : 'Bật âm thanh hướng dẫn'} aria-pressed={voiceEnabled} onClick={handleToggleVoice} className="min-h-[52px] min-w-[52px] rounded-2xl bg-white border border-sky-200 flex items-center justify-center text-sky-700">{voiceEnabled ? <Volume2 className="w-7 h-7"/> : <VolumeX className="w-7 h-7"/>}</button>
             <button aria-label={isTeacherMode ? 'Chuyển sang khám phá của trẻ' : 'Mở chế độ giáo viên'} aria-pressed={isTeacherMode} disabled={pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||(workflowStep!=='idle'&&workflowStep!=='stirring')} onClick={()=>{
               switchExploration(false);
@@ -1291,7 +1297,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               if(!next){setActivityMode('discovery');setShowObservationBoard(false);setShowGuideModal(false);setShowTeacherObjectives(false);setShowConclusionPicker(false);setShowDemoHand(false);setRaceModeActive(false);setRaceRunning(false);actionTimersRef.current.forEach(clearTimeout);actionTimersRef.current.clear();dragCleanupRef.current?.();activeDragItemRef.current=null;setSelectedTrayItem(null);setDraggingTrayItem(null);threeTankRef.current?.cancelActiveGesture();setInteractionMode('interact');}
             }} className="min-h-[52px] min-w-[52px] rounded-2xl bg-white border border-amber-200 flex items-center justify-center gap-2 px-2 font-bold"><Users size={20}/><span>{isTeacherMode?'Trẻ khám phá':'Người lớn'}</span></button>
           </div>
-          {!comparisonMode&&(activityMode==='discovery'||activityMode==='egg-challenge') && <div className="lab-object-tray" ref={trayRef}>
+          {!comparisonMode&&(activityMode==='discovery'||activityMode==='egg-challenge') && <div className="lab-object-tray" ref={trayRef} hidden={advanced&&dockTab==='tools'&&!introLocked}>
             <ObjectBasket items={displayItems} selectedId={selectedTrayItem?.id||null} showLabels={true}
               onPick={(event,item)=>{if(item.damage){const fresh:TankObject={...item,inTank:false,outsideTank:false,damage:undefined,x:0,y:0.45,z:0,vx:0,vy:0,vz:0,status:'basket',settled:false};setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));handleTrayItemPointerDown(event,fresh);}else handleTrayItemPointerDown(event,item);}}
               onKeyboardPick={item=>{if(!gestureAllowedRef.current)return;const fresh=item.damage?{...item,inTank:false,outsideTank:false,damage:undefined,status:'basket' as const}:item;if(item.damage)setItems(prev=>prev.map(i=>i.id===item.id?fresh:i));const scene=playSceneRef.current?.getBoundingClientRect();if(scene)setDragCursorPos({x:scene.left+scene.width/2,y:scene.top+scene.height*.18});setSelectedTrayItem(fresh);if(scene)threeTankRef.current?.previewDropAtScreenPos(fresh,scene.left+scene.width/2,scene.top+scene.height*.18);markUserInteracted();setMessage('Con đang cầm vật. Đưa tay đến chỗ muốn thả nhé.');}}
@@ -1299,17 +1305,17 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           </div>}
           {(selectedTrayItem||draggingTrayItem)&&<button onPointerDown={e=>e.stopPropagation()} onClick={()=>{dragCleanupRef.current?.();activeDragItemRef.current=null;isDraggingRef.current=false;setSelectedTrayItem(null);setDraggingTrayItem(null);threeTankRef.current?.clearDropPreview();}} className="min-h-[48px] rounded-2xl bg-orange-100 font-bold" aria-label="Đặt vật về khay"><span aria-hidden="true" className="text-2xl">🧺↩</span></button>}
           {!isTeacherMode&&advanced&&desktopComparison&&activityMode!=='boat-challenge'&&<button disabled={comparisonBusy} aria-label="So sánh nước" aria-pressed={comparisonMode} onClick={toggleComparison} className="min-h-[52px] rounded-2xl bg-violet-100 px-2 font-bold disabled:opacity-50">{isTeacherMode?(comparisonMode?'Về khám phá tự do':'So sánh nước'):<span aria-hidden="true" className="text-3xl">{comparisonMode?'🧺':'⚖️🌊'}</span>}</button>}
-          {comparisonMode&&<div className="rounded-2xl bg-white border-2 border-violet-200 p-2 space-y-2">
+          {comparisonMode&&<div className="premium-comparison-picker rounded-2xl bg-white border p-2 space-y-2" hidden={dockTab==='tools'}>
             {isTeacherMode&&<p className="text-sm font-bold">Cùng vật · cùng bể · chỉ đổi muối</p>}
             {isTeacherMode?<select aria-label="Vật dùng để so sánh hai bể" value={comparisonItemId} disabled={comparisonBusy} onChange={e=>setComparisonItemId(e.target.value)} className="w-full min-h-[48px] rounded-xl bg-sky-50 px-2">{PLAY_ITEMS_PRESETS.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select>:<div className="grid grid-cols-3 gap-1">{PLAY_ITEMS_PRESETS.map(item=><button key={item.id} aria-label={item.name} aria-pressed={comparisonItemId===item.id} disabled={comparisonBusy} onClick={()=>setComparisonItemId(item.id)} className={`rounded-xl bg-white p-1 ${comparisonItemId===item.id?'ring-2 ring-sky-500':''}`}><img src={item.image} alt="" className="w-12 h-12 object-contain"/></button>)}</div>}
 
-            <button disabled={comparisonBusy} aria-label="Thả cùng vật vào hai bể" onClick={releaseComparison} className="w-full min-h-[52px] rounded-xl bg-violet-600 text-white font-bold disabled:opacity-50">{isTeacherMode?'Thả cùng vật vào hai bể':<span aria-hidden="true" className="text-3xl">⬇️⬇️</span>}</button>
+            <button disabled={comparisonBusy} aria-label="Thả cùng vật vào hai bể" onClick={releaseComparison} className="premium-paired-release w-full min-h-[52px] rounded-xl font-bold disabled:opacity-50">Thả vào hai bể</button>
             {isTeacherMode&&<p className="text-xs">Thử trước, rồi thêm muối và khuấy ở bể A. Bể B giữ nước ngọt; lượng nước giữ nguyên.</p>}
           </div>}
           {false&&isTeacherMode&&!comparisonMode&&<button aria-pressed={showSecondTank} onClick={()=>setShowSecondTank(!showSecondTank)} className="min-h-[48px] rounded-2xl bg-violet-100 font-bold">{showSecondTank?'Ẩn bể 2':'Thêm bể 2'}</button>}
           {false&&isTeacherMode&&<button aria-expanded={showGuideModal} onClick={()=>setShowGuideModal(!showGuideModal)} className="min-h-[48px] rounded-2xl bg-amber-100 font-bold">📖 Hướng dẫn</button>}
           {!isTeacherMode&&activityMode!=='boat-challenge'&&<button disabled={pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||(workflowStep!=='idle'&&workflowStep!=='stirring')} aria-label={advanced?'Thu gọn dụng cụ':'Mở thêm dụng cụ'} aria-pressed={advanced} onClick={()=>switchExploration(!advanced)} className="premium-tool-toggle min-h-[52px] rounded-2xl px-2 font-bold disabled:opacity-50"><Plus size={21}/>{advanced?'Thu gọn dụng cụ':'Thêm dụng cụ'}</button>}
-          {activityMode!=='boat-challenge'&&<div className="lab-tools" aria-label="Dụng cụ thí nghiệm">
+          {activityMode!=='boat-challenge'&&<div className="lab-tools" aria-label="Dụng cụ thí nghiệm" style={{display:advanced&&(dockTab==='tools'||introLocked)?undefined:'none'}}>
           {(advanced||ladleGuideReady) && !comparisonMode && (activityMode==='discovery'||activityMode==='egg-challenge') && <WaterPitcher
             disabled={comparisonMode || introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || (workflowStep!=='idle'&&workflowStep!=='stirring') || interactionMode==='orbit'}
             teacher={false} onActive={setPouringWater}
@@ -1551,7 +1557,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           </div>
 
           </>}
-          {activityMode === 'boat-challenge' && <div ref={setBoatControlsHost} />}
+
           {(activityMode === 'discovery' || activityMode === 'egg-challenge') && <>
           {/* CHẾ ĐỘ TƯƠNG TÁC NGHIÊM NGẶT (STRICT MODES) */}
           <div className="premium-legacy-controls flex flex-col gap-1 p-1.5 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-sky-200 dark:border-slate-800 shadow-xs">
@@ -1732,177 +1738,9 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       {/* ======================================================== */}
       {/* 4. MODAL: BẢNG QUAN SÁT TRANH ẢNH & LỊCH SỬ THỬ NGHIỆM    */}
       {/* ======================================================== */}
-      {showObservationBoard && (
-        <div className="premium-journal fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/40 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-2xl rounded-3xl bg-white dark:bg-slate-900 border-4 border-amber-300 dark:border-amber-600 shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto relative">
-            <button
-              onClick={() => setShowObservationBoard(false)}
-              className="absolute top-4 right-4 p-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-500 transition"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center text-2xl shadow-md">
-                📋
-              </div>
-              <div>
-                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-                  Sổ khám phá của con
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Ghi lại kết quả các đồ vật bé đã thả vào bể nước
-                </p>
-              </div>
-            </div>
-
-            {/* So sánh đặc biệt: Quả trứng trước và sau khi cho muối */}
-            {observedEggPair && <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-50 to-sky-50 dark:from-amber-950/40 dark:to-sky-950/40 border-2 border-amber-300 dark:border-amber-700 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">🥚</span>
-                <span className="text-xs font-black text-amber-900 dark:text-amber-200 uppercase tracking-wide">
-                  Cùng một quả trứng: Trước và sau
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center space-y-1">
-                  <span className="text-[10px] font-bold text-slate-500">Trong Nước Ngọt Ban Đầu:</span>
-                  <span className="font-extrabold text-blue-700 dark:text-blue-300">
-                    {observedEggPair.before.result === 'sunk' ? '⚓ Đã chìm' : '🫧 Đã nổi'}
-                  </span>
-                  <span className="text-[9px] text-slate-500">{observedEggPair.before.result === 'sunk' ? 'Trứng ở dưới đáy bể' : 'Trứng ở mặt nước'}</span>
-                </div>
-                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 flex flex-col items-center text-center space-y-1">
-                  <span className="text-[10px] font-bold text-amber-600">Khi Hòa Tan Thêm Muối:</span>
-                  <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
-                    {observedEggPair.after.result === 'floating' ? '🫧 Đã nổi' : '⚓ Đã chìm'}
-                  </span>
-                  <span className="text-[9px] text-slate-500">{observedEggPair.after.result === 'floating' ? 'Trứng ở mặt nước' : 'Trứng ở dưới đáy bể'}</span>
-                </div>
-              </div>
-            </div>}
-
-            {/* 2 cột đồ vật đã quan sát: Chìm vs Nổi */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-black text-slate-800 dark:text-slate-200">
-                  <span>⚓</span>
-                  <span>Lần gần nhất: Vật chìm</span>
-                </div>
-                <div className="space-y-1.5">
-                  {items
-                    .filter((i) => observations[i.id] === 'sunk')
-                    .map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center gap-2 p-1.5 rounded-xl bg-white dark:bg-slate-700 shadow-2xs"
-                      >
-                        <img src={item.image} alt={item.name} className="w-6 h-6 object-contain" />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[11px] font-bold truncate">{item.name}</div>
-                          <div className="text-[9px] text-slate-500 truncate">{item.desc}</div>
-                        </div>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-800 font-bold">
-                          Chìm
-                        </span>
-                      </div>
-                    ))}
-                  {items.filter((i) => observations[i.id] === 'sunk').length === 0 && (
-                    <p className="text-[10px] text-slate-400 italic py-2 text-center">
-                      Chưa có vật chìm trong lần quan sát gần nhất
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-black text-emerald-900 dark:text-emerald-200">
-                  <span>🫧</span>
-                  <span>Lần gần nhất: Vật nổi</span>
-                </div>
-                <div className="space-y-1.5">
-                  {items
-                    .filter((i) => observations[i.id] === 'floating')
-                    .map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center gap-2 p-1.5 rounded-xl bg-white dark:bg-slate-700 shadow-2xs"
-                      >
-                        <img src={item.image} alt={item.name} className="w-6 h-6 object-contain" />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[11px] font-bold truncate">{item.name}</div>
-                          <div className="text-[9px] text-slate-500 truncate">{item.desc}</div>
-                        </div>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
-                          Nổi
-                        </span>
-                      </div>
-                    ))}
-                  {items.filter((i) => observations[i.id] === 'floating').length === 0 && (
-                    <p className="text-[10px] text-slate-400 italic py-2 text-center">
-                      Chưa có vật nổi trong lần quan sát gần nhất
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Lịch sử thử nghiệm bất biến (Immutable trial history) */}
-            {trialHistory.length > 0 && (
-              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 space-y-1.5">
-                <span className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                  <span>📜</span>
-                  <span>Lịch sử các lần thử ({trialHistory.length} lần):</span>
-                </span>
-                <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
-                  {trialHistory.slice().reverse().map((t) => (
-                    <div
-                      key={t.id}
-                      className="flex items-center justify-between text-[10px] p-1.5 rounded-lg bg-white dark:bg-slate-700"
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span>{t.itemIcon}</span>
-                        <span className="font-bold">{t.itemName}</span>
-                        <span className="text-slate-400">({t.waterDensity > 1.00001 ? `Muối đã tan: ${t.saltAmount} thìa` : 'Nước ngọt'})</span>
-                      </div>
-                      <span className={`font-black ${t.result === 'floating' ? 'text-emerald-600' : 'text-slate-600'}`}>
-                        {t.result === 'floating' ? '🫧 Nổi' : '⚓ Chìm'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={() => {
-                  setShowObservationBoard(false);
-                  handleResetAllTank();
-                  handleResetSalt();
-                  setTrialHistory([]);
-                  setEggChallengeAttempts(0);
-
-                  setObservations({});
-                  setPredictions({});
-
-                  setEggSaltObserved('untested');
-                  setOnboardingStep(1);
-                }}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition"
-              >
-                Thử Lại Từ Đầu 🔄
-              </button>
-              <button
-                onClick={() => setShowObservationBoard(false)}
-                className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md transition"
-              >
-                Chơi Tiếp Nào! 🎉
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {showObservationBoard&&<ObservationNotebook history={trialHistory} onClose={()=>setShowObservationBoard(false)} onReset={()=>{
+        setShowObservationBoard(false);handleResetAllTank();handleResetSalt();setTrialHistory([]);setObservations({});setPredictions({});setEggChallengeAttempts(0);setEggSaltObserved('untested');
+      }}/>}
 
       {/* ======================================================== */}
       {/* 5. MODAL CHỌN KẾT LUẬN BẰNG TRANH ẢNH CHO BÉ             */}

@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from 'react';
 import type {TankShape} from './types';
 import {SCENE_OPTIONS, SceneSetting} from './SceneBackdrop';
+import {BookOpen,Droplets,Home,Monitor,Volume2,Waves,X} from 'lucide-react';
 
 export type PreparationTab = 'lesson' | 'advanced' | 'hands-on';
 export type TeacherLesson = {mode: 'discovery' | 'egg-challenge'; age: '3-4' | '5-6'; itemIds: string[]};
@@ -16,9 +17,10 @@ type Props = {
   shape:TankShape; onShape:(shape:TankShape)=>void;
   scale:'normal'|'compact'; onScale:(scale:'normal'|'compact')=>void;
   scene:SceneSetting; onScene:(scene:SceneSetting)=>void;
+  onAudio?:()=>void;
 };
 
-export function TeacherPreparation({tab,onTab,onClose,lesson,onStart,items,shape,onShape,scale,onScale,scene,onScene}:Props){
+export function TeacherPreparation({tab,onTab,onClose,lesson,onStart,items,shape,onShape,scale,onScale,scene,onScene,onAudio}:Props){
   const [draft,setDraft]=useState(lesson);
   const closeRef=useRef<HTMLButtonElement>(null);
   useEffect(()=>{const previous=document.activeElement as HTMLElement|null;closeRef.current?.focus();return()=>previous?.focus();},[]);
@@ -57,14 +59,16 @@ export function TeacherPreparation({tab,onTab,onClose,lesson,onStart,items,shape
     }
   }}>
     <section role="dialog" aria-modal="true" aria-label="Chuẩn bị bài cho giáo viên" className="teacher-panel">
-      <header className="teacher-panel-heading"><div><span className="lab-eyebrow">DÀNH CHO GIÁO VIÊN</span><h2>Chuẩn bị bài</h2></div><button ref={closeRef} aria-label="Đóng chuẩn bị bài" onClick={onClose}>✕</button></header>
+      <header className="teacher-panel-heading"><div><span className="lab-eyebrow">GIÁO VIÊN & PHỤ HUYNH</span><h2>Chuẩn bị buổi khám phá</h2></div><button ref={closeRef} aria-label="Đóng chuẩn bị bài" onClick={onClose}><X size={22}/></button></header>
       <nav className="teacher-panel-tabs" aria-label="Nội dung chuẩn bị">
-        {([['lesson','Bài học'],['advanced','Giao diện chơi'],['hands-on','Thực hành tại nhà']] as const).map(([id,label])=><button key={id} aria-pressed={tab===id} onClick={()=>onTab(id)}>{label}</button>)}
+        {([['lesson','Bài học',BookOpen],['advanced','Giao diện',Monitor],['hands-on','Thực hành tại nhà',Home]] as const).map(([id,label,Icon])=><button key={id} aria-pressed={tab===id} onClick={()=>onTab(id)}><Icon size={19}/>{label}</button>)}
+        {onAudio&&<button onClick={onAudio}><Volume2 size={19}/> Âm thanh</button>}
       </nav>
       <div className="teacher-panel-body">
       {tab==='lesson'&&<>
         <h3>1. Chọn mẫu hoạt động</h3><p className="teacher-muted">Chọn một mục tiêu cho buổi học. Cô có thể điều chỉnh đồ vật bên dưới.</p>
-        <div className="teacher-lesson-cards">{LESSONS.map(l=><button key={l.mode} aria-pressed={draft.mode===l.mode} onClick={()=>setDraft({...draft,mode:l.mode,itemIds:[...l.ids]})}><span aria-hidden="true">{l.icon}</span><strong>{l.title}</strong></button>)}</div>
+        <div className="teacher-lesson-cards">{LESSONS.map(l=><button key={l.mode} aria-pressed={draft.mode===l.mode} onClick={()=>setDraft({...draft,mode:l.mode,itemIds:[...l.ids]})}>{l.mode==='discovery'?<Waves size={29}/>:<Droplets size={29}/>}<strong>{l.title}</strong></button>)}</div>
+        <div className="premium-adult-preview"><div className="premium-mini-tank"><div className="premium-mini-water"/>{items.filter(item=>draft.itemIds.includes(item.id)).slice(0,4).map((item,i)=><img key={item.id} src={item.image} alt="" style={{left:(18+i*21)+'%'}}/>)}</div><span>Chuẩn bị đồ vật cho buổi học</span></div>
         <div className="teacher-objective"><h3>Mục tiêu</h3><p>{selected.objective}</p><h3>Quan sát việc học</h3><p>{selected.evidence}</p><p className="teacher-muted">Công cụ: {selected.tools}</p></div>
         <h3>2. Độ tuổi</h3><div className="teacher-choice-row">{(['3-4','5-6'] as const).map(age=><button key={age} aria-pressed={draft.age===age} onClick={()=>setDraft({...draft,age})}>{age==='3-4'?'3–4 tuổi':'5–6 tuổi'}</button>)}</div>
         <p className="teacher-muted">{draft.age==='3-4'?'Một thao tác mỗi lần; trẻ chỉ hoặc gọi tên điều đã thấy.':'Mời trẻ dự đoán, thử lại và kể sự khác nhau; chỉ đổi một yếu tố mỗi lượt.'}</p>
@@ -79,7 +83,7 @@ export function TeacherPreparation({tab,onTab,onClose,lesson,onStart,items,shape
         <p className="teacher-muted">Áp dụng ngay vào cảnh. Thay hình dạng bể đơn thuần không làm đổi tính nổi của vật trong nước có cùng khối lượng riêng.</p>
       </>}
       {tab==='hands-on'&&<>
-        <h3>🔎 Bé là nhà khoa học - Thực hành với đồ vật thật</h3>
+        <h3>Cùng khám phá với đồ vật thật</h3>
         <p className="teacher-muted">Hoạt động đã chọn: {selected.title}</p>
         <section className="teacher-objective"><h3>1. Cần chuẩn bị</h3><ul className="list-disc pl-5 space-y-2">{materials.map(text=><li key={text}>{text}</li>)}</ul></section>
         <section className="teacher-objective"><h3>2. Thay thế hoặc mở rộng</h3><ul className="list-disc pl-5 space-y-2">{alternatives.map(text=><li key={text}>{text}</li>)}</ul></section>

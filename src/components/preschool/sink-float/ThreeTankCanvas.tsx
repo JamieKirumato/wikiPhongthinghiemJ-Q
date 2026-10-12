@@ -9,6 +9,7 @@ import { floatingCenterY } from './buoyancy';
 import { applyItemDamage } from './itemModels';
 import { createItemModel, disposeItemModel } from './premiumItemModel';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { BoatVisual, createFoilBoat, animateFoilBoat, disposeFoilBoat } from './foilBoat';
 import { damageFromImpact, gestureVelocity, floorEggDamage } from './impactPhysics';
 import { playImpact, playWaterSwish, unlockImpactAudio } from './impactAudio';
 import { WaterImpulse } from './waterMotion';
@@ -56,6 +57,7 @@ export interface ThreeTankCanvasHandle {
 }
 
 interface ThreeTankCanvasProps {
+  boatVisual?:BoatVisual;
   floorSpills?:FloorSpill[];
   overflowAt?:number;
   shape: TankShape;
@@ -90,6 +92,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
   (
     {
       shape,
+      boatVisual,
       floorSpills = [],
       overflowAt = 0,
       sceneSetting = 'laboratory',
@@ -116,6 +119,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     ref
   ) => {
     const [dropPreview,setDropPreview]=useState<{x:number;y:number;inside:boolean}|null>(null);
+    const boatStateRef=useRef(boatVisual);boatStateRef.current=boatVisual;
+    const boatMeshRef=useRef<THREE.Group|null>(null);
+    const previousCargoRef=useRef(0);
     const trayPreviewRef=useRef<{item:TankObject;x:number;y:number;velocity?:PreviewVelocity}|null>(null);
     const previewPositionCallbackRef=useRef(onTrayPreviewPosition);previewPositionCallbackRef.current=onTrayPreviewPosition;
     const previewContactRef=useRef<THREE.Vector3|null>(null);
@@ -147,6 +153,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     const tankGroupRef = useRef<THREE.Group | null>(null);
     const waterMeshRef = useRef<THREE.Mesh | null>(null);
     const sandTextureRef=useRef<THREE.Texture|null>(null);
+    const sandMaterialRef=useRef<THREE.MeshBasicMaterial|null>(null);
     const waterSurfaceMeshRef = useRef<THREE.Mesh | null>(null);
     const waterlineRef = useRef<THREE.LineSegments | null>(null);
     const objectsGroupRef = useRef<THREE.Group | null>(null);
@@ -771,10 +778,10 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       container.replaceChildren(renderer.domElement);
 
       // Ánh sáng trong trẻo
-      const ambientLight = new THREE.HemisphereLight(0xfff8ed, 0xc9b198, 1.5);
+      const ambientLight = new THREE.HemisphereLight(0xfff8ed, 0xc9b198, 1.1);
       scene.add(ambientLight);
 
-      const dirLight = new THREE.DirectionalLight(0xfff7e8, 2.4);
+      const dirLight = new THREE.DirectionalLight(0xfff7e8, 1.8);
       dirLight.position.set(-8, 14, 10);
       scene.add(dirLight);
 
@@ -871,6 +878,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         contactShadow.geometry.dispose(); contactShadow.material.dispose(); shadowTexture.dispose();
         contactShadowRef.current = null;
         renderer.dispose();
+        if(boatMeshRef.current){disposeFoilBoat(boatMeshRef.current);boatMeshRef.current=null;}
         environment.dispose();
         itemMeshesRef.current.clear();
         scene.clear();
@@ -943,12 +951,24 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         map:sandTexture,
         toneMapped: false
       });
+      const causticTime={value:0};
+      sandMaterial.onBeforeCompile=shader=>{
+        shader.uniforms.causticTime=causticTime;
+        shader.fragmentShader='uniform float causticTime;\n'+shader.fragmentShader;
+        shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+          float a=sin(vMapUv.x*31.+sin(vMapUv.y*23.+causticTime*.35)*2.);
+          float b=sin(vMapUv.y*28.+sin(vMapUv.x*29.-causticTime*.3)*2.3);
+          float lightVein=pow(max(0.,1.-abs(a+b)*.7),16.);
+          diffuseColor.rgb+=vec3(.08,.13,.13)*lightVein;
+        `);
+      };
+      sandMaterial.userData.causticTime=causticTime;sandMaterialRef.current=sandMaterial;
 
       // Khối nước PALE CYAN trong suốt, không ám tối
       const waterVolumeMat = new THREE.MeshBasicMaterial({
-        color: 0x43bdd6,
+        color: 0x1eafcb,
         transparent: true,
-        opacity: 0.15,
+        opacity: 0.23,
         toneMapped: false,
         depthWrite: false,
         side: THREE.DoubleSide
@@ -1253,6 +1273,17 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       });
     }, [items, showXRay]);
 
+    useEffect(()=>{
+      const scene=sceneRef.current;if(!scene)return;
+      const oldY=boatMeshRef.current?.position.y;
+      if(boatMeshRef.current){scene.remove(boatMeshRef.current);disposeFoilBoat(boatMeshRef.current);boatMeshRef.current=null;}
+      if(boatVisual){
+        const boat=createFoilBoat(boatVisual,previousCargoRef.current);
+        boat.position.y=oldY??dims.waterHeight;
+        scene.add(boat);boatMeshRef.current=boat;previousCargoRef.current=boatVisual.cargo;
+      }
+    },[boatVisual?.hull,boatVisual?.cargo]);
+
     // 4. VÒNG LẶP CHÍNH (RENDER LOOP & 3D PHYSICS ENGINE TỨC THỜI)
     useEffect(() => {
       let lastTime = performance.now();
@@ -1390,6 +1421,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const desiredLevel=hasWater?displacedWaterLevel(introWaterRef.current??baseWaterLevelRef.current,s,d,displacedObjects):sandHeight(d);
         displayedWaterLevelRef.current+=(desiredLevel-displayedWaterLevelRef.current)*(1-Math.exp(-dt*6));
         const effectiveWaterHeight=displayedWaterLevelRef.current;
+        if(sandMaterialRef.current)sandMaterialRef.current.userData.causticTime.value=currentTime/1000;
+        if(boatMeshRef.current&&boatStateRef.current)animateFoilBoat(boatMeshRef.current,boatStateRef.current,effectiveWaterHeight,sandHeight(d),currentTime/1000,wallDt);
 
         // Scale khối nước theo world Y chuẩn
         if (waterMeshRef.current) {

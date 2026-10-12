@@ -1,4 +1,5 @@
 /* The warm classroom plate sits behind live, interactive WebGL geometry. */
+.lab-experience button:focus-visible,.premium-welcome button:focus-visible,.premium-modal-backdrop button:focus-visible{outline:3px solid #09a7b5;outline-offset:3px}
 .lab-experience,.premium-welcome{--ink:#12374a;--muted:#687984;--paper:#fffcf6;--line:#e9e6dd;color:var(--ink);background:var(--paper);font-family:'Nunito','Segoe UI',sans-serif;border:0;box-shadow:none;border-radius:22px}
 .lab-workspace{grid-template-columns:minmax(0,1fr) 272px;grid-template-rows:68px minmax(0,1fr) 60px;gap:12px;padding:0 18px 16px}
 .lab-heading{grid-column:1/-1;padding:0 178px 0 0;gap:10px}
