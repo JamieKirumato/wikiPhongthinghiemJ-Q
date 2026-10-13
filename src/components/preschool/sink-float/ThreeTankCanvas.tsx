@@ -139,6 +139,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     const lastWaterGestureRef = useRef({time:0,x:0,y:0});
     const activePointerRef = useRef<number | null>(null);
     const mountRef = useRef<HTMLDivElement | null>(null);
+    const backdropRef = useRef<HTMLImageElement | null>(null);
     const observedCallbackRef = useRef(onItemObserved);
     observedCallbackRef.current = onItemObserved;
 
@@ -1319,6 +1320,17 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         }
         orbit.yaw += (orbit.targetYaw - orbit.yaw) * 0.12;
         orbit.pitch += (orbit.targetPitch - orbit.pitch) * 0.12;
+        // A stationary photograph makes a camera orbit look like a tank spin.
+        // Shift the room with the viewpoint while keeping the tank fixed in 3D.
+        if (backdropRef.current && mountRef.current) {
+          const yawFromFront = orbit.yaw - DEFAULT_YAW;
+          const reach = Math.min(1, Math.abs(yawFromFront) / 1.05);
+          const pitchFromFront = orbit.pitch - DEFAULT_PITCH;
+          const scale = 1 + Math.max(reach * .22, Math.abs(pitchFromFront) * .36);
+          const panX = -Math.sin(yawFromFront) * mountRef.current.clientWidth * .088;
+          const panY = pitchFromFront * mountRef.current.clientHeight * .12;
+          backdropRef.current.style.transform = `translate3d(${panX}px, ${panY}px, 0) scale(${scale})`;
+        }
 
         // Fit all eight corners at the current angle. Always fit the NORMAL
         // tank so selecting 50% never auto-zooms the small tank back to full size.
@@ -1370,8 +1382,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           camera.position.set(cx+targetX, cy, cz+targetZ);
           camera.lookAt(targetX, targetY, targetZ);
           camera.updateMatrixWorld();
-          // The photograph is stationary, so orbiting around the tank's middle
-          // otherwise makes its footprint slide away from the photographed table.
+          // Orbiting around the tank's middle otherwise makes its footprint
+          // slide away from the photographed table.
           // Keep the shadow/contact point at its default screen height while
           // allowing the camera to change its viewing angle around the tank.
           const tableContact = new THREE.Vector3(0, -.595, 0);
@@ -1886,7 +1898,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       if (glassHits.length) {
         orbitRef.current.isDragging=1; orbitRef.current.startX=e.clientX; orbitRef.current.startY=e.clientY;
         orbitRef.current.isAutoRotating=false; onInteractionModeChange('orbit');
-        onMessageUpdate('Con đang xoay bể. Buông tay để cầm đồ vật; lăn chuột để nhìn gần hoặc xa nhé.');
+        onMessageUpdate('Con đang đổi góc nhìn. Bể vẫn ở trên bàn; buông tay để cầm đồ vật nhé.');
       }
 
     };
@@ -1934,7 +1946,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         orbit.startX = e.clientX;
         orbit.startY = e.clientY;
 
-        orbit.targetYaw -= dx * 0.005;
+        // The approved room images are single viewpoints. Stay within their
+        // useful tabletop arc instead of circling behind a flat photograph.
+        orbit.targetYaw = Math.max(-.93, Math.min(1.17, orbit.targetYaw - dx * 0.005));
         orbit.yaw = orbit.targetYaw;
         // A steep overhead orbit conflicts with the fixed photographic table:
         // the near edge projects below the worktop even though the tank stays put.
@@ -2073,7 +2087,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
     return (
       <div className="lab-canvas">
-        <SceneBackdrop setting={sceneSetting}/>
+        <SceneBackdrop setting={sceneSetting} imageRef={backdropRef}/>
         <div
           ref={mountRef}
           onPointerDown={handlePointerDown}

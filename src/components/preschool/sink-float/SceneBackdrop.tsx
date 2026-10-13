@@ -12,9 +12,9 @@ export const SCENE_OPTIONS: {id:SceneSetting;label:string;icon:string;image:stri
 ].map(option=>({...option,id:option.id as SceneSetting,image:`/assets/sink-float/scenes/${option.id}.webp`,thumbnail:`/assets/sink-float/scenes/${option.id}-thumb.webp`}));
 
 /** Background plates contain no tank or objects: all experiment geometry stays live. */
-export function SceneBackdrop({ setting }: { setting: SceneSetting }) {
+export function SceneBackdrop({ setting, imageRef }: { setting: SceneSetting; imageRef?: React.Ref<HTMLImageElement> }) {
   const scene = SCENE_OPTIONS.find(option=>option.id===setting) || SCENE_OPTIONS[0];
-  return <img key={scene.id} aria-hidden="true" alt="" src={scene.image}
+  return <img key={scene.id} ref={imageRef} aria-hidden="true" alt="" src={scene.image}
     data-scene={scene.id} className="lab-studio-backdrop" draggable={false}
     onError={event=>{const img=event.currentTarget;if(!img.src.endsWith('/classroom-studio.png'))img.src='/assets/sink-float/classroom-studio.png';}}/>;
 }
