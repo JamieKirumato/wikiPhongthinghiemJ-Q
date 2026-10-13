@@ -50,6 +50,7 @@ export interface ThreeTankCanvasHandle {
   cancelActiveGesture: () => void;
   resetDefaultView: () => void;
   resetSideView: () => void;
+  resetTopView: () => void;
   refreshObservations: () => void;
   stirAtScreenPoint: (x: number, y: number, strength?: number, direction?: number, touchesSand?:boolean) => void;
   setSaltDissolveProgress: (progress: number) => void;
@@ -205,6 +206,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     });
 
     const zoomRef = useRef(1);
+    const TABLE_HEIGHT = -0.22;
     const introGroupRef=useRef<{action:IntroAction;group:THREE.Group;actor?:THREE.Group}|null>(null);
     const introWaterRef=useRef<number|null>(null);
     const heldIdRef = useRef<string | null>(null);
@@ -294,7 +296,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       const rect=mountRef.current.getBoundingClientRect();
       if(x<rect.left||x>rect.right||y<rect.top||y>rect.bottom)return null;
       const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((x-rect.left)/rect.width*2-1,-(y-rect.top)/rect.height*2+1),cameraRef.current);
-      const hit=new THREE.Vector3();return ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),.6),hit)?{x:hit.x,z:hit.z}:null;
+      const hit=new THREE.Vector3();return ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-TABLE_HEIGHT),hit)?{x:hit.x,z:hit.z}:null;
     };
     const flowTarget=(x:number,y:number,sourceHeight?:number):FlowTarget|null=>{
       if(!mountRef.current||!cameraRef.current)return null;
@@ -304,8 +306,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       const point=new THREE.Vector3(),d=dimsRef.current,shape=shapeRef.current;
       const atRim=ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-(sourceHeight??d.height)),point);
       const inside=!!atRim&&isPointInsideFootprint(point.x,point.z,shape,d,.4);
-      if(!inside){if(!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),.6),point)||isPointInsideFootprint(point.x,point.z,shape,d,0))return null;}
-      const target=new THREE.Vector3(point.x,inside?Math.max(sandHeight(d),displayedWaterLevelRef.current):-.585,point.z);
+      if(!inside){if(!ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-TABLE_HEIGHT),point)||isPointInsideFootprint(point.x,point.z,shape,d,0))return null;}
+      const target=new THREE.Vector3(point.x,inside?Math.max(sandHeight(d),displayedWaterLevelRef.current):TABLE_HEIGHT+.015,point.z);
       const projected=target.clone().project(camera);
       return {x:rect.left+(projected.x+1)*rect.width/2,y:rect.top+(1-projected.y)*rect.height/2,worldX:target.x,worldZ:target.z,inside};
     };
@@ -316,10 +318,10 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       const radius=ITEM_WORLD_SCALES[itemKind(item.id)]?.radius??.4;
       const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((screenX-rect.left)/rect.width*2-1,-(screenY-rect.top)/rect.height*2+1),camera);
       const hand=projectScreenToWorldInternal(screenX,screenY,0);
-      const height=Math.max(radius-.6,Math.min(d.height+4,hand?.y??d.height+1.1));
+      const height=Math.max(radius+TABLE_HEIGHT,Math.min(d.height+4,hand?.y??d.height+1.1));
       const raw=releasePosition(ray.ray,d,s,displayedWaterLevelRef.current,height,radius);
       const position=alignDropToScreenX(raw,camera,(screenX-rect.left)/rect.width*2-1,d,s,displayedWaterLevelRef.current,radius);
-      position.y=Math.max(radius-.6,Math.min(d.height+4,position.y));
+      position.y=Math.max(radius+TABLE_HEIGHT,Math.min(d.height+4,position.y));
       if(position.y-radius<d.height)Object.assign(position,resolveTankWall(position.x,position.z,radius,s,d,true));
       const age=screenVelocity?.sampledAt===undefined?0:Math.max(0,(performance.now()-screenVelocity.sampledAt)/1000);
       const decay=screenVelocity?.duration?screenVelocity.duration/(screenVelocity.duration+age):1;
@@ -642,6 +644,13 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         orbitRef.current.targetPitch = 0.08;
         orbitRef.current.isAutoRotating = false;
       },
+      resetTopView: () => {
+        dipFocusRef.current=null;
+        zoomRef.current = 1;
+        orbitRef.current.targetYaw = DEFAULT_YAW;
+        orbitRef.current.targetPitch = 1.4;
+        orbitRef.current.isAutoRotating = false;
+      },
       setSaltDissolveProgress: (progress: number) => { dissolveProgressRef.current = progress; },
       stirAtScreenPoint: (x: number, y: number, strength = 1, direction = 0, touchesSand=false) => {
         if(!mountRef.current||!cameraRef.current)return;
@@ -799,9 +808,20 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       scene.add(objectsGroup);
       objectsGroupRef.current = objectsGroup;
 
-      // A quiet worktop still catches objects thrown outside the tank.
-      const floor = new THREE.Mesh(new THREE.PlaneGeometry(32,32), new THREE.MeshBasicMaterial({color:0xe6eee8,toneMapped:false}));
-      floor.rotation.x = -Math.PI/2; floor.position.y = -0.61; scene.add(floor); floorRef.current = floor;
+      // The approved scene photo supplies the tabletop texture, but the table
+      // itself shares the tank's 3D space so both stay in contact as the camera moves.
+      const tableFade = document.createElement('canvas');
+      tableFade.width = 2; tableFade.height = 256;
+      const fadeContext = tableFade.getContext('2d')!;
+      const fade = fadeContext.createLinearGradient(0,0,0,256);
+      fade.addColorStop(0,'#000'); fade.addColorStop(.4,'#000');
+      fade.addColorStop(.46,'#fff'); fade.addColorStop(1,'#fff');
+      fadeContext.fillStyle = fade; fadeContext.fillRect(0,0,2,256);
+      const fadeTexture = new THREE.CanvasTexture(tableFade);
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(400,400), new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false,transparent:true,alphaMap:fadeTexture}));
+      floor.rotation.x = -Math.PI/2; floor.position.y = TABLE_HEIGHT; floor.visible = false;
+      floor.renderOrder = -10;
+      scene.add(floor); floorRef.current = floor;
       // Soft contact shadow, outside the tank group so it never becomes a picking target.
       const shadowCanvas = document.createElement('canvas');
       shadowCanvas.width = shadowCanvas.height = 128;
@@ -813,7 +833,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       shadowContext.fillStyle = shadowGradient; shadowContext.fillRect(0,0,128,128);
       const shadowTexture = new THREE.CanvasTexture(shadowCanvas);
       const contactShadow = new THREE.Mesh(new THREE.PlaneGeometry(1,1), new THREE.MeshBasicMaterial({map:shadowTexture,transparent:true,depthWrite:false,toneMapped:false}));
-      contactShadow.rotation.x = -Math.PI/2; contactShadow.position.y = -.595;
+      contactShadow.rotation.x = -Math.PI/2; contactShadow.position.y = TABLE_HEIGHT + .005;
       scene.add(contactShadow); contactShadowRef.current = contactShadow;
       // Hạt muối rơi 3D
       const maxSaltCount = 200;
@@ -875,7 +895,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         if(overflowRef.current){disposeItemModel(overflowRef.current);overflowRef.current=null;}
         sandTextureRef.current?.dispose();
         saltGeom.dispose(); saltMat.dispose();
-        floor.geometry.dispose(); floor.material.dispose();
+        floor.geometry.dispose(); floor.material.dispose(); fadeTexture.dispose();
         contactShadow.geometry.dispose(); contactShadow.material.dispose(); shadowTexture.dispose();
         contactShadowRef.current = null;
         renderer.dispose();
@@ -887,9 +907,40 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     }, []);
 
     useEffect(() => {
-      // Every photographic plate already includes a tabletop; the flat WebGL
-      // floor would cover it. Keep the live contact shadow and spill geometry.
-      if (floorRef.current) floorRef.current.visible = false;
+      const floor = floorRef.current;
+      if (!floor) return;
+      let cancelled = false;
+      floor.visible = false;
+      let tableTexture: THREE.CanvasTexture | null = null;
+      const source = new THREE.TextureLoader().load(`/assets/sink-float/scenes/${sceneSetting}.webp`, loaded => {
+        if (cancelled) return;
+        const image = loaded.image as HTMLImageElement;
+        const canvas = document.createElement('canvas');
+        canvas.width = image.naturalWidth;
+        canvas.height = Math.round(image.naturalHeight * .26);
+        const context = canvas.getContext('2d');
+        if (!context) return;
+        context.drawImage(image, 0, Math.round(image.naturalHeight * .64), image.naturalWidth, canvas.height, 0, 0, canvas.width, canvas.height);
+        tableTexture = new THREE.CanvasTexture(canvas);
+        tableTexture.colorSpace = THREE.SRGBColorSpace;
+        // One tabletop image spans the central 40 world units; the colour at
+        // its border extends to the horizon without exposing a plane edge.
+        tableTexture.repeat.set(10, 10);
+        tableTexture.offset.set(-4.5, -4.5);
+        floor.material.map = tableTexture;
+        floor.material.needsUpdate = true;
+        floor.visible = true;
+        source.dispose();
+      });
+      return () => {
+        cancelled = true;
+        if (floor.material.map === tableTexture) {
+          floor.material.map = null;
+          floor.material.needsUpdate = true;
+        }
+        tableTexture?.dispose();
+        source.dispose();
+      };
     }, [sceneSetting]);
 
     // 2. DỰNG HÌNH HỌC BỂ KÍNH VÀ NƯỚC (RENDER ORDER & PALE CYAN TRANSPARENCY)
@@ -1382,29 +1433,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           camera.position.set(cx+targetX, cy, cz+targetZ);
           camera.lookAt(targetX, targetY, targetZ);
           camera.updateMatrixWorld();
-          // Orbiting around the tank's middle otherwise makes its footprint
-          // slide away from the photographed table.
-          // Keep the shadow/contact point at its default screen height while
-          // allowing the camera to change its viewing angle around the tank.
-          const tableContact = new THREE.Vector3(0, -.595, 0);
-          const fovScale = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-          const defaultDistance = tankCameraDistance(fitDims, camera.aspect, DEFAULT_YAW, DEFAULT_PITCH) * zoomRef.current;
-          const defaultDeltaY = tableContact.y - d.height * .4;
-          const defaultAnchorY = defaultDeltaY * Math.cos(DEFAULT_PITCH) /
-            ((defaultDistance - defaultDeltaY * Math.sin(DEFAULT_PITCH)) * fovScale);
-          // At an oblique view the nearest foot comes forward in perspective;
-          // leave it a little extra room above the bottom edge of the table.
-          const obliqueView = Math.min(1, Math.max(
-            Math.abs(orbit.yaw - DEFAULT_YAW) / .65,
-            Math.abs(orbit.pitch - DEFAULT_PITCH) / .25
-          ));
-          const anchoredY = defaultAnchorY + obliqueView * .12;
-          const projectedContact = tableContact.clone().project(camera);
-          const forward = camera.getWorldDirection(new THREE.Vector3());
-          const contactDepth = tableContact.clone().sub(camera.position).dot(forward);
-          const verticalShift = (projectedContact.y - anchoredY) * contactDepth * fovScale * (1 - focusBlend);
-          camera.position.addScaledVector(new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion), verticalShift);
-          camera.updateMatrixWorld();
+          // The table and tank now share the same world coordinates. The camera
+          // alone orbits their fixed centre, including at a steep top-down angle.
+          const tableContact = new THREE.Vector3(0, TABLE_HEIGHT, 0);
           if (mountRef.current) mountRef.current.dataset.tableContactY = tableContact.project(camera).y.toFixed(4);
           updateTrayPreview();
           if(heldIdRef.current&&orbit.isDragging===2){
@@ -1429,7 +1460,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             const group=new THREE.Group();
             for(const edge of overflowOutlets(s,d)){
               const endX=edge.x+edge.nx*.65,endZ=edge.z+edge.nz*.65;
-              const curve=new THREE.QuadraticBezierCurve3(new THREE.Vector3(edge.x,d.height-.08,edge.z),new THREE.Vector3(endX,d.height*.7,endZ),new THREE.Vector3(endX,-.58,endZ));
+              const curve=new THREE.QuadraticBezierCurve3(new THREE.Vector3(edge.x,d.height-.08,edge.z),new THREE.Vector3(endX,d.height*.7,endZ),new THREE.Vector3(endX,TABLE_HEIGHT+.02,endZ));
               group.add(new THREE.Mesh(new THREE.TubeGeometry(curve,12,.045,5,false),new THREE.MeshBasicMaterial({color:0x8be5ef,transparent:true,opacity:.55,depthWrite:false})));
             }
             scene?.add(group);overflowRef.current=group;
@@ -1442,7 +1473,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           for(const spill of spillsRef.current){
             const radius=Math.max(.18,Math.sqrt(spill.ml/180));
             const mesh=new THREE.Mesh(new THREE.CircleGeometry(radius,48),new THREE.MeshBasicMaterial({color:0x80d9e9,transparent:true,opacity:.65,depthWrite:false,side:THREE.DoubleSide}));
-            mesh.rotation.x=-Math.PI/2;mesh.scale.y=.75;mesh.position.set(spill.x,-.585,spill.z);group.add(mesh);
+            mesh.rotation.x=-Math.PI/2;mesh.scale.y=.75;mesh.position.set(spill.x,TABLE_HEIGHT+.015,spill.z);group.add(mesh);
           }
           scene?.add(group);puddlesRef.current=group;renderedSpillsRef.current=spillsRef.current;
         }
@@ -1568,7 +1599,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             }
             const safe=resolveTankWall(nx,nz,itemR,s,d,false);
             if(item.y-itemR<d.height){nx=safe.x;nz=safe.z;}
-            const floorY=item.damage==='broken' ? -0.42 : itemR-0.6;
+            const floorY=item.damage==='broken' ? TABLE_HEIGHT+.18 : itemR+TABLE_HEIGHT;
             const falling = advanceAirFall(item.y, item.vy, dt,objectAirDrag(item.id,item.weightGrams,item.volumeMl));
             let nextVy=falling.vy;
             const nextY=Math.max(floorY,falling.y);
@@ -1946,13 +1977,10 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         orbit.startX = e.clientX;
         orbit.startY = e.clientY;
 
-        // The approved room images are single viewpoints. Stay within their
-        // useful tabletop arc instead of circling behind a flat photograph.
+        // Keep the camera in front of the single-viewpoint room photograph.
         orbit.targetYaw = Math.max(-.93, Math.min(1.17, orbit.targetYaw - dx * 0.005));
         orbit.yaw = orbit.targetYaw;
-        // A steep overhead orbit conflicts with the fixed photographic table:
-        // the near edge projects below the worktop even though the tank stays put.
-        orbit.targetPitch = Math.max(0.08, Math.min(0.25, orbit.targetPitch + dy * 0.004));
+        orbit.targetPitch = Math.max(0.08, Math.min(1.4, orbit.targetPitch + dy * 0.004));
         orbit.pitch = orbit.targetPitch;
         return;
       }

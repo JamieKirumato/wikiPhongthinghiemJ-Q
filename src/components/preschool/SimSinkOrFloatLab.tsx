@@ -15,6 +15,7 @@ import {
   X,
   Compass,
   Eye,
+  ArrowDownToLine,
   Waves
 } from 'lucide-react';
 import { BookOpen, Pencil, Plus, Users, Droplets } from 'lucide-react';
@@ -700,6 +701,12 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     setMessage('Đã chuyển sang góc nhìn ngang thành bể để quan sát sát mặt nước!');
   };
 
+  const handleResetTopView = () => {
+    markUserInteracted();
+    threeTankRef.current?.resetTopView();
+    setMessage('Đã chuyển sang góc nhìn từ trên cao xuống bể!');
+  };
+
   // Dọn bể: vớt đồ vật trả về khay & dọn sạch hạt muối
   const handleResetAllTank = () => {
     markUserInteracted();
@@ -1264,6 +1271,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               <div className="premium-scene-controls" onClick={event=>event.stopPropagation()}>
                 <button onClick={handleResetDefaultView} title="Góc nhìn mặc định" aria-label="Góc nhìn mặc định"><Compass size={21}/></button>
                 <button onClick={handleResetSideView} title="Góc nhìn ngang" aria-label="Góc nhìn ngang"><Eye size={21}/></button>
+                 <button onClick={handleResetTopView} title="Góc nhìn từ trên cao" aria-label="Góc nhìn từ trên cao"><ArrowDownToLine size={21}/></button>
                 <button disabled={comparisonBusy} onClick={handleResetAllTank}><RotateCcw size={19}/> Thử lại</button>
               </div>
               {LADLE_ENABLED&&(carriedBucketVisible||bucketWater.ml>0||bucketWater.fullBuckets.length>0)&&<div ref={bucketRef} data-water-bucket aria-label="Các xô hứng nước" className="lab-bucket absolute bottom-5 left-5 z-30 pointer-events-none flex flex-wrap items-end gap-2 max-w-[calc(100%-40px)]">
