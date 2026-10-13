@@ -1370,6 +1370,30 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           camera.position.set(cx+targetX, cy, cz+targetZ);
           camera.lookAt(targetX, targetY, targetZ);
           camera.updateMatrixWorld();
+          // The photograph is stationary, so orbiting around the tank's middle
+          // otherwise makes its footprint slide away from the photographed table.
+          // Keep the shadow/contact point at its default screen height while
+          // allowing the camera to change its viewing angle around the tank.
+          const tableContact = new THREE.Vector3(0, -.595, 0);
+          const fovScale = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+          const defaultDistance = tankCameraDistance(fitDims, camera.aspect, DEFAULT_YAW, DEFAULT_PITCH) * zoomRef.current;
+          const defaultDeltaY = tableContact.y - d.height * .4;
+          const defaultAnchorY = defaultDeltaY * Math.cos(DEFAULT_PITCH) /
+            ((defaultDistance - defaultDeltaY * Math.sin(DEFAULT_PITCH)) * fovScale);
+          // At an oblique view the nearest foot comes forward in perspective;
+          // leave it a little extra room above the bottom edge of the table.
+          const obliqueView = Math.min(1, Math.max(
+            Math.abs(orbit.yaw - DEFAULT_YAW) / .65,
+            Math.abs(orbit.pitch - DEFAULT_PITCH) / .25
+          ));
+          const anchoredY = defaultAnchorY + obliqueView * .12;
+          const projectedContact = tableContact.clone().project(camera);
+          const forward = camera.getWorldDirection(new THREE.Vector3());
+          const contactDepth = tableContact.clone().sub(camera.position).dot(forward);
+          const verticalShift = (projectedContact.y - anchoredY) * contactDepth * fovScale * (1 - focusBlend);
+          camera.position.addScaledVector(new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion), verticalShift);
+          camera.updateMatrixWorld();
+          if (mountRef.current) mountRef.current.dataset.tableContactY = tableContact.project(camera).y.toFixed(4);
           updateTrayPreview();
           if(heldIdRef.current&&orbit.isDragging===2){
             const held=itemsRef.current.find(item=>item.id===heldIdRef.current),samples=dragSamplesRef.current,first=samples[0],last=samples[samples.length-1];
@@ -1912,7 +1936,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
         orbit.targetYaw -= dx * 0.005;
         orbit.yaw = orbit.targetYaw;
-        orbit.targetPitch = Math.max(0.18, Math.min(.95, orbit.targetPitch + dy * 0.004));
+        // A steep overhead orbit conflicts with the fixed photographic table:
+        // the near edge projects below the worktop even though the tank stays put.
+        orbit.targetPitch = Math.max(0.08, Math.min(0.25, orbit.targetPitch + dy * 0.004));
         orbit.pitch = orbit.targetPitch;
         return;
       }
