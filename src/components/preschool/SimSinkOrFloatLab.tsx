@@ -61,6 +61,7 @@ import './sink-float/labExperience.css';
 import './sink-float/premiumExperience.css';
 import './sink-float/premiumPanels.css';
 import './sink-float/teacherPreparation.css';
+import './sink-float/teacherFidelity.css';
 import { GuidedDemoHand } from './sink-float/GuidedDemoHand';
 import { TeacherObjectivesModal } from './sink-float/TeacherObjectivesModal';
 
