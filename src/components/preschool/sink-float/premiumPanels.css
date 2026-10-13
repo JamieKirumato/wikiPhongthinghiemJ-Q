@@ -1,4 +1,11 @@
 .lab-heading { padding-right: 226px; }
+.teacher-scene-picker { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; }
+.teacher-scene-picker button { position: relative; padding: 5px; overflow: hidden; background: #fffefa; display: flex; flex-direction: column; gap: 7px; border: 2px solid #e9e6dd; }
+.teacher-scene-picker button img { width: 100%; height: auto; aspect-ratio: 8/5; object-fit: cover; border-radius: 9px; }
+.teacher-scene-picker button > span:first-of-type { padding: 0 3px 4px; font-size: 12px; font-weight: 750; line-height: 1.4; }
+.teacher-scene-picker button[aria-pressed=true] { border-color: #0aabba; background: #e8faf8; }
+.teacher-scene-selected { position: absolute; top: 10px; right: 10px; width: 23px; height: 23px; display: grid; place-items: center; border-radius: 50%; background: #087d88; color: white; font-size: 14px; }
+@media(max-width:639px) { .teacher-scene-picker { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 .premium-dock-tabs { display: flex; gap: 4px; padding: 4px; background: #f3f2ec; border-radius: 13px; }
 .premium-dock-tabs button { flex: 1; min-height: 39px; border-radius: 10px; font-size: 13px; font-weight: 700; }
 .premium-dock-tabs button[aria-pressed=true] { background: white; box-shadow: 0 2px 7px #1838460a; }

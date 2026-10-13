@@ -1204,7 +1204,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           {/* HIỂN THỊ THEO ACTIVITY MODE */}
           {activityMode === 'boat-challenge' ? (
             /* THỬ THÁCH THUYỀN CHỞ HÀNG MỚI */
-            <BoatChallenge controlsHost={boatControlsHost} soundEnabled={soundEnabled} onMessageUpdate={setMessage} />
+            <BoatChallenge sceneSetting={sceneSetting} controlsHost={boatControlsHost} soundEnabled={soundEnabled} onMessageUpdate={setMessage} />
           ) : activityMode === 'real-life' ? (
             /* KHÁM PHÁ THỰC TẾ & BÀI HỌC CUỘC SỐNG */
             <RealLifeActivityCards soundEnabled={soundEnabled} onMessageUpdate={setMessage} />

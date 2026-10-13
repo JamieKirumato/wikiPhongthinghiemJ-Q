@@ -78,7 +78,7 @@ export function TeacherPreparation({tab,onTab,onClose,lesson,onStart,items,shape
       {tab==='advanced'&&<>
         <h3>Hình dạng bể</h3><div className="teacher-choice-row">{([['rectangle','Chữ nhật'],['square','Lập phương'],['cylinder','Trụ tròn'],['triangle','Tam giác']] as const).map(([id,label])=><button key={id} aria-pressed={shape===id} onClick={()=>onShape(id)}>{label}</button>)}</div>
         <h3>Kích thước bể</h3><div className="teacher-choice-row"><button aria-pressed={scale==='normal'} onClick={()=>onScale('normal')}>Bể lớn</button><button aria-pressed={scale==='compact'} onClick={()=>onScale('compact')}>Bể nhỏ</button></div>
-        <h3>Cảnh nền</h3><div className="teacher-scene-picker">{SCENE_OPTIONS.map(option=><button key={option.id} aria-pressed={scene===option.id} onClick={()=>onScene(option.id)}><span aria-hidden="true">{option.icon}</span> {option.label}</button>)}</div>
+        <h3>Cảnh nền</h3><div className="teacher-scene-picker">{SCENE_OPTIONS.map(option=><button key={option.id} aria-pressed={scene===option.id} onClick={()=>onScene(option.id)}><img src={option.thumbnail} alt="" width={320} height={200} draggable={false}/><span>{option.label}</span>{scene===option.id&&<span className="teacher-scene-selected" aria-hidden="true">✓</span>}</button>)}</div>
         <p className="teacher-muted">Cảnh nền chỉ thay không gian xung quanh. Loại nước trong bể giữ theo thí nghiệm đang thực hiện.</p>
         <p className="teacher-muted">Áp dụng ngay vào cảnh. Thay hình dạng bể đơn thuần không làm đổi tính nổi của vật trong nước có cùng khối lượng riêng.</p>
       </>}

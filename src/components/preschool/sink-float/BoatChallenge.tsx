@@ -2,10 +2,11 @@ import { createPortal } from 'react-dom';
 import React, { useEffect, useRef, useState } from 'react';
 import { Box, Lightbulb, Minus, Plus, RotateCcw } from 'lucide-react';
 import { ThreeTankCanvas } from './ThreeTankCanvas';
+import type { SceneSetting } from './SceneBackdrop';
 import { getTankDimensions } from './tankGeometry';
 import { soundEngine } from '../../../utils/audioEffects';
 
-interface Props { soundEnabled: boolean; onMessageUpdate: (message: string) => void; controlsHost?: HTMLElement | null; }
+interface Props { soundEnabled: boolean; onMessageUpdate: (message: string) => void; controlsHost?: HTMLElement | null; sceneSetting: SceneSetting; }
 type Hull = 'ball' | 'shallow' | 'deep';
 const HULLS = {
   ball: { label: 'Vo thành viên', icon: '⚪', capacityMl: 15 / 2.7 },
@@ -18,7 +19,7 @@ const CARGO_MASS_G = 15;
 /** Displacement capacity, identical material mass, and persistent flooding.
  * Surface tension is omitted: the solid ball is submerged before release.
  */
-export const BoatChallenge: React.FC<Props> = ({ soundEnabled, onMessageUpdate, controlsHost }) => {
+export const BoatChallenge: React.FC<Props> = ({ soundEnabled, onMessageUpdate, controlsHost, sceneSetting }) => {
   const [hull, setHull] = useState<Hull>('shallow');
   const [cargo, setCargo] = useState(0);
   const [flooded, setFlooded] = useState(false);
@@ -75,7 +76,7 @@ export const BoatChallenge: React.FC<Props> = ({ soundEnabled, onMessageUpdate, 
   </div>;
 
   return <div className="lab-scene premium-boat-scene" ref={sceneRef} role="group" aria-label="Bể thuyền chở hàng">
-    <ThreeTankCanvas shape="rectangle" scale="normal" dims={dims} items={[]} onUpdateItems={()=>{}} waterDensity={1} interactionMode="interact" onInteractionModeChange={()=>{}} holdingItemId={null} onHoldItem={()=>{}} workflowStep="idle" onPourSaltAtPoint={()=>{}} soundEnabled={soundEnabled} onMessageUpdate={onMessageUpdate} showXRay={false} boatVisual={{hull,cargo,immersion,sinking}}/>
+    <ThreeTankCanvas sceneSetting={sceneSetting} shape="rectangle" scale="normal" dims={dims} items={[]} onUpdateItems={()=>{}} waterDensity={1} interactionMode="interact" onInteractionModeChange={()=>{}} holdingItemId={null} onHoldItem={()=>{}} workflowStep="idle" onPourSaltAtPoint={()=>{}} soundEnabled={soundEnabled} onMessageUpdate={onMessageUpdate} showXRay={false} boatVisual={{hull,cargo,immersion,sinking}}/>
     <div className="premium-scene-prompt">Con thử chở thêm nhé!</div>
     {showHint&&<div className="premium-boat-hint">{attempts>0?'Con thử mép thuyền cao hơn. Thêm một kiện mỗi lần rồi quan sát.':'Khi thêm hàng, mép thuyền gần mặt nước hay xa hơn?'}</div>}
     <div className="premium-boat-status" role="status">{sinking?hull==='ball'?'Viên nhôm đã chìm':'Nước vào thuyền rồi. Con thử lại nhé!':cargo+' kiện hàng · Con nhìn mép thuyền nhé.'}</div>

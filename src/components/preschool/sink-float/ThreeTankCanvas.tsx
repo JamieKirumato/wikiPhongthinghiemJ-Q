@@ -886,9 +886,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     }, []);
 
     useEffect(() => {
-      const floorColors:Record<SceneSetting,number>={laboratory:0xe6eee8,seaside:0xffedc7,classroom:0xeee6d6,'home-yard':0xe6e9d8,'school-garden':0xdce8d6,picnic:0xe0ead7,'nature-corner':0xeee5d5,'discovery-island':0xf3e8ca};
-      floorRef.current?.material.color.setHex(floorColors[sceneSetting]);
-      if (floorRef.current) floorRef.current.visible = sceneSetting !== 'laboratory' && sceneSetting !== 'classroom';
+      // Every photographic plate already includes a tabletop; the flat WebGL
+      // floor would cover it. Keep the live contact shadow and spill geometry.
+      if (floorRef.current) floorRef.current.visible = false;
     }, [sceneSetting]);
 
     // 2. DỰNG HÌNH HỌC BỂ KÍNH VÀ NƯỚC (RENDER ORDER & PALE CYAN TRANSPARENCY)
