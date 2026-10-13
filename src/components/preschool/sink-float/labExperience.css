@@ -93,9 +93,6 @@
 .teacher-scene-picker { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
 .teacher-scene-picker button { text-align: left; }
 .teacher-practice-steps li { padding: 10px 12px; background: #fffefb; border-radius: 10px; }
-[data-teacher-mode=true][data-teacher-ready=false] .lab-main,
-[data-teacher-mode=true][data-teacher-ready=false] .lab-object-tray,
-[data-teacher-mode=true][data-teacher-ready=false] .lab-tools { visibility: hidden; }
 .teacher-controls-backdrop { position: absolute; inset: 0; z-index: 100; background: #1b352a55; display: flex; justify-content: flex-end; }
 .teacher-controls-panel { width: min(420px,100%); display: flex; flex-direction: column; background: #fffefb; min-height: 0; }
 .teacher-controls-panel button { min-height: 44px; }

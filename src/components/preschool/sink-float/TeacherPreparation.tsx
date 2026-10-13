@@ -1,7 +1,10 @@
 import {useEffect, useRef, useState} from 'react';
+import {ThreeTankCanvas} from './ThreeTankCanvas';
+import {getTankDimensions} from './tankGeometry';
+import {TankThumbnail} from './TankThumbnail';
 import type {TankShape} from './types';
 import {SCENE_OPTIONS, SceneSetting} from './SceneBackdrop';
-import {BookOpen,Droplets,Home,Monitor,Volume2,Waves,X} from 'lucide-react';
+import {BookOpen,Droplets,Home,Monitor,Volume2,Waves,X,ShieldCheck,Lightbulb,MessageCircle,Check,ArrowLeft} from 'lucide-react';
 
 export type PreparationTab = 'lesson' | 'advanced' | 'hands-on';
 export type TeacherLesson = {mode: 'discovery' | 'egg-challenge'; age: '3-4' | '5-6'; itemIds: string[]};
@@ -22,11 +25,12 @@ type Props = {
 
 export function TeacherPreparation({tab,onTab,onClose,lesson,onStart,items,shape,onShape,scale,onScale,scene,onScene,onAudio}:Props){
   const [draft,setDraft]=useState(lesson);
+  const [guideMode,setGuideMode]=useState(lesson.mode);
   const closeRef=useRef<HTMLButtonElement>(null);
   useEffect(()=>{const previous=document.activeElement as HTMLElement|null;closeRef.current?.focus();return()=>previous?.focus();},[]);
   const selected=LESSONS.find(l=>l.mode===draft.mode)||LESSONS[0];
   const ready=draft.itemIds.length>0;
-  const isWaterLesson=draft.mode==='egg-challenge';
+  const isWaterLesson=guideMode==='egg-challenge';
   const materials=isWaterLesson?['Cốc hoặc hộp nhựa trong đủ rộng.','Nước thường và muối ăn.','Một quả trứng gà còn nguyên vỏ.','Thìa, dụng cụ khuấy và khăn lau.']:['Chậu hoặc hộp nhựa trong.','Nước thường và khăn lau.','Vài đồ vật lớn như táo, đồ chơi nhựa và thìa inox.'];
   const alternatives=isWaterLesson?['Dùng hộp nhựa trong thay cho cốc.','Thử thêm táo hoặc đồ chơi nhựa để so sánh với trứng.','Dùng cùng một đồ vật ở các lần thử nước thường và nước muối.']:['Dùng miếng gỗ sạch thay cho táo.','Chọn đồ vật quen thuộc có sẵn trong nhà.','Thử thêm vật có hình dạng hoặc chất liệu khác.'];
   const practiceSteps=isWaterLesson?[
@@ -58,7 +62,7 @@ export function TeacherPreparation({tab,onTab,onClose,lesson,onStart,items,shape
       else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}
     }
   }}>
-    <section role="dialog" aria-modal="true" aria-label="Chuẩn bị bài cho giáo viên" className="teacher-panel">
+    <section role="dialog" aria-modal="true" aria-label="Chuẩn bị bài cho giáo viên" className="teacher-panel teacher-redesign">
       <header className="teacher-panel-heading"><div><span className="lab-eyebrow">GIÁO VIÊN & PHỤ HUYNH</span><h2>Chuẩn bị buổi khám phá</h2></div><button ref={closeRef} aria-label="Đóng chuẩn bị bài" onClick={onClose}><X size={22}/></button></header>
       <nav className="teacher-panel-tabs" aria-label="Nội dung chuẩn bị">
         {([['lesson','Bài học',BookOpen],['advanced','Giao diện',Monitor],['hands-on','Thực hành tại nhà',Home]] as const).map(([id,label,Icon])=><button key={id} aria-pressed={tab===id} onClick={()=>onTab(id)}><Icon size={19}/>{label}</button>)}
@@ -75,24 +79,32 @@ export function TeacherPreparation({tab,onTab,onClose,lesson,onStart,items,shape
         <><h3>3. Đồ vật trong khay ({draft.itemIds.length})</h3><div className="teacher-item-picker">{items.map(item=><button key={item.id} aria-pressed={draft.itemIds.includes(item.id)} onClick={()=>setDraft({...draft,itemIds:draft.itemIds.includes(item.id)?draft.itemIds.filter(id=>id!==item.id):[...draft.itemIds,item.id]})}><img src={item.image} alt=""/><span>{item.name}</span></button>)}</div>{!ready&&<p role="status">Cô chọn ít nhất một đồ vật để bắt đầu.</p>}</>
         <p className="teacher-muted">Bắt đầu hoạt động sẽ trả vật về khay và chuẩn bị nước ngọt; lịch sử quan sát được giữ lại.</p>
       </>}
-      {tab==='advanced'&&<>
-        <h3>Hình dạng bể</h3><div className="teacher-choice-row">{([['rectangle','Chữ nhật'],['square','Lập phương'],['cylinder','Trụ tròn'],['triangle','Tam giác']] as const).map(([id,label])=><button key={id} aria-pressed={shape===id} onClick={()=>onShape(id)}>{label}</button>)}</div>
-        <h3>Kích thước bể</h3><div className="teacher-choice-row"><button aria-pressed={scale==='normal'} onClick={()=>onScale('normal')}>Bể lớn</button><button aria-pressed={scale==='compact'} onClick={()=>onScale('compact')}>Bể nhỏ</button></div>
-        <h3>Cảnh nền</h3><div className="teacher-scene-picker">{SCENE_OPTIONS.map(option=><button key={option.id} aria-pressed={scene===option.id} onClick={()=>onScene(option.id)}><img src={option.thumbnail} alt="" width={320} height={200} draggable={false}/><span>{option.label}</span>{scene===option.id&&<span className="teacher-scene-selected" aria-hidden="true">✓</span>}</button>)}</div>
-        <p className="teacher-muted">Cảnh nền chỉ thay không gian xung quanh. Loại nước trong bể giữ theo thí nghiệm đang thực hiện.</p>
-        <p className="teacher-muted">Áp dụng ngay vào cảnh. Thay hình dạng bể đơn thuần không làm đổi tính nổi của vật trong nước có cùng khối lượng riêng.</p>
-      </>}
+      {tab==='advanced'&&<div className="teacher-appearance">
+        <div className="teacher-live-column"><div className="teacher-live-preview" aria-label="Xem trước giao diện bể"><ThreeTankCanvas sceneSetting={scene} shape={shape} scale={scale} dims={getTankDimensions(shape,scale)} items={[]} onUpdateItems={()=>{}} waterDensity={1} interactionMode="interact" onInteractionModeChange={()=>{}} holdingItemId={null} onHoldItem={()=>{}} workflowStep="idle" onPourSaltAtPoint={()=>{}} soundEnabled={false} onMessageUpdate={()=>{}} showXRay={false} inputLocked/>
+          <span className="teacher-preview-tag">Xem trước · {SCENE_OPTIONS.find(s=>s.id===scene)?.label}</span>
+        </div><div className="teacher-preview-note"><Check size={18}/><div><strong>Thấy ngay lựa chọn của cô</strong><p>Quay lại để tiếp tục thí nghiệm trong chế độ giáo viên.</p></div></div><p className="teacher-muted">Bản xem trước minh họa hình dáng và không gian. Nước và đồ vật trong thí nghiệm được giữ khi đóng bảng này.</p></div>
+        <div className="teacher-appearance-controls"><h3>Hình dạng bể</h3><p className="teacher-muted">Chọn chiếc bể cho buổi khám phá</p><div className="teacher-tank-choices">{([['rectangle','Chữ nhật'],['square','Lập phương'],['cylinder','Trụ tròn'],['triangle','Tam giác']] as const).map(([id,label])=><button key={id} aria-pressed={shape===id} onClick={()=>onShape(id)}><TankThumbnail shape={id}/><span>{label}</span></button>)}</div>
+        <h3>Kích thước bể</h3><div className="teacher-size-choices">{([['normal','Bể lớn'],['compact','Bể nhỏ']] as const).map(([id,label])=><button key={id} aria-pressed={scale===id} onClick={()=>onScale(id)}><TankThumbnail shape={shape} compact={id==='compact'}/><span>{label}</span></button>)}</div>
+        <h3>Cảnh nền <span className="teacher-count">8 không gian khám phá</span></h3><div className="teacher-scene-picker">{SCENE_OPTIONS.map(option=><button key={option.id} aria-pressed={scene===option.id} onClick={()=>onScene(option.id)}><img src={option.thumbnail} alt="" width={320} height={200} draggable={false}/><span>{option.label}</span>{scene===option.id&&<span className="teacher-scene-selected" aria-hidden="true">✓</span>}</button>)}</div>
+        <p className="teacher-muted">Cảnh nền chỉ thay không gian xung quanh. Thay hình dạng bể không làm đổi tính nổi của vật trong nước có cùng khối lượng riêng.</p></div>
+      </div>}
       {tab==='hands-on'&&<>
         <h3>Cùng khám phá với đồ vật thật</h3>
-        <p className="teacher-muted">Hoạt động đã chọn: {selected.title}</p>
+        <p className="teacher-muted">Từ màn hình đến một chậu nước ở nhà</p>
+        <div className="teacher-guide-tabs">{LESSONS.map(l=><button key={l.mode} aria-pressed={guideMode===l.mode} onClick={()=>setGuideMode(l.mode)}>{l.title}</button>)}</div>
+        <div className="teacher-home-layout"><div><section className="teacher-material-photo"><img src="/assets/sink-float/home-materials.webp" alt="Chậu nhựa nước nông, bình nước, táo, vịt đồ chơi, thìa và khăn lau trên bàn"/><div><span className="lab-eyebrow">CẦN CHUẨN BỊ</span><h3>{isWaterLesson?'Thêm trứng và muối ăn':'Đồ vật quen thuộc, khám phá mới'}</h3><p>{isWaterLesson?'Dùng cốc nhựa trong đủ rộng, cùng một quả trứng nguyên vỏ, nước, muối ăn, thìa và khăn lau. Người lớn chuẩn bị trứng.':'Chậu nhựa · Nước nông · Táo · Đồ chơi nhựa · Thìa · Khăn lau'}</p></div></section>
+        <div className="teacher-home-alternative"><strong>Có thể thay bằng</strong><p>{isWaterLesson?'Hộp nhựa trong thay cốc. Thử thêm táo hoặc đồ chơi nhựa để so sánh.':'Hộp nhựa trong thay chậu; miếng gỗ sạch thay táo. Tận dụng đồ vật an toàn có sẵn trong nhà.'}</p></div>
+        <div className="teacher-home-steps">{[{title:'Dự đoán',Icon:Lightbulb,text:isWaterLesson?'Con nghĩ trứng sẽ ở đâu trong nước?':'Con chọn vật nào? Con nghĩ vật sẽ chìm hay nổi?'},{title:'Thử và quan sát',Icon:Droplets,text:isWaterLesson?'Thử trứng trong nước thường. Lấy ra, thêm ít muối, khuấy tan rồi thử lại.':'Thả nhẹ vật vào nước. Chờ vật ổn định và nhìn thật kỹ.'},{title:'Kể lại',Icon:MessageCircle,text:isWaterLesson?'Vị trí của trứng có khác trước không? Con muốn thử tiếp thế nào?':'Vật đang ở đâu? Có giống dự đoán của con không?'}].map(({title,Icon,text},i)=><section key={title}><span className="teacher-step-number">0{i+1}</span><Icon size={30}/><h3>{title}</h3><p>{text}</p></section>)}</div>
+        <details className="teacher-home-details"><summary>Hướng dẫn từng bước và vật liệu thay thế</summary>
         <section className="teacher-objective"><h3>1. Cần chuẩn bị</h3><ul className="list-disc pl-5 space-y-2">{materials.map(text=><li key={text}>{text}</li>)}</ul></section>
         <section className="teacher-objective"><h3>2. Thay thế hoặc mở rộng</h3><ul className="list-disc pl-5 space-y-2">{alternatives.map(text=><li key={text}>{text}</li>)}</ul></section>
         <section className="teacher-objective"><h3>3. Cách tổ chức</h3><ol className="teacher-practice-steps">{practiceSteps.map((step,index)=><li key={step}><strong>Bước {index+1}</strong><p>{step}</p></li>)}</ol></section>
-        <section className="teacher-safety"><h3>4. Lưu ý dành cho người lớn hỗ trợ trẻ</h3><h4 className="font-bold mt-2">Nguyên tắc thực hiện thí nghiệm</h4><ul className="list-disc pl-5 space-y-2"><li>Cho trẻ chọn, dự đoán và quan sát trước khi giải thích.</li><li>Chỉ thay đổi một yếu tố trong mỗi lượt so sánh.</li><li>Chờ vật ổn định trước khi ghi nhận kết quả.</li>{isWaterLesson&&<li>Giữ cùng đồ vật, cùng cốc và lượng nước ban đầu khi thử thêm muối.</li>}<li>Chấp nhận dự đoán khác kết quả và cho trẻ thử lại.</li><li>Ghi nhận điều trẻ thực sự quan sát được.</li></ul><h4 className="font-bold mt-3">Nguyên tắc đảm bảo an toàn</h4><ul className="list-disc pl-5 space-y-2"><li>Luôn giám sát trẻ trong suốt hoạt động với nước.</li><li>Dùng nước nông và vật chứa nhựa đặt trên mặt phẳng chắc chắn.</li><li>Chọn đồ vật sạch, không sắc cạnh và không nhỏ dễ nuốt.</li><li>Không cho trẻ nếm nước thí nghiệm hoặc đưa vật liệu vào miệng.</li><li>Dừng hoạt động khi nước đổ hoặc đồ vật bị vỡ.</li>{isWaterLesson&&<li>Người lớn xử lý trứng vỡ và nước có trứng sống.</li>}<li>Lau khô khu vực và rửa tay sau hoạt động.</li></ul></section>
-        <section className="teacher-objective"><h3>5. So sánh và kể lại</h3><h4 className="font-bold">Trẻ 3–4 tuổi</h4><ul className="list-disc pl-5 space-y-2">{learningGoals.younger.map(text=><li key={text}>{text}</li>)}</ul><h4 className="font-bold mt-3">Trẻ 5–6 tuổi</h4><ul className="list-disc pl-5 space-y-2">{learningGoals.older.map(text=><li key={text}>{text}</li>)}</ul></section>
+        </details></div><aside className="teacher-home-aside"><div className="teacher-home-supervision"><ShieldCheck size={30}/><h3>Người lớn đồng hành</h3><p>Luôn ở bên trẻ. Dùng nước nông, vật chứa nhựa và đồ vật sạch, không sắc cạnh, không nhỏ dễ nuốt.</p><p>Không nếm nước; dừng để lau ngay khi nước đổ.</p></div><details className="teacher-home-details"><summary>Hướng dẫn tổ chức và an toàn</summary><section className="teacher-safety"><h3>4. Lưu ý dành cho người lớn hỗ trợ trẻ</h3><h4 className="font-bold mt-2">Nguyên tắc thực hiện thí nghiệm</h4><ul className="list-disc pl-5 space-y-2"><li>Cho trẻ chọn, dự đoán và quan sát trước khi giải thích.</li><li>Chỉ thay đổi một yếu tố trong mỗi lượt so sánh.</li><li>Chờ vật ổn định trước khi ghi nhận kết quả.</li>{isWaterLesson&&<li>Giữ cùng đồ vật, cùng cốc và lượng nước ban đầu khi thử thêm muối.</li>}<li>Chấp nhận dự đoán khác kết quả và cho trẻ thử lại.</li><li>Ghi nhận điều trẻ thực sự quan sát được.</li></ul><h4 className="font-bold mt-3">Nguyên tắc đảm bảo an toàn</h4><ul className="list-disc pl-5 space-y-2"><li>Luôn giám sát trẻ trong suốt hoạt động với nước.</li><li>Dùng nước nông và vật chứa nhựa đặt trên mặt phẳng chắc chắn.</li><li>Chọn đồ vật sạch, không sắc cạnh và không nhỏ dễ nuốt.</li><li>Không cho trẻ nếm nước thí nghiệm hoặc đưa vật liệu vào miệng.</li><li>Dừng hoạt động khi nước đổ hoặc đồ vật bị vỡ.</li>{isWaterLesson&&<li>Người lớn xử lý trứng vỡ và nước có trứng sống.</li>}<li>Lau khô khu vực và rửa tay sau hoạt động.</li></ul></section>
+        </details><section className="teacher-objective"><h3>Gợi ý theo độ tuổi</h3><h4 className="font-bold">Trẻ 3–4 tuổi</h4><ul className="list-disc pl-5 space-y-2">{learningGoals.younger.map(text=><li key={text}>{text}</li>)}</ul><h4 className="font-bold mt-3">Trẻ 5–6 tuổi</h4><ul className="list-disc pl-5 space-y-2">{learningGoals.older.map(text=><li key={text}>{text}</li>)}</ul></section>
+        <details className="teacher-home-details"><summary>So sánh với mô phỏng</summary><p>Mời trẻ kể điều giống và khác giữa lần thử thật và trên màn hình. Đồ vật thật có thể khác chất liệu, kích thước và lượng không khí bên trong.</p>{isWaterLesson&&<p>Không phải vật nào cũng đổi trạng thái khi thêm muối. Giữ cùng trứng và lượng nước ban đầu; không dùng số thìa trong game làm công thức ngoài đời.</p>}</details></aside></div><p className="teacher-muted">Sau khi khám phá: cùng thu dọn, lau khô và rửa tay.</p>
       </>}
       </div>
-      <footer className="teacher-panel-footer">{tab==='lesson'?<button className="teacher-primary" disabled={!ready} onClick={()=>onStart(draft)}>Bắt đầu hoạt động</button>:<button className="teacher-primary" onClick={onClose}>Quay lại thí nghiệm</button>}</footer>
+      <footer className="teacher-panel-footer">{tab==='lesson'?<button className="teacher-primary" disabled={!ready} onClick={()=>onStart(draft)}>Bắt đầu hoạt động</button>:<button className="teacher-primary" onClick={onClose}><ArrowLeft size={18}/> Quay lại thí nghiệm</button>}</footer>
     </section>
   </div>;
 }

@@ -60,6 +60,7 @@ import { ObjectBasket } from './sink-float/ObjectBasket';
 import './sink-float/labExperience.css';
 import './sink-float/premiumExperience.css';
 import './sink-float/premiumPanels.css';
+import './sink-float/teacherPreparation.css';
 import { GuidedDemoHand } from './sink-float/GuidedDemoHand';
 import { TeacherObjectivesModal } from './sink-float/TeacherObjectivesModal';
 
@@ -548,7 +549,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const [experience,setExperience]=useState(readExperience);
   const [showExperienceSettings,setShowExperienceSettings]=useState(false);
   const [showPreparation,setShowPreparation]=useState(false);
-  const [teacherConfigured,setTeacherConfigured]=useState(false);
   const [showTeacherControls,setShowTeacherControls]=useState(false);
   const [preparationTab,setPreparationTab]=useState<PreparationTab>('lesson');
   const [teacherLesson,setTeacherLesson]=useState<TeacherLesson>({mode:'discovery',age:'3-4',itemIds:[...AGE_3_4_ITEM_IDS]});
@@ -1096,7 +1096,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const startSession = (mode: 'student' | 'teacher') => {
     speechEngine.stop();speechEngine.setVoiceEnabled(mode==='student');setVoiceEnabled(mode==='student');
     setIsTeacherMode(mode==='teacher');
-    setShowPreparation(mode==='teacher');setTeacherConfigured(false);setShowTeacherControls(false);setPreparationTab('lesson');
+    setShowPreparation(mode==='teacher');setShowTeacherControls(false);setPreparationTab('lesson');
     setAdvanced(false);setComparisonMode(false);setPreviewIntro(false);setActivityMode('discovery');
     setMessage(STUDENT_PROMPT);setIntroComplete(mode==='teacher');setStarted(true);
   };
@@ -1115,7 +1115,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     if(comparisonBusy)return;
     switchExploration(lesson.mode!=='discovery');
     handleSelectActivityMode(lesson.mode);
-    setTeacherLesson(lesson);setTeacherConfigured(true);setAgeGroup(lesson.age);setShowSecondTank(false);
+    setTeacherLesson(lesson);setAgeGroup(lesson.age);setShowSecondTank(false);
     setShowPreparation(false);setRaceModeActive(false);
     setOnboardingStep(0);setMessage(LESSONS.find(l=>l.mode===lesson.mode)?.objective||STUDENT_PROMPT);
   };
@@ -1141,7 +1141,6 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       ref={containerRef}
       data-lab-experience
       data-teacher-mode={isTeacherMode}
-      data-teacher-ready={teacherConfigured}
       data-dock-tab={dockTab}
       onPointerMove={(event) => { if (selectedTrayItem) {setDragCursorPos({ x: event.clientX, y: event.clientY });threeTankRef.current?.previewDropAtScreenPos(selectedTrayItem,event.clientX,event.clientY);} }}
       onClick={markUserInteracted}
@@ -1197,7 +1196,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           <button disabled={comparisonBusy} onClick={()=>setShowExperienceSettings(true)}>Âm thanh và lời dẫn</button>
           <button disabled={comparisonBusy||comparisonMode||activityMode==='boat-challenge'} title={activityMode==='boat-challenge'?'Mẫu thuyền dùng bể riêng':undefined} onClick={()=>openPreparation('advanced')}>Giao diện chơi</button>
           <button disabled={comparisonBusy} onClick={()=>openPreparation('hands-on')}>Thực hành tại nhà</button>
-          {teacherConfigured&&<button disabled={comparisonBusy} onClick={()=>setShowTeacherControls(true)}>Điều khiển</button>}
+          <button disabled={comparisonBusy} onClick={()=>setShowTeacherControls(true)}>Điều khiển</button>
         </nav>}
         {/* CỘT TRÁI: KHU VỰC CHƠI CHÍNH (75-80%) */}
         <main className={`lab-main flex-1 min-w-0 flex h-full overflow-hidden gap-2 ${(showSecondTank&&isTeacherMode)||comparisonMode?'flex-col lg:flex-row':'flex-col'}`}>
@@ -1293,7 +1292,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             <button aria-label={voiceEnabled ? 'Tắt âm thanh hướng dẫn' : 'Bật âm thanh hướng dẫn'} aria-pressed={voiceEnabled} onClick={handleToggleVoice} className="min-h-[52px] min-w-[52px] rounded-2xl bg-white border border-sky-200 flex items-center justify-center text-sky-700">{voiceEnabled ? <Volume2 className="w-7 h-7"/> : <VolumeX className="w-7 h-7"/>}</button>
             <button aria-label={isTeacherMode ? 'Chuyển sang khám phá của trẻ' : 'Mở chế độ giáo viên'} aria-pressed={isTeacherMode} disabled={pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||(workflowStep!=='idle'&&workflowStep!=='stirring')} onClick={()=>{
               switchExploration(false);
-              const next=!isTeacherMode;setIsTeacherMode(next);setShowPreparation(next);setTeacherConfigured(false);setShowTeacherControls(false);setPreparationTab('lesson');speechEngine.stop();speechEngine.setVoiceEnabled(!next);setVoiceEnabled(!next);setPreviewIntro(false);setIntroComplete(next);setAdvanced(false);
+              const next=!isTeacherMode;setIsTeacherMode(next);setShowPreparation(next);setShowTeacherControls(false);setPreparationTab('lesson');speechEngine.stop();speechEngine.setVoiceEnabled(!next);setVoiceEnabled(!next);setPreviewIntro(false);setIntroComplete(next);setAdvanced(false);
               if(!next){setActivityMode('discovery');setShowObservationBoard(false);setShowGuideModal(false);setShowTeacherObjectives(false);setShowConclusionPicker(false);setShowDemoHand(false);setRaceModeActive(false);setRaceRunning(false);actionTimersRef.current.forEach(clearTimeout);actionTimersRef.current.clear();dragCleanupRef.current?.();activeDragItemRef.current=null;setSelectedTrayItem(null);setDraggingTrayItem(null);threeTankRef.current?.cancelActiveGesture();setInteractionMode('interact');}
             }} className="min-h-[52px] min-w-[52px] rounded-2xl bg-white border border-amber-200 flex items-center justify-center gap-2 px-2 font-bold"><Users size={20}/><span>{isTeacherMode?'Trẻ khám phá':'Người lớn'}</span></button>
           </div>
