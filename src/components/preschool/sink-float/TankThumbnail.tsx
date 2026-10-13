@@ -1,8 +1,6 @@
-import {useId} from 'react';
 import type {TankShape} from './types';
 
-/** Lightweight glass illustrations; the large preview uses the actual 3D renderer. */
+/** Photo illustrations for the selector; the large preview renders live geometry. */
 export function TankThumbnail({shape,compact=false}:{shape:TankShape;compact?:boolean}){
-  const id=useId();
-  return <svg viewBox="0 0 160 100" aria-hidden="true"><defs><linearGradient id={id} x2="0" y2="1"><stop stopColor="#b9f5f8" stopOpacity=".7"/><stop offset="1" stopColor="#32bbcd" stopOpacity=".45"/></linearGradient></defs><g transform={compact?'translate(27 22) scale(.66)':''} stroke="#79b8c1" strokeWidth="1.6" strokeLinejoin="round"><ellipse cx="80" cy="88" rx="62" ry="6" fill="#173e4a" opacity=".07" stroke="none"/>{shape==='cylinder'?<><path d="M35 20v57c0 16 90 16 90 0V20" fill="#edfafa" fillOpacity=".4"/><path d="M35 48v29c0 16 90 16 90 0V48" fill={`url(#${id})`}/><ellipse cx="80" cy="48" rx="45" ry="12" fill="#c3f6f7"/><ellipse cx="80" cy="20" rx="45" ry="12" fill="#fff" fillOpacity=".2"/><path d="M40 24v49M120 25v48" stroke="white" strokeWidth="3"/></>:shape==='triangle'?<><path d="M24 29 83 10 138 32 138 82 83 61 24 80Z" fill="#e6f7f8" fillOpacity=".5"/><path d="M24 53 83 34 138 55 138 82 83 61 24 80Z" fill={`url(#${id})`}/><path d="M24 29v51l114 2V32L24 29 83 10v51M24 53l114 2" fill="none"/><path d="M29 34v41M133 36v40" stroke="white" strokeWidth="3"/></>:<g transform={shape==='square'?'translate(26 0) scale(.68 1)':''}><path d="M20 25 47 12 143 12 143 72 118 88 20 88Z" fill="#effafa" fillOpacity=".6"/><path d="M20 50 47 37 143 37 143 72 118 88 20 88Z" fill={`url(#${id})`}/><path d="M20 50h98l25-13H47ZM20 25h98l25-13M118 25v63M47 12v60l-27 16M47 72h96" fill="none"/><path d="M25 30v51M113 30v50" stroke="white" strokeWidth="3"/></g>}</g></svg>;
+  return <img className={compact?'teacher-tank-photo teacher-tank-photo-small':'teacher-tank-photo'} src={`/assets/sink-float/tank-${shape}.webp`} alt="" draggable={false}/>;
 }

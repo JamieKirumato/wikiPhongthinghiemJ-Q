@@ -75,3 +75,8 @@
 .teacher-home-materials .teacher-home-photo>img{height:100%;min-height:195px}
 @media(max-width:1100px){.teacher-home-materials .teacher-home-photo>img{min-height:170px}.teacher-home .teacher-home-steps img{height:105px}}
 @media(max-width:700px){.teacher-home-materials .teacher-home-photo>img{min-height:185px}}
+.teacher-tank-choices .teacher-tank-photo{display:block;width:100%;height:clamp(56px,7.5vw,105px);object-fit:contain;mix-blend-mode:multiply}
+.teacher-size-choices .teacher-tank-photo{display:block;width:65%;height:clamp(56px,7vw,100px);object-fit:contain;mix-blend-mode:multiply}
+.teacher-size-choices .teacher-tank-photo-small{width:42%}
+@media(max-width:700px){.teacher-tank-choices .teacher-tank-photo{height:54px}.teacher-size-choices .teacher-tank-photo{height:60px}}
+.teacher-size-choices .teacher-tank-photo-small{height:62px;width:42%}
