@@ -21,3 +21,5 @@ Lời Việt là bảy MP3 tổng hợp bằng cùng phương thức TTS đang d
 - [USGS — The Nature of Volcanoes](https://pubs.usgs.gov/gip/volc/nature.html): magma, lava và núi lửa thật, đối chiếu qua trích đoạn tìm kiếm; trang đầy đủ trả 403 tại thời điểm tra cứu.
 
 Chưa thử trực tiếp với giáo viên/trẻ hoặc thiết bị cảm ứng thật. Các gợi ý theo tuổi cần xác nhận bằng quan sát trẻ sử dụng; kiểm tra trình duyệt không thay thế bước này.
+
+Kiểm tra bản thử: TypeScript/Vite build production đạt; `scripts/verify-volcano.cjs` đạt. Đã thử chọn–thêm, kéo nguyên liệu tới miệng núi, đối chứng nước, đảo thứ tự giấm/bột, thêm xà phòng và màu, ghi nhận trong sổ, góc giáo viên và hoạt động thật. Đã xem bố cục desktop và kích thước điện thoại giả lập; không tràn ngang, không thấy lỗi runtime trong các luồng đã kiểm tra.
