@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test:sink-float": "node scripts/verify-sink-float.cjs",
     "test:lava": "node scripts/verify-lava-lamp.cjs",
-    "test:volcano": "node scripts/verify-volcano.cjs"
+    "test:volcano": "node scripts/verify-volcano.cjs && node scripts/verify-volcano-stage-one.cjs"
   },
   "dependencies": {
     "katex": "^0.16.11",

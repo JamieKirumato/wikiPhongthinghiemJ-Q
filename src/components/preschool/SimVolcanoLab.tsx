@@ -1,147 +1,78 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, BookOpen, Check, FlaskConical, Hand, Home, Lightbulb, Mountain, Play, RotateCcw, Users, Volume2, VolumeX, X } from 'lucide-react';
-import { createReaction, addIngredient, advanceReaction, Ingredient, MAX_LIQUID_ML, MAX_SODA_GRAMS, MAX_SOAP_DOSES } from './volcano/reaction';
-import { MaterialArt, MATERIALS } from './volcano/MaterialArt';
-import { VolcanoScene } from './volcano/VolcanoScene';
-import './sink-float/premiumExperience.css';
-import './volcano/volcano.css';
+import { ArrowDownToLine, ArrowLeft, ArrowRight, Check, CircleHelp, Hand, Home, Mountain, Pause, Play, RotateCcw, Sparkles, Users, Volume2, VolumeX, X } from 'lucide-react';
+import { advanceStageOne, createStageOne, HeldTool, pickTool, returnTool, scoop, ToolZone } from './volcano/stageOneModel';
+import { MaterialArt } from './volcano/MaterialArt';
+import { SceneAnchors, StageOneScene, StageOneSceneHandle } from './volcano/StageOneScene';
+import './volcano/stageOne.css';
 
-type Recipe=Record<Ingredient,number>;
-const emptyRecipe=():Recipe=>({bakingSoda:0,vinegar:0,water:0,soap:0,color:0});
-type Trial={recipe:Recipe; observation:string; peak:number; prediction:string};
-const observations=['Không thấy bọt','Có bọt trong cốc','Bọt trào ra ngoài'];
-const speech={start:'Con chọn một nguyên liệu, rồi chạm miệng núi để thêm vào nhé.',added:'Con đã thêm nguyên liệu. Hãy nhìn vào miệng núi. Con thấy điều gì?',bubble:'Con hãy nhìn những bọt nhỏ. Chúng đang đi đâu nhỉ?',water:'Con hãy nhìn trong cốc. Con muốn thử thêm nguyên liệu nào?',reset:'Cốc mới đã sẵn sàng. Con thử một cách khác nhé.',compare:'Con thử hai lần. Giữ nguyên một thìa baking soda, rồi đổi nước thành giấm. Con thấy gì khác nhau?',home:'Con hãy cùng người lớn tìm nguyên liệu và thử với một chiếc cốc mở trên khay nhé.'};
-type Clip=keyof typeof speech;
+const words:Record<string,string>={
+  'stage-start':'Con lấy thìa, đưa vào bát bột rồi chạm nút xúc nhé.',
+  'stage-scoop':'Con chạm để xúc. Chạm lần nữa để dừng nhé.',
+  'stage-pour':'Đưa dụng cụ đến miệng núi. Con chạm để rót, chạm lần nữa để dừng.',
+  'stage-observe':'Con thấy gì trong miệng núi? Con thử dừng rót để nhìn nhé.',
+  'stage-retry':'Cốc mới đã sẵn sàng. Con thử lại nhé.',
+};
+function SpoonPicture(){return <svg viewBox="0 0 100 90" aria-hidden="true"><path d="M73 12Q80 8 80 16L48 62L40 56Z" fill="#bacad0" stroke="#657c84" strokeWidth="2"/><ellipse cx="37" cy="65" rx="21" ry="14" transform="rotate(-30 37 65)" fill="#d9e3e5" stroke="#70868d" strokeWidth="2"/><path d="M20 68Q29 46 49 57Q50 69 20 68" fill="#fffdf5"/></svg>}
+function BowlPicture(){return <svg viewBox="0 0 100 90" aria-hidden="true"><path d="M12 42Q15 80 50 81Q84 78 88 42" fill="#d7c8a8" stroke="#a29176" strokeWidth="2"/><ellipse cx="50" cy="42" rx="38" ry="15" fill="#f1e7d3"/><path d="M18 43Q50 10 82 43Q50 59 18 43" fill="#fffdf5"/></svg>}
 
-export function SimVolcanoLab() {
-  const reaction=useRef(createReaction());const recipeRef=useRef(emptyRecipe());
-  const [role,setRole]=useState<'student'|'teacher'|null>(null);
-  const [voice,setVoice]=useState(false);const [clip,setClip]=useState<Clip>('start');const [voiceTick,setVoiceTick]=useState(0);const [audioError,setAudioError]=useState(false);
-  const [selected,setSelected]=useState<Ingredient|null>(null);const selectedRef=useRef<Ingredient|null>(null);
-  const [pointer,setPointer]=useState<{x:number;y:number}|null>(null);
-  const [pouring,setPouring]=useState<Ingredient|null>(null);const pourLock=useRef(false);
-  const [recipe,setRecipe]=useState<Recipe>(emptyRecipe);const [status,setStatus]=useState({...reaction.current});
-  const [message,setMessage]=useState(speech.start);const [more,setMore]=useState(false);
-  const [panel,setPanel]=useState<'teacher'|'journal'|'home'|null>(null);const [teacherTab,setTeacherTab]=useState<'lesson'|'home'>('lesson');
-  const [prediction,setPrediction]=useState('');const [observation,setObservation]=useState('');const [trials,setTrials]=useState<Trial[]>([]);
-  const [compare,setCompare]=useState(false);const [resetView,setResetView]=useState(0);
-  const [mouth,setMouth]=useState({x:300,y:200});const stage=useRef<HTMLDivElement>(null);
-  const timers=useRef<number[]>([]);const priorReaction=useRef(false);
-
-  const say=(text:string,key:Clip)=>{setMessage(text);setClip(key);setVoiceTick(v=>v+1);};
-  useEffect(()=>{
-    let frame=0,last=0,update=0;
-    const tick=(now:number)=>{const dt=last?Math.min((now-last)/1000,.06):0;last=now;advanceReaction(reaction.current,dt*.45);
-      if(now-update>130){setStatus({...reaction.current});update=now;}
-      if(reaction.current.reacted&&!priorReaction.current){priorReaction.current=true;say('Con nhìn thấy gì ở miệng núi? Bọt đang đi đâu?', 'bubble');}
-      frame=requestAnimationFrame(tick);
-    };frame=requestAnimationFrame(tick);
-    return()=>{cancelAnimationFrame(frame);timers.current.forEach(clearTimeout);};
-  },[]);
-  useEffect(()=>{
-    if(!voice)return;setAudioError(false);
-    let active=true;
-    const audio=new Audio(`/audio/vi/volcano/${clip}.mp3`);
-    audio.onerror=()=>{if(active)setAudioError(true);};
-    void audio.play().catch(()=>{if(active)setAudioError(true);});
-    return()=>{active=false;audio.pause();audio.removeAttribute('src');};
-  },[voice,clip,voiceTick]);
-  useEffect(()=>{
-    const cancel=(event:KeyboardEvent)=>{if(event.key==='Escape'){setSelected(null);selectedRef.current=null;setPointer(null);setPanel(null);}};
-    window.addEventListener('keydown',cancel);return()=>window.removeEventListener('keydown',cancel);
-  },[]);
-
-  const isFull=(id:Ingredient)=>{
-    const s=reaction.current;
-    return id==='bakingSoda'?s.sodaGrams>=MAX_SODA_GRAMS-.01:id==='soap'?s.soap>=MAX_SOAP_DOSES||s.liquidMl+2>MAX_LIQUID_ML:id==='color'?s.color:s.liquidMl+20>MAX_LIQUID_ML;
-  };
-  const choose=(id:Ingredient)=>{if(pourLock.current||isFull(id))return;selectedRef.current=id;setSelected(id);say(`Con đang cầm ${MATERIALS.find(m=>m.id===id)!.name.toLocaleLowerCase('vi')}. Chạm miệng núi để thêm vào.`, 'start');};
-  const pour=()=>{
-    const id=selectedRef.current;if(!id||pourLock.current)return;
-    if(isFull(id)){say('Cốc đã đủ nguyên liệu này. Con dùng cốc mới để thử tiếp nhé.','reset');return;}
-    pourLock.current=true;setPouring(id);setPointer(null);setSelected(null);selectedRef.current=null;
-    timers.current.push(window.setTimeout(()=>{
-      addIngredient(reaction.current,id);recipeRef.current={...recipeRef.current,[id]:recipeRef.current[id]+1};setRecipe({...recipeRef.current});
-      say(id==='water'?'Con đã thêm nước. Con thấy điều gì trong cốc?':'Con đã thêm nguyên liệu. Hãy nhìn vào miệng núi nhé.',id==='water'?'water':'added');
-    },480));
-    timers.current.push(window.setTimeout(()=>{setPouring(null);pourLock.current=false;},1200));
-  };
-  const reset=()=>{
-    if(pourLock.current)return;
-    reaction.current=createReaction();recipeRef.current=emptyRecipe();setRecipe(emptyRecipe());setStatus({...reaction.current});priorReaction.current=false;
-    setSelected(null);selectedRef.current=null;setObservation('');setPrediction('');say(speech.reset,'reset');
-  };
-  const keepTrial=()=>{
-    if(!observation||!reaction.current.additions||pourLock.current||reaction.current.foam>.02)return;
-    setTrials(previous=>[...previous.slice(-3),{recipe:{...recipeRef.current},observation,peak:reaction.current.peakFoam,prediction}]);reset();
-  };
-  const onDragStart=(event:React.PointerEvent<HTMLButtonElement>,id:Ingredient)=>{
-    if(pourLock.current||isFull(id))return;choose(id);const start={x:event.clientX,y:event.clientY};let moved=false;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    const button=event.currentTarget;
-    const move=(ev:PointerEvent)=>{if(Math.hypot(ev.clientX-start.x,ev.clientY-start.y)>8)moved=true;if(moved)setPointer({x:ev.clientX,y:ev.clientY});};
-    const up=(ev:PointerEvent)=>{button.removeEventListener('pointermove',move);button.removeEventListener('pointerup',up);button.removeEventListener('pointercancel',cancel);setPointer(null);
-      if(moved){const r=stage.current?.getBoundingClientRect();if(r&&Math.hypot(ev.clientX-r.left-mouth.x,ev.clientY-r.top-mouth.y)<90)pour();}
-    };
-    const cancel=()=>{button.removeEventListener('pointermove',move);button.removeEventListener('pointerup',up);button.removeEventListener('pointercancel',cancel);setPointer(null);};
-    button.addEventListener('pointermove',move);button.addEventListener('pointerup',up);button.addEventListener('pointercancel',cancel);
-  };
-  const start=(mode:'student'|'teacher')=>{setRole(mode);setVoice(mode==='student');if(mode==='teacher'){setPanel('teacher');setMore(true);}else say(speech.start,'start');};
-  const stageView=(welcome=false)=><div className={`volcano-stage ${welcome?'volcano-stage-welcome':''}`} ref={welcome?undefined:stage}>
-    <img className="volcano-backdrop" src="/assets/sink-float/scenes/classroom.webp" alt="" draggable={false}/>
-    <VolcanoScene read={()=>reaction.current} onMouth={welcome?undefined:setMouth} resetView={resetView} active={!welcome&&!selected&&!pouring}/>
-    {!welcome&&<>
-      <span className="volcano-live"><span/> {status.foam>.2?'Bọt đang trào':status.foam>.025?'Bọt đang dâng':status.additions?'Con thử tiếp nhé':'Cốc mở · sẵn sàng'}</span>
-      <button className={`volcano-mouth ${selected?'volcano-mouth-ready':''}`} style={{left:mouth.x,top:mouth.y}} onClick={pour} disabled={!selected||!!pouring} aria-label="Thêm nguyên liệu vào miệng núi lửa">{selected&&<><span>＋</span><strong>Thêm vào đây</strong></>}</button>
-      {pouring&&<div className="volcano-pour" style={{left:mouth.x,top:mouth.y}}><MaterialArt kind={pouring}/><span className={`volcano-stream ${pouring==='bakingSoda'?'volcano-grains':''}`} style={{background:pouring==='color'?'#e87e71':pouring==='bakingSoda'?'#fff9e8':'#b7dce4'}}/></div>}
-      <div className="volcano-scene-controls"><button onClick={()=>setResetView(v=>v+1)}><RotateCcw size={17}/> Góc chuẩn</button><span>Kéo nền để xoay · cuộn để phóng to</span></div>
-    </>}
-  </div>;
-
-  if(!role)return <section className="premium-welcome volcano-welcome">
-    <header className="premium-welcome-brand"><Mountain/><span>Núi lửa phun trào</span><span className="premium-edition">KHÁM PHÁ KHOA HỌC · 3–6 TUỔI</span></header>
-    <div className="premium-welcome-body"><div className="premium-welcome-copy"><span className="premium-kicker">MỘT CHIẾC CỐC. MỘT ĐIỀU BẤT NGỜ.</span><h1>Núi lửa nhỏ,<br/><em>khám phá lớn!</em></h1><p>Con chọn nguyên liệu, tự tay thử.<br/>Điều gì sẽ xảy ra trong miệng núi?</p><button className="premium-primary" onClick={()=>start('student')}><Play size={22} fill="currentColor"/> Bé khám phá <ArrowRight size={22}/></button><button className="premium-secondary" onClick={()=>start('teacher')}><Users size={22}/> Giáo viên & phụ huynh</button><span className="premium-welcome-note">Tự chọn · Tự thử · Cùng quan sát</span></div><div className="premium-welcome-scene">{stageView(true)}<span className="premium-live-tag"><span/> Núi lửa đất nặn 3D</span></div></div>
-    <footer className="premium-welcome-footer">Bắt đầu trên màn hình, cùng người lớn thử với cốc thật.<span>Mô hình bọt khí bằng giấm và baking soda</span></footer>
-  </section>;
-
-  return <section className="volcano-lab" aria-label="Thí nghiệm núi lửa phun trào">
-    <header className="volcano-heading"><button className="volcano-icon-button" onClick={()=>{setRole(null);setVoice(false);setPanel(null);}} aria-label="Về màn hình bắt đầu"><ArrowLeft size={20}/></button><Mountain className="volcano-logo"/><h1>Núi lửa phun trào</h1><span className="volcano-age">3–6 tuổi</span><div className="volcano-utilities"><button onClick={()=>{setVoice(v=>!v);setVoiceTick(v=>v+1);}} aria-label={voice?'Tắt giọng hướng dẫn':'Bật giọng hướng dẫn'}>{voice?<Volume2 size={20}/>:<VolumeX size={20}/>}</button><button onClick={()=>setPanel('teacher')}><Users size={19}/><span>Giáo viên</span></button></div></header>
-    <nav className="volcano-navigation" aria-label="Hoạt động"><button aria-pressed={!compare} onClick={()=>{setCompare(false);say(speech.start,'start');}}><FlaskConical size={18}/> Tự khám phá</button><button aria-pressed={compare} onClick={()=>{setCompare(true);say(speech.compare,'compare');}}><Lightbulb size={18}/> Thử hai cách</button><button onClick={()=>{setPanel('home');say(speech.home,'home');}}><Home size={18}/> Thử ngoài đời</button></nav>
-    <div className="volcano-workspace"><main className="volcano-main">{stageView()}
-      <div className="volcano-prompt"><Hand size={22}/><p aria-live="polite">{message}</p><button className="volcano-icon-button" aria-label="Nghe lại hướng dẫn" onClick={()=>{setVoice(true);setVoiceTick(v=>v+1);}}><Volume2 size={19}/></button></div>
-      {audioError&&<p className="volcano-audio-error">Chưa phát được lời đọc. Con có thể xem hướng dẫn trên màn hình.</p>}
-      {compare&&<div className="volcano-compare"><Lightbulb size={22}/><p><strong>Một thìa bột. Hai cách thử.</strong> Lần đầu thêm nước. Giữ lần thử, rồi dùng cốc mới: cùng một thìa bột, đổi nước thành giấm. Con thấy gì khác?</p></div>}
-      <div className="volcano-reflect"><BookOpen size={21}/><span>Con đã thấy điều gì?</span><button onClick={()=>setPanel('journal')}>Sổ khám phá {trials.length>0&&<b>{trials.length}</b>} <ArrowRight size={17}/></button></div>
-    </main>
-    <aside className="volcano-dock"><div className="volcano-tray-heading"><span className="volcano-eyebrow">GÓC NGUYÊN LIỆU</span><h2>Con muốn thử gì?</h2><p>Chọn hoặc kéo nguyên liệu<br/>đến miệng núi lửa.</p></div>
-      <div className="volcano-materials">{MATERIALS.filter(m=>more||m.id!=='color').map(item=><button key={item.id} className="volcano-material" aria-pressed={selected===item.id} aria-label={`Lấy ${item.name}`} disabled={!!pouring||isFull(item.id)} onPointerDown={e=>onDragStart(e,item.id)} onClick={e=>{if(e.detail===0)choose(item.id);}}><MaterialArt kind={item.id}/><strong>{item.name}</strong><small>{item.note}</small>{recipe[item.id]>0&&<b className="volcano-count">{recipe[item.id]}</b>}</button>)}</div>
-      <button className="volcano-more" aria-expanded={more} onClick={()=>setMore(!more)}>{more?'Thu gọn nguyên liệu':'＋ Khám phá thêm'}</button>
-      {selected&&<button className="volcano-cancel" onClick={()=>{setSelected(null);selectedRef.current=null;}}>Trả nguyên liệu về khay</button>}
-      <div className="volcano-recipe"><span>Trong cốc của con</span><p>{recipeSummary(recipe)}</p></div>
-      <button className="volcano-reset" disabled={!!pouring} onClick={reset}><RotateCcw size={18}/> Cốc mới · thử lại</button>
-      <p className="volcano-dock-note">Tự thử bao nhiêu lần cũng được.</p>
-    </aside></div>
-    {pointer&&selected&&<div className="volcano-carried" style={{left:pointer.x,top:pointer.y}}><MaterialArt kind={selected}/></div>}
-    {panel&&<div className="volcano-modal-backdrop" onClick={()=>setPanel(null)}><section role="dialog" aria-modal="true" aria-label={panel==='teacher'?'Góc giáo viên':panel==='journal'?'Sổ khám phá':'Thử ngoài đời'} className="volcano-modal" onClick={e=>e.stopPropagation()}><header><div><span className="volcano-eyebrow">NÚI LỬA PHUN TRÀO</span><h2>{panel==='teacher'?'Cùng trẻ khám phá':panel==='journal'?'Sổ khám phá của con':'Từ màn hình đến chiếc cốc thật'}</h2></div><button className="volcano-icon-button" onClick={()=>setPanel(null)} aria-label="Đóng"><X/></button></header>
-      {panel==='journal'?<>
-        <p>Con nhìn cốc rồi chọn điều mình thấy. Mỗi lần thử là một phát hiện.</p>
-        {status.additions>0?<div className="volcano-current-trial"><h3>Lần đang thử</h3><p>{recipeSummary(recipe)}</p><div className="volcano-observations">{observations.map((label,i)=><button key={label} aria-pressed={observation===label} onClick={()=>setObservation(label)}><span>{['○','◌','♧'][i]}</span>{label}</button>)}</div><button className="volcano-primary" disabled={!observation||status.foam>.02||!!pouring} onClick={keepTrial}><Check size={18}/> Giữ lần thử & dùng cốc mới</button>{status.foam>.02&&<small>Chờ bọt lắng để quan sát trọn lần thử nhé.</small>}</div>:<p className="volcano-empty">Con tự thử với nguyên liệu trước, rồi trở lại đây nhé.</p>}
-        {trials.map((trial,i)=><article className="volcano-trial" key={i}><b>Lần {i+1}</b><p>{recipeSummary(trial.recipe)}</p><strong>Con kể: {trial.observation.toLowerCase()}.</strong>{trial.prediction&&<small>Trước đó con đoán: {trial.prediction.toLowerCase()}.</small>}</article>)}
-        {trials.length>=2&&<p className="volcano-question">Nhìn lại hai lần thử: con đã đổi nguyên liệu nào? Con muốn thử gì tiếp?</p>}
-      </>:<>
-        {panel==='teacher'&&<nav className="volcano-modal-tabs"><button aria-pressed={teacherTab==='lesson'} onClick={()=>setTeacherTab('lesson')}>Mục tiêu & gợi mở</button><button aria-pressed={teacherTab==='home'} onClick={()=>setTeacherTab('home')}>Chuẩn bị ngoài đời</button></nav>}
-        {panel==='home'||teacherTab==='home'?<HomeGuide/>:<>
-          <div className="volcano-objective"><h3>Một mục tiêu nhỏ, quan sát thật rõ</h3><p>Trẻ nhận ra một số nguyên liệu khi gặp nhau tạo bọt; tự thử và kể lại bọt xuất hiện, dâng lên, tràn rồi lắng. Với trẻ 5–6 tuổi, so sánh hai lần chỉ đổi nước thành giấm.</p></div>
-          <h3>Gợi mở ngắn, để trẻ tự làm</h3><ol><li><strong>Trước khi thử:</strong> “Con chọn gì? Con nghĩ điều gì sẽ xảy ra?” Không bắt buộc dự đoán, không chấm đúng sai.</li><li><strong>Trong khi thử:</strong> “Con nhìn trong miệng núi. Con thấy gì?” Chờ trẻ quan sát.</li><li><strong>Sau khi thử:</strong> “Lần này có gì khác? Con muốn thử lại thế nào?”</li></ol>
-          <label className="volcano-prediction">Dự đoán cùng trẻ · có thể bỏ qua<select value={prediction} onChange={e=>setPrediction(e.target.value)}><option value="">Chưa chọn</option>{observations.map(o=><option key={o}>{o}</option>)}</select></label>
-          <p><strong>3–4 tuổi:</strong> người lớn hỗ trợ lấy–thêm một nguyên liệu mỗi lần; trẻ chỉ, nói hoặc chọn tranh điều đã thấy.<br/><strong>5–6 tuổi:</strong> tự chọn, đổi một điều kiện, lưu hai lần thử rồi so sánh.</p>
-          <details className="volcano-science"><summary>Kiến thức cho người lớn · dùng sau quan sát</summary><p>Giấm phản ứng với baking soda tạo khí CO₂. Khí thoát ra thành bọt; nước rửa chén giữ bọt lâu hơn, không tạo thêm khí. Màu chỉ giúp dễ nhìn. Chỉ có nước và baking soda không tạo phản ứng này.</p><p>Núi lửa đất nặn chỉ mô phỏng hình ảnh trào ra. Núi lửa thật có đá nóng chảy và khí từ trong lòng đất, không có phản ứng giấm–baking soda.</p><p>Mô hình rút gọn có giới hạn nguyên liệu và tốc độ quy ước; lượng bọt, thời gian và liều trên màn hình không dự báo thí nghiệm thật. Chưa thử khả năng sử dụng trực tiếp với trẻ.</p><p>Nguồn: <a href="https://mnch.uoregon.edu/sites/default/files/inline-files/May%202020%20LW%20Homemade%20Volcano%20Experiment_KS.pdf" target="_blank" rel="noreferrer">Đại học Oregon</a> · <a href="https://www.usgs.gov/programs/VHP/about-volcanoes" target="_blank" rel="noreferrer">USGS</a>.</p></details>
-          <button className="volcano-primary" onClick={()=>setPanel(null)}><Play size={18}/> Vào bàn thí nghiệm</button>
-        </>}
+export function SimVolcanoLab(){
+  const model=useRef(createStageOne()),scene=useRef<StageOneSceneHandle>(null),scooping=useRef(false),dragging=useRef(false),hasReacted=useRef(false);
+  const [role,setRole]=useState<'student'|'teacher'|null>(null),[voice,setVoice]=useState(false),[clip,setClip]=useState('stage-start'),[tick,setTick]=useState(0);
+  const [state,setState]=useState({...model.current}),[panel,setPanel]=useState<'teacher'|'home'|null>(null),[help,setHelp]=useState(false),[audioError,setAudioError]=useState(false),[webglError,setWebglError]=useState(false);
+  const [anchors,setAnchors]=useState<SceneAnchors>({bowl:{x:200,y:350},crater:{x:500,y:200},spoon:{x:220,y:450},vinegar:{x:800,y:350}});
+  const roleRef=useRef(role);roleRef.current=role;
+  const refresh=()=>setState({...model.current});
+  const speak=(key:string)=>{setClip(key);setTick(n=>n+1);};
+  const stop=()=>{scooping.current=false;dragging.current=false;model.current.pouring=false;};
+  useEffect(()=>{if(!voice||!role)return;let active=true;const audio=new Audio(`/audio/vi/volcano/${clip}.mp3`);audio.play().then(()=>{if(active)setAudioError(false);}).catch(()=>{if(active)setAudioError(true);});return()=>{active=false;audio.pause();};},[clip,tick,voice,role]);
+  useEffect(()=>{let id=0,last=performance.now(),update=0;const frame=(now:number)=>{const dt=Math.min((now-last)/1000,.05);last=now;const m=model.current;
+    if(roleRef.current){if(scooping.current)scoop(m,dt);m.tilt=Math.max(0,Math.min(1,m.tilt+(m.pouring?dt*3.8:-dt*5)));advanceStageOne(m,dt);if(m.spoonGrams>=3.995)scooping.current=false;if(m.pouring&&((m.held==='spoon'&&m.spoonGrams<.001)||(m.held==='vinegar'&&m.vinegarMl<.001)))m.pouring=false;if(m.reaction.reacted&&!hasReacted.current){hasReacted.current=true;speak('stage-observe');}}
+    if(now-update>110){refresh();update=now;}id=requestAnimationFrame(frame);};id=requestAnimationFrame(frame);return()=>cancelAnimationFrame(id);},[]);
+  useEffect(()=>{if(!help)return;const t=setTimeout(()=>setHelp(false),8000);return()=>clearTimeout(t);},[help]);
+  useEffect(()=>{const up=()=>{dragging.current=false;};const blur=()=>{stop();refresh();};const key=(e:KeyboardEvent)=>{if(e.key==='Escape'){stop();returnTool(model.current);setPanel(null);refresh();}};window.addEventListener('pointerup',up);window.addEventListener('pointercancel',up);window.addEventListener('blur',blur);window.addEventListener('keydown',key);return()=>{window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',up);window.removeEventListener('blur',blur);window.removeEventListener('keydown',key);};},[]);
+  const pick=(tool:HeldTool)=>{stop();pickTool(model.current,tool);model.current.target=null;scene.current?.pick(tool);refresh();speak(tool==='spoon'?'stage-start':'stage-pour');};
+  const place=(zone:ToolZone)=>{if(!model.current.held)return;stop();model.current.target=zone;scene.current?.place(zone);refresh();};
+  const action=()=>{const m=model.current;if(m.held==='spoon'&&m.target==='bowl'){scooping.current=!scooping.current;m.pouring=false;}else if(m.held&&m.target==='crater'){scooping.current=false;m.pouring=!m.pouring;}refresh();};
+  const reset=()=>{stop();model.current=createStageOne();hasReacted.current=false;scene.current?.home();refresh();speak('stage-retry');};
+  const start=(mode:'student'|'teacher')=>{setRole(mode);setVoice(mode==='student');speak('stage-start');if(mode==='teacher')setPanel('teacher');};
+  const open=(which:'teacher'|'home')=>{stop();setPanel(which);refresh();};
+  const canScoop=state.held==='spoon'&&state.target==='bowl',canPour=!!state.held&&state.target==='crater',active=state.pouring||scooping.current;
+  const quantity=state.held==='spoon'?state.spoonGrams/4:state.vinegarMl/60;
+  return <section className="v1-shell" aria-label="Thí nghiệm núi lửa">
+    <header className="v1-header"><div className="v1-brand"><Mountain/><strong>Núi lửa</strong><span>GÓC KHÁM PHÁ</span></div><nav aria-label="Điều khiển thí nghiệm">
+      {role&&<button aria-label="Về màn hình bắt đầu" onClick={()=>{stop();setRole(null);setPanel(null);}}><ArrowLeft/></button>}
+      <button aria-label={voice?'Tắt giọng nói':'Bật giọng nói'} aria-pressed={voice} onClick={()=>setVoice(v=>!v)}>{voice?<Volume2/>:<VolumeX/>}</button>
+      <button aria-label="Xem gợi ý bằng hình ảnh" onClick={()=>{setHelp(v=>!v);speak('stage-start');}}><CircleHelp/></button>
+      <button aria-label="Góc giáo viên và phụ huynh" onClick={()=>open('teacher')}><Users/></button>
+    </nav></header>
+    <div className="v1-stage" onPointerMove={e=>{if(!dragging.current||!model.current.held)return;stop();dragging.current=true;model.current.target=scene.current?.aim(e.clientX,e.clientY)||'tray';refresh();}}
+      onPointerDown={e=>{if(!role||!model.current.held||(e.target as HTMLElement).closest('[data-action-control]'))return;stop();model.current.target=scene.current?.aim(e.clientX,e.clientY)||'tray';dragging.current=true;e.currentTarget.setPointerCapture(e.pointerId);refresh();}}>
+      <img className="v1-backdrop" src="/assets/sink-float/scenes/classroom.webp" alt=""/>
+      <StageOneScene ref={scene} read={()=>model.current} scooping={()=>scooping.current} onAnchors={setAnchors} locked={!role||!!panel} onUnavailable={()=>setWebglError(true)}/>
+      {!role?<><div className="v1-intro"><span>CHẠM · THỬ · KHÁM PHÁ</span><h2>Một ngọn núi.<br/><em>Bao điều bất ngờ.</em></h2></div><div className="v1-welcome-actions" data-action-control><button className="v1-start" onClick={()=>start('student')}><Play fill="currentColor"/>Bé chơi<ArrowRight/></button><button className="v1-adult" onClick={()=>start('teacher')}><Users/>Cùng trẻ</button></div><small className="v1-model-note">Mô hình thí nghiệm · giấm & baking soda</small></>:<>
+        <div className="v1-scene-top" data-action-control><span className="v1-live">{state.reaction.foam>.03?<Sparkles/>:<Hand/>}<i/></span><div><button aria-label="Đưa góc nhìn về ban đầu" onClick={()=>scene.current?.home()}><Mountain/></button><button aria-label="Làm lại thí nghiệm" onClick={reset}><RotateCcw/></button></div></div>
+        {(['spoon','vinegar'] as const).map(tool=>state.held!==tool&&<button key={tool} data-action-control className="v1-source-pick" style={{left:anchors[tool].x,top:anchors[tool].y}} aria-label={tool==='spoon'?'Lấy thìa trong cảnh':'Lấy cốc giấm trong cảnh'} onPointerDown={e=>{e.stopPropagation();pick(tool);dragging.current=true;e.currentTarget.setPointerCapture(e.pointerId);}}><Hand size={20}/></button>)}
+        {state.held==='spoon'&&<button data-action-control className={`v1-target ${state.target==='bowl'?'is-target':''}`} style={{left:anchors.bowl.x,top:anchors.bowl.y}} aria-label="Đưa thìa đến bát baking soda" onClick={()=>{place('bowl');speak('stage-scoop');}}><ArrowDownToLine/></button>}
+        {state.held&&<button data-action-control className={`v1-target v1-crater-target ${state.target==='crater'?'is-target':''}`} style={{left:anchors.crater.x,top:anchors.crater.y}} aria-label="Đưa dụng cụ đến miệng núi lửa" onClick={()=>{place('crater');speak('stage-pour');}}><ArrowDownToLine/></button>}
+        <div className="v1-dock" data-action-control aria-label="Khay dụng cụ">
+          <button className="v1-tool" aria-label="Lấy thìa" aria-pressed={state.held==='spoon'} onClick={()=>pick('spoon')}><SpoonPicture/><span>Thìa</span><i><b style={{width:`${state.spoonGrams/4*100}%`}}/></i></button>
+          <button className="v1-tool" aria-label="Lấy cốc giấm" aria-pressed={state.held==='vinegar'} onClick={()=>pick('vinegar')}><MaterialArt kind="vinegar"/><span>Giấm</span><i><b style={{width:`${state.vinegarMl/60*100}%`}}/></i></button>
+          {state.held&&<div className="v1-held-actions"><div className="v1-destinations">{state.held==='spoon'&&<button aria-label="Đưa thìa đến bát baking soda" onClick={()=>place('bowl')}><BowlPicture/></button>}<button aria-label="Đưa dụng cụ đến miệng núi lửa" onClick={()=>place('crater')}><Mountain/></button></div>
+            <button className={`v1-action ${active?'is-active':''}`} disabled={!canScoop&&!canPour} aria-label={active?'Dừng thao tác':canScoop?'Xúc baking soda':'Rót vào núi lửa'} onClick={action}>{active?<Pause/>:canScoop?<SpoonPicture/>:<ArrowDownToLine/>}<span>{active?'Dừng':canScoop?'Xúc':'Rót'}</span></button>
+            <div className="v1-meter" role="meter" aria-label="Lượng còn trong dụng cụ" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(quantity*100)}><i style={{height:`${quantity*100}%`}}/></div><button className="v1-put" aria-label="Đặt dụng cụ xuống" onClick={()=>{stop();returnTool(model.current);refresh();}}><Check/></button>
+          </div>}
+        </div><button data-action-control className="v1-home" aria-label="Thử thí nghiệm ở nhà cùng người lớn" onClick={()=>open('home')}><Home/></button>
       </>}
+      {help&&role&&<svg className="v1-help" aria-hidden="true"><path d={`M${anchors.spoon.x},${anchors.spoon.y} Q${anchors.bowl.x-60},${anchors.bowl.y-60} ${anchors.bowl.x},${anchors.bowl.y} Q${anchors.bowl.x+90},${anchors.crater.y-80} ${anchors.crater.x},${anchors.crater.y}`} fill="none" stroke="#e7b54b" strokeWidth="5" strokeDasharray="9 10"/><circle cx={anchors.bowl.x} cy={anchors.bowl.y} r="37"/></svg>}
+      {audioError&&voice&&<span className="v1-audio-error">Chưa phát được giọng nói. Chạm biểu tượng loa để thử lại.</span>}
+      {webglError&&<div className="v1-render-error">Thiết bị chưa mở được cảnh 3D. Hãy bật tăng tốc đồ họa trong trình duyệt rồi tải lại.</div>}
+      <span className="v1-sr" role="status" aria-live="polite">{role?words[clip]:''}</span>
+    </div>
+    {panel&&<div className="v1-modal-backdrop" onClick={()=>setPanel(null)}><section className="v1-modal" role="dialog" aria-modal="true" aria-labelledby="v1-guide-title" onClick={e=>e.stopPropagation()}><button className="v1-close" aria-label="Đóng hướng dẫn" onClick={()=>setPanel(null)}><X/></button><span className="v1-eyebrow">DÀNH CHO NGƯỜI LỚN</span><h2 id="v1-guide-title">Cùng trẻ khám phá</h2><div className="v1-story"><article><SpoonPicture/><div><strong>Trẻ tự xúc</strong><p>Chọn thìa → đưa vào bát → xúc từng chút.</p></div></article><article><MaterialArt kind="vinegar"/><div><strong>Trẻ tự rót</strong><p>Đưa cốc đến miệng núi. Rót, dừng, rồi quan sát.</p></div></article><article><Sparkles/><div><strong>Cùng quan sát</strong><p>“Con thấy gì thay đổi?” Cho trẻ thử lại với lượng khác.</p></div></article></div>
+      <p className="v1-objective">Mục tiêu: trẻ tự chọn và chuyển vật liệu, nhận ra bọt xuất hiện khi giấm gặp baking soda. Không cần đọc chữ để hoàn thành lượt chơi.</p>
+      <details open={panel==='home'}><summary><Home size={18}/> Thử ở nhà</summary><p>Cần: cốc nhựa mở miệng, khay, thìa, baking soda và giấm ăn. Vỏ núi chỉ để trang trí; màu và nước rửa chén là tùy chọn. Phiên bản này bắt đầu với cốc rỗng, không thêm sẵn màu hay xà phòng.</p><p>Người lớn chuẩn bị, ở cạnh trẻ. Không nếm, không đưa gần mắt, không đậy kín, không đun nóng; rửa tay sau khi chơi.</p></details>
+      <details><summary><Mountain size={18}/> Giải thích sau khi quan sát</summary><p>Giấm và baking soda tạo khí CO₂; những bong bóng khí làm chất lỏng sủi bọt. Dừng rót không làm phản ứng dừng ngay: vật liệu đã gặp nhau vẫn tiếp tục phản ứng.</p><p>Đây là mô hình hóa học tạo bọt. Núi lửa thật liên quan đến magma và khí trong lòng đất; bọt này không phải dung nham. <a href="https://spaceplace.nasa.gov/volcanoes2/en/" target="_blank" rel="noreferrer">Xem giải thích của NASA</a>.</p></details>
+      <small>Chưa có thử nghiệm sử dụng trực tiếp với trẻ. Cần quan sát trẻ chơi để kiểm chứng độ dễ hiểu của các biểu tượng.</small><button className="v1-start v1-continue" onClick={()=>{if(!role)start('student');setPanel(null);}}><Play/>Vào khám phá</button>
     </section></div>}
   </section>;
 }
-
-function recipeSummary(recipe:Recipe) {const parts=MATERIALS.filter(m=>recipe[m.id]>0).map(m=>`${recipe[m.id]} ${m.id==='bakingSoda'?'thìa':m.id==='water'||m.id==='vinegar'?'cốc':'giọt'} ${m.name.toLocaleLowerCase('vi')}`);return parts.join(' · ')||'Cốc trống. Con chọn nguyên liệu nhé!';}
-function HomeGuide(){return <div className="volcano-home-guide"><p className="volcano-question">Thử trên màn hình rồi cùng người lớn làm thật. Kết quả có giống điều con thấy không?</p><h3>Tìm quanh nhà</h3><p><strong>Cần có:</strong> cốc nhựa nhỏ để mở, khay hoặc chậu hứng, thìa, baking soda (muối nở) và giấm ăn. Người lớn kiểm tra đúng baking soda, không thay bằng bột nở làm bánh.</p><p><strong>Tùy chọn:</strong> một giọt nước rửa chén để giữ bọt, màu thực phẩm giúp dễ nhìn; đất nặn tạo vỏ núi. Không có đất nặn, dùng nguyên chiếc cốc vẫn thử được. Đĩa sâu có thể thay khay.</p><h3>Người lớn chuẩn bị, trẻ cùng thử</h3><ol><li>Đặt cốc nhựa nhỏ trong khay. Cốc luôn để mở, chừa phần lớn khoảng trống.</li><li>Người lớn cho một thìa cà phê baking soda; có thể thêm một giọt nước rửa chén và màu thực phẩm.</li><li>Trẻ dự đoán rồi cùng người lớn rót từ từ một ít giấm ăn. Dừng rót để quan sát bọt.</li><li>Dùng cốc sạch khác: giữ lượng bột như cũ, thử nước thay giấm. Con thấy gì khác?</li></ol><p className="volcano-safety">Luôn có người lớn bên cạnh. Không nếm, không đưa lên mắt, không đậy kín, không đun nóng và không trộn thêm chất tẩy rửa khác. Rửa tay, lau khay sau khi làm.</p><p><strong>Kết nối hằng ngày:</strong> cùng nhìn bọt nước rửa chén khi rửa cốc. Trông giống nhau, nhưng không phải bọt nào cũng do phản ứng giấm–baking soda.</p><a href="https://mnch.uoregon.edu/sites/default/files/inline-files/May%202020%20LW%20Homemade%20Volcano%20Experiment_KS.pdf" target="_blank" rel="noreferrer">Tham khảo hoạt động của Bảo tàng Đại học Oregon ↗</a></div>;}

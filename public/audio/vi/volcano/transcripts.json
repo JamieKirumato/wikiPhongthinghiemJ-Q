@@ -8,6 +8,11 @@
     "water": "Con hãy nhìn trong cốc. Con muốn thử thêm nguyên liệu nào?",
     "reset": "Cốc mới đã sẵn sàng. Con thử một cách khác nhé.",
     "compare": "Con thử hai lần. Giữ nguyên một thìa baking soda, rồi đổi nước thành giấm. Con thấy gì khác nhau?",
-    "home": "Con hãy cùng người lớn tìm nguyên liệu và thử với một chiếc cốc mở trên khay nhé."
+    "home": "Con hãy cùng người lớn tìm nguyên liệu và thử với một chiếc cốc mở trên khay nhé.",
+    "stage-start": "stage-pour",
+    "stage-scoop": "Con chạm để xúc. Chạm lần nữa để dừng nhé.",
+    "stage-pour": "Đưa dụng cụ đến miệng núi. Con chạm để rót, chạm lần nữa để dừng.",
+    "stage-observe": "Con thấy gì trong miệng núi? Con thử dừng rót để nhìn nhé.",
+    "stage-retry": "Cốc mới đã sẵn sàng. Con thử lại nhé."
   }
 }
