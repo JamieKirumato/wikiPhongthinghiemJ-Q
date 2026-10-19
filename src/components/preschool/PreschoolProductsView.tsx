@@ -3,6 +3,7 @@ import { PRESCHOOL_PRODUCT_EXPERIMENTS, PreschoolProductExperiment } from '../..
 import { SimSinkOrFloatLab } from './SimSinkOrFloatLab';
 import { SimRescueRaftLab } from './SimRescueRaftLab';
 import { SimLavaLampLab } from './SimLavaLampLab';
+import { SimVolcanoLab } from './SimVolcanoLab';
 import { SimColorMixerLab } from './SimColorMixerLab';
 import { SimMeasurementLab } from './SimMeasurementLab';
 import { PRESCHOOL_SIDEBAR_LABS } from '../layout/AppSidebar';
@@ -38,7 +39,7 @@ export const PreschoolProductsView: React.FC<Props> = ({
   const [modalTab, setModalTab] = useState<'part1' | 'part2'>('part1');
 
   const handleRunLab = (expId: string) => {
-    const targetId = expId === 'mn-prod-01' ? 'exp-sink-tank' : expId === 'mn-prod-02' ? 'exp-color-mixer' : expId === 'mn-prod-03' ? 'exp-measurement' : expId;
+    const targetId = expId === 'mn-prod-01' ? 'exp-sink-tank' : expId === 'mn-prod-02' ? 'exp-color-mixer' : expId === 'mn-prod-03' ? 'exp-measurement' : expId === 'mn-prod-04' ? 'exp-volcano' : expId;
     if (onSelectLabId) {
       onSelectLabId(targetId);
     }
@@ -54,6 +55,9 @@ export const PreschoolProductsView: React.FC<Props> = ({
         return <SimRescueRaftLab />;
       case 'exp-lava-lamp':
         return <SimLavaLampLab />;
+      case 'exp-volcano':
+      case 'mn-prod-04':
+        return <SimVolcanoLab />;
       case 'exp-color-mixer':
       case 'mn-prod-02':
         return <SimColorMixerLab onBackToTable={() => onSelectLabId && onSelectLabId('exp-sink-tank')} />;
@@ -84,7 +88,7 @@ export const PreschoolProductsView: React.FC<Props> = ({
                   <span>Chuyên Đề Thí Nghiệm Khoa Học Mầm Non (3 - 6 Tuổi)</span>
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 font-bold font-mono text-xs">
-                  Tổng quan 5 Thí nghiệm
+                  Tổng quan 6 Thí nghiệm
                 </span>
               </div>
 
@@ -112,7 +116,7 @@ export const PreschoolProductsView: React.FC<Props> = ({
 
               <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>3/3 Thí nghiệm sẵn sàng Chạy Lab</span>
+                <span>{PRESCHOOL_PRODUCT_EXPERIMENTS.length}/{PRESCHOOL_PRODUCT_EXPERIMENTS.length} Thí nghiệm sẵn sàng Chạy Lab</span>
               </div>
             </div>
 
@@ -280,6 +284,8 @@ export const PreschoolProductsView: React.FC<Props> = ({
                   ? '/pha-mau.html'
                   : currentLabId === 'exp-lava-lamp'
                   ? '/den-dung-nham.html'
+                  : currentLabId === 'exp-volcano' || currentLabId === 'mn-prod-04'
+                  ? '/nui-lua.html'
                   : currentLabId === 'exp-rescue-raft'
                   ? '/be-cuu-sinh.html'
                   : currentLabId === 'exp-measurement' || currentLabId === 'mn-prod-03'

@@ -187,5 +187,34 @@ export const PRESCHOOL_PRODUCT_EXPERIMENTS: PreschoolProductExperiment[] = [
       ]
     },
     pedagogicalOutcome: 'Bé nắm vững kỹ năng đo lường cơ bản, phát triển tư duy phản biện và khả năng linh hoạt thích ứng chọn công cụ giải quyết bài toán thực tế hiệu quả nhất.'
+  },
+  {
+    id: 'mn-prod-04',
+    stt: 4,
+    title: 'Thí nghiệm Núi lửa phun trào',
+    domain: 'Phát triển Nhận thức - Khám phá Khoa học',
+    domainCategory: 'khoa-hoc',
+    ageRange: '3 - 6 tuổi',
+    tag: 'Quan sát bọt khí • Thử và so sánh',
+    purpose: 'Trẻ tự thử nguyên liệu quen thuộc, nhận ra khi nào có bọt và kể lại điều đã thấy; trẻ lớn hơn so sánh hai lần chỉ thay một nguyên liệu.',
+    teacherPrompt: 'Con muốn chọn nguyên liệu nào? Con thấy gì trong miệng núi? Nếu đổi nước thành giấm thì con muốn thử thế nào?',
+    basicRequirement: 'Trẻ chọn, thêm nguyên liệu, quan sát bọt xuất hiện, dâng lên rồi lắng; chỉ hoặc nói điều mình thấy. Không bắt buộc biết đọc hoặc gọi tên phản ứng hóa học.',
+    advancedRequirement: 'Giữ một thìa baking soda ở hai cốc sạch; đổi nước thành giấm, quan sát và so sánh. Có thể thử thêm một giọt nước rửa chén để quan sát bọt giữ lâu hơn.',
+    part1Description: {
+      title: 'Phần 1: Tự chọn, tự thử',
+      concept: 'Bàn thí nghiệm có núi lửa đất nặn 3D, cốc mở và khay hứng, cùng ngôn ngữ hình ảnh với Vật nổi, vật chìm.',
+      features: ['Chạm–chọn–thêm hoặc kéo nguyên liệu tới miệng núi.', 'Thêm giấm và baking soda theo cả hai thứ tự đều có thể phản ứng; nước riêng không tạo bọt phản ứng.', 'Lời dẫn tiếng Việt ngắn; màu và nước rửa chén tùy chọn; cốc mới để thử lại.']
+    },
+    part2Description: {
+      title: 'Phần 2: Thử hai cách và làm thật',
+      concept: 'Thử thách tùy chọn: giữ nguyên lượng bột, thay nước bằng giấm; trẻ tự nêu nhận xét.',
+      features: ['Sổ khám phá ghi nguyên liệu và nhận xét trẻ chọn trong phiên.', 'Góc giáo viên có mục tiêu, gợi mở và giải thích sau quan sát.', 'Hoạt động thật với cốc nhựa, khay, giấm và baking soda; người lớn hỗ trợ.']
+    },
+    materials: ['Cần có: cốc nhựa mở, khay hoặc đĩa sâu, thìa, giấm ăn và baking soda (muối nở).', 'Tùy chọn: một giọt nước rửa chén, màu thực phẩm và đất nặn làm vỏ núi.', 'Người lớn chuẩn bị, không nếm, không đậy kín, không đun nóng, không trộn chất tẩy rửa khác.'],
+    procedure: {
+      part1: ['Chọn một nguyên liệu, chạm miệng núi để thêm hoặc kéo tới miệng núi.', 'Tự thêm nguyên liệu khác rồi chờ quan sát.', 'Mở sổ, chọn điều đã thấy và giữ lần thử sau khi bọt lắng.'],
+      part2: ['Dùng cốc mới: cùng một thìa bột, thử với nước rồi thử với giấm ở lần khác.', 'Nhìn lại hai lần trong sổ. Con đã đổi gì? Con thấy gì khác nhau?', 'Cùng người lớn thử bằng cốc thật trên khay. Núi đất nặn là tùy chọn; đây là bọt khí, không phải dung nham nóng.']
+    },
+    pedagogicalOutcome: 'Hỗ trợ quan sát, mô tả và so sánh điều kiện; mức phù hợp và dễ sử dụng cần xác nhận bằng thử trực tiếp với trẻ.'
   }
 ];

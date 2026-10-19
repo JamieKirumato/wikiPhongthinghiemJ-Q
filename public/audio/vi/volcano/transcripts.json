@@ -1,0 +1,13 @@
+{
+  "language": "vi-VN",
+  "source": "Giọng tổng hợp Google Translate TTS, cùng phương thức /api/narration của dự án",
+  "clips": {
+    "start": "Con chọn một nguyên liệu, rồi chạm miệng núi để thêm vào nhé.",
+    "added": "Con đã thêm nguyên liệu. Hãy nhìn vào miệng núi. Con thấy điều gì?",
+    "bubble": "Con hãy nhìn những bọt nhỏ. Chúng đang đi đâu nhỉ?",
+    "water": "Con hãy nhìn trong cốc. Con muốn thử thêm nguyên liệu nào?",
+    "reset": "Cốc mới đã sẵn sàng. Con thử một cách khác nhé.",
+    "compare": "Con thử hai lần. Giữ nguyên một thìa baking soda, rồi đổi nước thành giấm. Con thấy gì khác nhau?",
+    "home": "Con hãy cùng người lớn tìm nguyên liệu và thử với một chiếc cốc mở trên khay nhé."
+  }
+}

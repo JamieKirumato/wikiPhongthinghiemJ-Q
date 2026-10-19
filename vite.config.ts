@@ -20,6 +20,7 @@ export default defineConfig({
         denDungNham: resolve(__dirname, 'den-dung-nham.html'),
         beCuuSinh: resolve(__dirname, 'be-cuu-sinh.html'),
         doLuong: resolve(__dirname, 'do-luong.html'),
+        nuiLua: resolve(__dirname, 'nui-lua.html'),
       }
     }
   }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, FlaskConical, X, Sparkles, ChevronDown, Waves, Ship, Flame, Palette, Ruler } from 'lucide-react';
+import { BookOpen, FlaskConical, X, Sparkles, ChevronDown, Waves, Ship, Flame, Palette, Ruler, Mountain } from 'lucide-react';
 
 export type ActiveViewType = 'curriculum' | 'simulations' | 'preschool-products';
 
@@ -18,6 +18,7 @@ export const PRESCHOOL_SIDEBAR_LABS = [
   { id: 'exp-sink-tank', title: 'Bể Thử Nghiệm Chìm Nổi', icon: Waves },
   { id: 'exp-rescue-raft', title: 'Xưởng Chế Tạo Bè Cứu Hộ', icon: Ship },
   { id: 'exp-lava-lamp', title: 'Chế Tạo Đèn Dung Nham', icon: Flame },
+  { id: 'exp-volcano', title: 'Núi Lửa Phun Trào', icon: Mountain },
   { id: 'exp-color-mixer', title: 'Hòa Trộn Màu Sắc', icon: Palette },
   { id: 'exp-measurement', title: 'Đo Lường & So Sánh', icon: Ruler },
 ];
