@@ -3,7 +3,6 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { HeldTool, StageOneState, ToolZone } from './stageOneModel';
-import { createTableTexture } from './tableTexture';
 import { createStageOneFoam } from './stageOneFoam';
 
 export type ScreenPoint={x:number;y:number};
@@ -38,9 +37,9 @@ export const StageOneScene=forwardRef<StageOneSceneHandle,Props>(function StageO
     scene.add(new THREE.HemisphereLight(0xfff9e9,0x8c9290,1.1));const sun=new THREE.DirectionalLight(0xfff2da,2.5);sun.position.set(-4,8,5);sun.castShadow=true;sun.shadow.mapSize.set(1536,1536);Object.assign(sun.shadow.camera,{left:-5,right:5,top:5,bottom:-5});sun.shadow.bias=-.001;scene.add(sun);
     const geometries=new Set<THREE.BufferGeometry>(),materials=new Set<THREE.Material>();
     function mesh(g:THREE.BufferGeometry,m:THREE.Material,p:THREE.Object3D=scene){geometries.add(g);materials.add(m);const o=new THREE.Mesh(g,m);o.castShadow=o.receiveShadow=true;p.add(o);return o;}
-    // The tabletop now shares the camera and shadows of the apparatus at every azimuth.
-    const oak=createTableTexture();
-    const floor=mesh(new THREE.CircleGeometry(9.5,128),new THREE.MeshStandardMaterial({map:oak,color:0xc9b398,roughness:.78}));floor.rotation.x=-Math.PI/2;floor.position.y=-.065;floor.castShadow=false;
+    // The extended rectangular desk belongs to the photograph. This invisible
+    // plane receives apparatus shadows only; it must never add another tabletop.
+    const floor=mesh(new THREE.PlaneGeometry(100,100),new THREE.ShadowMaterial({opacity:.19}));floor.rotation.x=-Math.PI/2;floor.position.y=-.065;floor.castShadow=false;
     const slate=new THREE.MeshStandardMaterial({color:0x9baba3,roughness:.64});const tray=mesh(new THREE.CylinderGeometry(2.55,2.51,.13,96),slate);tray.position.y=.025;
     const rim=mesh(new THREE.TorusGeometry(2.51,.045,10,100),slate);rim.position.y=.12;rim.rotation.x=Math.PI/2;
     const stone=stoneTexture();const basalt=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,map:stone,bumpMap:stone,bumpScale:.09,roughness:.95,flatShading:true});
@@ -121,7 +120,7 @@ export const StageOneScene=forwardRef<StageOneSceneHandle,Props>(function StageO
       if(now-lastAnchor>140){live.current.onAnchors({bowl:project(bowlPosition.clone().add(new THREE.Vector3(0,.4,0))),crater:project(mouthPosition),spoon:project(spoonRest.clone().add(new THREE.Vector3(0,.1,.65))),vinegar:project(pitcherRest.clone().add(new THREE.Vector3(0,.55,0)))});lastAnchor=now;}
       renderer.render(scene,camera);frame=requestAnimationFrame(tick);
     };frame=requestAnimationFrame(tick);
-    return()=>{cancelAnimationFrame(frame);observer.disconnect();controls.dispose();foamEffects.dispose();geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());stone.dispose();oak.dispose();env.dispose();renderer.dispose();renderer.domElement.remove();};
+    return()=>{cancelAnimationFrame(frame);observer.disconnect();controls.dispose();foamEffects.dispose();geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());stone.dispose();env.dispose();renderer.dispose();renderer.domElement.remove();};
   },[]);
   return <div ref={host} className="v1-webgl" role="img" aria-label="Núi đá ba chiều, miệng cốc mở, bát baking soda, thìa và cốc giấm trên bàn lớp học"/>;
 });

@@ -19,10 +19,18 @@ Chưa thử trực tiếp với trẻ; chưa thể kết luận biểu tượng 
 
 ## Đợt giao diện 21/10/2026 — vấn đề 1, 3, 4
 
-- Mặt bàn 3D rộng cùng không gian với dụng cụ và bóng đổ; chất liệu lấy qua UV từ phần gỗ trống của ảnh lớp học đã có. Khay tròn lớn hơn để chứa chân núi ở mọi phương ngang, không thu nhỏ núi.
+- Bản đầu đã dùng mặt bàn 3D tròn; người dùng phản hồi không phù hợp vì trông như bàn chồng lên bàn. Bản sửa tiếp bên dưới thay cách này; khay hứng thí nghiệm vẫn giữ nguyên.
 - Thay dải trắng bằng bong bóng có chu kỳ và các cụm bọt không đều trên vệt chất lỏng. Dòng chảy bắt đầu khi mức bọt minh họa vượt mép cốc; vệt ướt giữ lại sau phản ứng. Đây vẫn là biểu diễn định tính, không hiệu chuẩn chiều cao bọt hay tốc độ dòng chảy thực tế.
 - Đồng hồ ×½ làm chậm đồng bộ chuyển vật liệu, phản ứng và hoạt ảnh. Không thêm ngầm xà phòng/màu, không đổi lượng khí hay công thức phản ứng. Ẩn mũi tên tại miệng khi đã đưa dụng cụ tới đó.
 - Logo miệng núi và bọt, chữ xanh đậm, thẻ dụng cụ và trạng thái chọn rõ hơn; nút đặt xuống có nhãn.
 - Đã chạy build và bộ kiểm tra volcano; thử xúc đầy, rót, dừng, giữ lượng còn lại, phản ứng tiếp diễn, xoay sang sườn khác và giới hạn góc cao/thấp bằng chuột trong trình duyệt. Kiểm tra nhanh bố cục 375 px, không phải thiết bị cảm ứng thật hay thử với trẻ.
 - Đã gửi Antigravity CLI yêu cầu review giới hạn hai phút; chưa có file phản hồi ở thời điểm hoàn tất kiểm tra. Không coi lệnh CLI trả thành công là review đã hoàn thành.
 - Đề xuất bối cảnh tự nhiên nằm trong `nui-lua-thuc-te-de-xuat.md`, chưa xây dựng. Dáng núi, miệng núi, vật liệu dụng cụ và tối ưu thiết bị sâu để đợt tiếp theo theo yêu cầu người dùng.
+
+## Sửa lại đúng mặt bàn chữ nhật
+
+- Bỏ mesh mặt gỗ tròn và texture riêng. Chỉ giữ mặt phẳng vô hình nhận bóng, không vẽ thêm bàn hoặc bệ gỗ.
+- `public/assets/volcano/classroom-table-extended-v2.webp` là ảnh nền dùng riêng cho núi lửa, ImageGen chỉnh từ ảnh lớp học đã duyệt: kéo dài chính mặt bàn chữ nhật về phía tủ, mép sau thẳng, không thêm đồ vật. Chuyển WebP khoảng 147 KB. Ảnh các thí nghiệm khác giữ nguyên.
+- Nền căn dưới và mở rộng vùng gỗ theo khung hình để khay vẫn nằm trong bàn khi nhìn từ góc cao. Không đổi kích thước núi, giao diện, icon hoặc hiệu ứng trong bản sửa bàn.
+- Prompt nền: “Extend the EXISTING foreground RECTANGULAR oak table much farther back toward the wooden cupboards. A single straight rear edge across the image; uninterrupted empty oak tabletop. The same single rectangular desk, not an additional object. No round or oval table, no second tabletop, no raised board. Preserve the classroom, lighting and grain; no props, people, UI or text.” Công cụ built-in ImageGen; nguồn PNG giữ trong thư mục generated_images của Codex.
+- GPT-6 Astra được giao riêng thiết kế giao diện, phẩm màu/hiệu ứng và vòng nặn núi. Đó là đề xuất trong `nui-lua-thiet-ke-astra-2026-10-21.md`, chưa tích hợp vào trải nghiệm đang chạy.
