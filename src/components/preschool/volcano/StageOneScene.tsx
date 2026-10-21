@@ -3,11 +3,13 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { HeldTool, StageOneState, ToolZone } from './stageOneModel';
+import { createTableTexture } from './tableTexture';
+import { createStageOneFoam } from './stageOneFoam';
 
 export type ScreenPoint={x:number;y:number};
 export type SceneAnchors={bowl:ScreenPoint;crater:ScreenPoint;spoon:ScreenPoint;vinegar:ScreenPoint};
 export interface StageOneSceneHandle {aim:(x:number,y:number)=>ToolZone|null; place:(zone:ToolZone)=>void; home:()=>void; pick:(tool:HeldTool)=>void}
-interface Props {read:()=>StageOneState; scooping:()=>boolean; onAnchors:(value:SceneAnchors)=>void; locked?:boolean; onUnavailable?:()=>void}
+interface Props {read:()=>StageOneState; scooping:()=>boolean; timeScale:()=>number; onAnchors:(value:SceneAnchors)=>void; locked?:boolean; onUnavailable?:()=>void}
 
 function rockRadius(y:number,a:number){
   const t=Math.max(0,Math.min(1,(y-.12)/2.35));
@@ -20,8 +22,8 @@ function stoneTexture(){
   texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.repeat.set(2,1.4);texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=8;return texture;
 }
 
-export const StageOneScene=forwardRef<StageOneSceneHandle,Props>(function StageOneScene({read,scooping,onAnchors,locked=false,onUnavailable},ref){
-  const host=useRef<HTMLDivElement>(null);const live=useRef({read,scooping,onAnchors,locked,onUnavailable});live.current={read,scooping,onAnchors,locked,onUnavailable};
+export const StageOneScene=forwardRef<StageOneSceneHandle,Props>(function StageOneScene({read,scooping,timeScale,onAnchors,locked=false,onUnavailable},ref){
+  const host=useRef<HTMLDivElement>(null);const live=useRef({read,scooping,timeScale,onAnchors,locked,onUnavailable});live.current={read,scooping,timeScale,onAnchors,locked,onUnavailable};
   const api=useRef<StageOneSceneHandle>({aim:()=>null,place:()=>{},home:()=>{},pick:()=>{}});
   useImperativeHandle(ref,()=>({aim:(x,y)=>api.current.aim(x,y),place:z=>api.current.place(z),home:()=>api.current.home(),pick:t=>api.current.pick(t)}),[]);
   useEffect(()=>{
@@ -36,9 +38,11 @@ export const StageOneScene=forwardRef<StageOneSceneHandle,Props>(function StageO
     scene.add(new THREE.HemisphereLight(0xfff9e9,0x8c9290,1.1));const sun=new THREE.DirectionalLight(0xfff2da,2.5);sun.position.set(-4,8,5);sun.castShadow=true;sun.shadow.mapSize.set(1536,1536);Object.assign(sun.shadow.camera,{left:-5,right:5,top:5,bottom:-5});sun.shadow.bias=-.001;scene.add(sun);
     const geometries=new Set<THREE.BufferGeometry>(),materials=new Set<THREE.Material>();
     function mesh(g:THREE.BufferGeometry,m:THREE.Material,p:THREE.Object3D=scene){geometries.add(g);materials.add(m);const o=new THREE.Mesh(g,m);o.castShadow=o.receiveShadow=true;p.add(o);return o;}
-    const floor=mesh(new THREE.PlaneGeometry(100,100),new THREE.ShadowMaterial({opacity:.19}));floor.rotation.x=-Math.PI/2;floor.position.y=-.06;
-    const slate=new THREE.MeshStandardMaterial({color:0x9baba3,roughness:.64});const tray=mesh(new THREE.CylinderGeometry(2.22,2.18,.13,96),slate);tray.position.y=.025;tray.scale.z=.87;
-    const rim=mesh(new THREE.TorusGeometry(2.18,.045,10,100),slate);rim.position.y=.12;rim.rotation.x=Math.PI/2;rim.scale.y=.87;
+    // The tabletop now shares the camera and shadows of the apparatus at every azimuth.
+    const oak=createTableTexture();
+    const floor=mesh(new THREE.CircleGeometry(9.5,128),new THREE.MeshStandardMaterial({map:oak,color:0xc9b398,roughness:.78}));floor.rotation.x=-Math.PI/2;floor.position.y=-.065;floor.castShadow=false;
+    const slate=new THREE.MeshStandardMaterial({color:0x9baba3,roughness:.64});const tray=mesh(new THREE.CylinderGeometry(2.55,2.51,.13,96),slate);tray.position.y=.025;
+    const rim=mesh(new THREE.TorusGeometry(2.51,.045,10,100),slate);rim.position.y=.12;rim.rotation.x=Math.PI/2;
     const stone=stoneTexture();const basalt=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,map:stone,bumpMap:stone,bumpScale:.09,roughness:.95,flatShading:true});
     const rows=32,segments=96,points:number[]=[],uv:number[]=[],colors:number[]=[],indices:number[]=[];const color=new THREE.Color();
     for(let j=0;j<=rows;j++)for(let i=0;i<=segments;i++){
@@ -82,21 +86,7 @@ export const StageOneScene=forwardRef<StageOneSceneHandle,Props>(function StageO
     // Raised leaf-shaped mark on the household vinegar cup; full text stays on the accessible control.
     const mark=mesh(new THREE.SphereGeometry(.05,12,8),new THREE.MeshStandardMaterial({color:0x6a8c78}),pitcher);mark.position.set(0,.48,.333);mark.scale.set(.55,1.1,.1);
     const pitcherRest=new THREE.Vector3(2.65,.13,1.27);pitcher.position.copy(pitcherRest);
-    const foamTextureCanvas=document.createElement('canvas');foamTextureCanvas.width=foamTextureCanvas.height=128;const fc=foamTextureCanvas.getContext('2d')!;fc.fillStyle='#fdf9e9';fc.fillRect(0,0,128,128);for(let i=0;i<180;i++){const x=(i*73)%128,y=(i*47)%128;fc.strokeStyle=i%3?'#dddccc':'#ffffff';fc.lineWidth=.6;fc.beginPath();fc.arc(x,y,1+i%4,0,Math.PI*2);fc.stroke();}
-    const foamTexture=new THREE.CanvasTexture(foamTextureCanvas);foamTexture.wrapS=foamTexture.wrapT=THREE.RepeatWrapping;foamTexture.repeat.set(3,2);foamTexture.colorSpace=THREE.SRGBColorSpace;
-    const foamMat=new THREE.MeshStandardMaterial({color:0xfff9df,map:foamTexture,roughness:.39});
-    const bubbles=Array.from({length:70},()=>mesh(new THREE.SphereGeometry(1,14,10),foamMat));
-    const reach={value:0};const flowMat=new THREE.MeshStandardMaterial({color:0xfff7dd,map:foamTexture,roughness:.4,transparent:true});
-    flowMat.onBeforeCompile=shader=>{shader.uniforms.uReach=reach;shader.vertexShader='varying vec2 vFlowUv;\n'+shader.vertexShader.replace('#include <uv_vertex>','#include <uv_vertex>\nvFlowUv=uv;');shader.fragmentShader='uniform float uReach;varying vec2 vFlowUv;\n'+shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\nif(vFlowUv.x>uReach)discard;diffuseColor.a*=1.0-smoothstep(max(0.0,uReach-.045),uReach,vFlowUv.x);');};
-    // Broad irregular sheets follow the actual rock surface; avoid identical rope-like jets.
-    const lanes=[.48,1.52,2.48,3.8,5.15];const flows=lanes.map((a,index)=>{
-      const positions:number[]=[],uvs:number[]=[],triangles:number[]=[];
-      for(let j=0;j<=80;j++){const t=j/80,y=2.43-t*2.27,center=a+.055*Math.sin(t*9+index),width=(.055+.065*t)*(1+.23*Math.sin(t*23+index));
-        for(let edge=0;edge<2;edge++){const aa=center+(edge?1:-1)*width,r=t<.06?.36+(rockRadius(y,aa)-.36)*t/.06:rockRadius(y,aa)+.043;positions.push(Math.cos(aa)*r+(1-t)*.09,y+.014*Math.sin(t*50),Math.sin(aa)*r);uvs.push(t,edge);}
-        if(j<80){const k=j*2;triangles.push(k,k+1,k+2,k+1,k+3,k+2);}}
-      const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));g.setIndex(triangles);g.computeVertexNormals();flowMat.side=THREE.DoubleSide;return mesh(g,flowMat);
-    });
-    const puddle=mesh(new THREE.CircleGeometry(1,64),new THREE.MeshStandardMaterial({color:0xd2d9c5,roughness:.18,transparent:true,opacity:.72}));puddle.rotation.x=-Math.PI/2;puddle.position.set(.08,.103,.15);puddle.scale.set(1.9,1.48,1);
+    const foamEffects=createStageOneFoam(scene,rockRadius);
     const stream=mesh(new THREE.CylinderGeometry(.022,.032,1,12),new THREE.MeshPhysicalMaterial({color:0xe5eadd,transparent:true,opacity:.7,roughness:.1}));stream.castShadow=false;
     const grains=new THREE.InstancedMesh(new THREE.SphereGeometry(.014,5,4),powderMat,42);scene.add(grains);geometries.add(grains.geometry);const dummy=new THREE.Object3D();
     const ghost=new THREE.MeshBasicMaterial({visible:false});const bowlHit=mesh(new THREE.CircleGeometry(.76,36),ghost);bowlHit.rotation.x=-Math.PI/2;bowlHit.position.copy(bowlPosition).add(new THREE.Vector3(0,.4,0));
@@ -110,8 +100,9 @@ export const StageOneScene=forwardRef<StageOneSceneHandle,Props>(function StageO
     }};
     const resize=()=>{const w=el.clientWidth,h=el.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/Math.max(1,h);camera.updateProjectionMatrix();if(w<600){camera.fov=46;}else camera.fov=36;camera.updateProjectionMatrix();if(w<600){bowlPosition.set(-1.25,.15,2.25);bowl.position.copy(bowlPosition);stock.position.copy(bowlPosition).add(new THREE.Vector3(0,.31,0));spoonRest.set(-1.05,.23,2.9);pitcherRest.set(1.75,.13,2.15);}else{bowlPosition.set(-2.62,.15,1.15);bowl.position.copy(bowlPosition);stock.position.copy(bowlPosition).add(new THREE.Vector3(0,.31,0));spoonRest.set(-2.27,.23,2);pitcherRest.set(2.65,.13,1.27);}bowlHit.position.copy(bowlPosition).add(new THREE.Vector3(0,.4,0));home();};const observer=new ResizeObserver(resize);observer.observe(el);resize();
     const project=(v:THREE.Vector3)=>{const p=v.clone().project(camera);return{x:(p.x+1)/2*el.clientWidth,y:(1-p.y)/2*el.clientHeight};};
+    let animationTime=0;
     const tick=(now:number)=>{
-      const dt=previous?Math.min((now-previous)/1000,.06):.016;previous=now;const state=live.current.read(),r=state.reaction;const t=now*.001;
+      const dt=previous?Math.min((now-previous)/1000,.06):.016;previous=now;const state=live.current.read(),r=state.reaction;const simulationDt=dt*live.current.timeScale();animationTime+=simulationDt;const t=animationTime;
       controls.enabled=!live.current.locked&&!state.held;controls.update();const blend=1-Math.exp(-dt*14);
       const spoonGoal=state.held==='spoon'?freePosition.clone():spoonRest.clone();if(state.held==='spoon'&&state.target==='bowl')spoonGoal.y=bowlPosition.y+(live.current.scooping()?.33+.045*Math.sin(t*9):.88);
       spoon.position.lerp(spoonGoal,blend);spoon.rotation.x=THREE.MathUtils.lerp(spoon.rotation.x,state.held==='spoon'?-state.tilt*1.12:0,blend);spoon.rotation.y=THREE.MathUtils.lerp(spoon.rotation.y,state.held==='spoon'?0:-.4,blend);
@@ -121,9 +112,7 @@ export const StageOneScene=forwardRef<StageOneSceneHandle,Props>(function StageO
       pitcher.position.lerp(pitcherGoal,blend);const liquidFraction=Math.max(0,state.vinegarMl/60);pitcherWater.visible=liquidFraction>.005;pitcherWater.scale.y=Math.max(.01,liquidFraction);pitcherWater.position.y=.06+.34*liquidFraction;pitcherWater.rotation.z=-pitcher.rotation.z*.88;
       powder.visible=r.sodaGrams>.02;powder.position.y=1.99+Math.min(r.liquidMl/120,.8)*.24;powder.scale.y=.05+Math.min(r.sodaGrams/8,1)*.22;
       water.visible=r.liquidMl>.05;water.position.y=1.975+Math.min(r.liquidMl/100,1)*.34;
-      const foam=Math.min(1.4,r.foam);reach.value=THREE.MathUtils.lerp(reach.value,Math.max(0,Math.min(1,(foam-.10)*5)),blend*.4);flows.forEach(f=>{f.visible=reach.value>.005;});
-      for(let i=0;i<bubbles.length;i++){const b=bubbles[i];b.visible=foam>.012&&i<foam*220;const a=i*2.39996,ring=Math.sqrt((i%19)/19)*.31;const size=.045+(i%5)*.017;b.position.set(.09+Math.cos(a)*ring,Math.min(2.59,water.position.y+foam*3.8)+(i%4)*.045+Math.sin(t*3+i)*.016,Math.sin(a)*ring);b.scale.setScalar(size*(.85+.15*Math.sin(t*3+i)));}
-      puddle.visible=r.peakFoam>.30;puddle.scale.set(1.72+Math.min(.22,r.peakFoam*.2),1.35+Math.min(.2,r.peakFoam*.2),1);
+      foamEffects.update(r,water.position.y,simulationDt);
       const hasMaterial=state.held==='spoon'?state.spoonGrams>.001:state.vinegarMl>.001;const flowing=state.pouring&&state.tilt>.25&&hasMaterial;
       const from=state.held==='spoon'?spoon.localToWorld(new THREE.Vector3(0,-.01,-.27)):pitcher.localToWorld(new THREE.Vector3(-.4,.9,0));
       const to=state.target==='crater'?new THREE.Vector3(.09,Math.max(2.0,water.position.y),0):new THREE.Vector3(from.x,.13,from.z);
@@ -132,7 +121,7 @@ export const StageOneScene=forwardRef<StageOneSceneHandle,Props>(function StageO
       if(now-lastAnchor>140){live.current.onAnchors({bowl:project(bowlPosition.clone().add(new THREE.Vector3(0,.4,0))),crater:project(mouthPosition),spoon:project(spoonRest.clone().add(new THREE.Vector3(0,.1,.65))),vinegar:project(pitcherRest.clone().add(new THREE.Vector3(0,.55,0)))});lastAnchor=now;}
       renderer.render(scene,camera);frame=requestAnimationFrame(tick);
     };frame=requestAnimationFrame(tick);
-    return()=>{cancelAnimationFrame(frame);observer.disconnect();controls.dispose();geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());stone.dispose();foamTexture.dispose();env.dispose();renderer.dispose();renderer.domElement.remove();};
+    return()=>{cancelAnimationFrame(frame);observer.disconnect();controls.dispose();foamEffects.dispose();geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());stone.dispose();oak.dispose();env.dispose();renderer.dispose();renderer.domElement.remove();};
   },[]);
   return <div ref={host} className="v1-webgl" role="img" aria-label="Núi đá ba chiều, miệng cốc mở, bát baking soda, thìa và cốc giấm trên bàn lớp học"/>;
 });
