@@ -1,6 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),ts=require('typescript');
 function load(name,dependencies={}){const mod={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(`src/components/preschool/volcano/${name}.ts`,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{module:mod,exports:mod.exports,require:id=>dependencies[id]});return mod.exports;}
-const reaction=load('reaction'),clay=load('clayModel'),{createStageOne,pickTool,scoop,transfer,advanceStageOne,returnTool,addColorDrop}=load('stageOneModel',{'./reaction':reaction,'./clayModel':clay});
+const reaction=load('reaction'),clay=load('clayModel',{'./blenderClayGrid':load('blenderClayGrid')}),{createStageOne,pickTool,scoop,transfer,advanceStageOne,returnTool,addColorDrop}=load('stageOneModel',{'./reaction':reaction,'./clayModel':clay});
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-7,`${a} != ${b}`);
 const s=createStageOne();assert.equal(s.reaction.soap,0);assert.equal(s.reaction.liquidMl,0);assert.equal(s.reaction.sodaGrams,0);
 pickTool(s,'spoon');s.target='bowl';scoop(s,.3);near(s.spoonGrams,0.42);near(s.sodaStockGrams+s.spoonGrams,24);returnTool(s);near(s.spoonGrams,0.42);

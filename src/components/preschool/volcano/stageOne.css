@@ -13,3 +13,5 @@
 @media(prefers-reduced-motion:reduce){.v1-shell button,.v2-quantity>i{transition:none}}
 
 .v1-shell .v2-primary:disabled{opacity:1;background:#31575d;border-color:#638082;color:#f8faf6}
+
+.v1-asset-loading{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}.v1-asset-loading>i{width:45px;height:45px;border:4px solid #dcece6;border-top-color:#173f46;border-radius:50%;animation:v1-model-load .8s linear infinite}@keyframes v1-model-load{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.v1-asset-loading>i{animation:none}}

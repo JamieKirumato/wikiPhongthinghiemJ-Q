@@ -263,7 +263,7 @@ export function advanceStageOne(state: StageOneState, dt: number): void {
 }
 
 export function cupWaterY(state: StageOneState) {
-  return 2.145 + Math.min(Math.max(0, state.reaction.liquidMl - state.runoffMl) / 100, 1) * .34;
+  return 1.79 + Math.min(Math.max(0, state.reaction.liquidMl - state.runoffMl) / 120, 1) * .74;
 }
 
 /** One intentional drop per press; cosmetic, without changing CO2 or reagent amounts. */

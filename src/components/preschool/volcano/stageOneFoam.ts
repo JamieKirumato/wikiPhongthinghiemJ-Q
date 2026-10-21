@@ -8,7 +8,7 @@ export function createStageOneFoam(scene: THREE.Object3D, surface:()=>ClaySurfac
   const bubbleMaterial=new THREE.MeshPhysicalMaterial({color:0xfffcf0,roughness:.13,transparent:true,opacity:.58,clearcoat:1,depthWrite:false});
   const bubbles=new THREE.InstancedMesh(geometry,bubbleMaterial,120);bubbles.frustumCulled=false;scene.add(bubbles);
   const wetBase=new THREE.MeshPhysicalMaterial({color:0xe4dfca,roughness:.11,transparent:true,opacity:.68,clearcoat:.35,envMapIntensity:.4,depthWrite:false,side:THREE.DoubleSide});
-  const angles=[1.2,3.5,5.65];
+  const angles=[1.3,3.5,5.65];
   const paths=angles.map((angle,index)=>{
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(73*15),3));
     const uv:number[]=[],indices:number[]=[];
@@ -25,7 +25,7 @@ export function createStageOneFoam(scene: THREE.Object3D, surface:()=>ClaySurfac
   function rebuild(){
     const s=surface();if(s===lastSurface&&s.revision===revision)return;revision=s.revision;lastSurface=s;
     paths.forEach(path=>{
-      const points=traceClayFlow(s,path.angle);points[0]={x:.09+Math.cos(path.angle)*.38,y:2.57,z:Math.sin(path.angle)*.38,angle:path.angle};const position=path.mesh.geometry.getAttribute('position');
+      const points=traceClayFlow(s,path.angle);points[0]={x:.09+Math.cos(path.angle)*.439,y:2.57,z:Math.sin(path.angle)*.439,angle:path.angle};const position=path.mesh.geometry.getAttribute('position');
       points.forEach((point,j)=>{const width=(.033+j/72*.037)*(1+Math.sin(j*.7+path.angle)*.18);for(let c=0;c<5;c++){const u=c/2-1;position.setXYZ(j*5+c,point.x-Math.sin(point.angle)*width*u,point.y+.006+(1-u*u)*.012,point.z+Math.cos(point.angle)*width*u);}});
       position.needsUpdate=true;path.mesh.geometry.computeVertexNormals();path.mesh.geometry.computeBoundingSphere();
     });

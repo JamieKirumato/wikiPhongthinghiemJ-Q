@@ -1,3 +1,4 @@
+import { BLENDER_CLAY_GRID } from './blenderClayGrid';
 /** Editable radial clay shell around a fixed, open cup. Not a geological model. */
 export type ClayTool = 'add' | 'smooth' | 'channel' | 'remove';
 export const CLAY_ROWS = 48;
@@ -16,24 +17,7 @@ export const CLAY_PATCHES = Array.from({ length: 24 }, (_, i) => ({
   height: .18 + (i % 4) * .045,
   lift: .2 + (i % 4) * .045,
 }));
-const profile = [1.9, 1.75, 1.6, 1.48, 1.34, 1.2, 1.08, .94, .80, .65, .48];
-const baseGrid = Array((CLAY_ROWS + 1) * CLAY_SEGMENTS).fill(0);
-for (let col=0;col<CLAY_SEGMENTS;col++) {
-  const angle=col/CLAY_SEGMENTS*TAU;
-  for (let row=CLAY_ROWS;row>=0;row--) {
-    const t=row/CLAY_ROWS,y=.13+t*2.3,index=Math.min(9,Math.floor(t*10)),f=t*10-index;
-    let r=profile[index]*(1-f)+profile[index+1]*f;
-    r*=1+Math.sin(Math.PI*t)*(.1*Math.sin(angle*3+.5)+.055*Math.cos(angle*2-1));
-    for (const patch of CLAY_PATCHES) {
-      const da=Math.atan2(Math.sin(angle-patch.a),Math.cos(angle-patch.a));
-      const distance=((y-patch.y)/patch.height)**2+(da/patch.width)**2; r+=patch.lift*Math.exp(-(distance**2));
-    }
-    // Broad pressed shoulders and one imperfect natural channel, rather than a cone.
-    const groove=Math.atan2(Math.sin(angle-1.2-.08*Math.sin(t*7)),Math.cos(angle-1.2-.08*Math.sin(t*7)));
-    r-=.11*Math.exp(-((groove/.105)**2))*Math.sin(Math.PI*t);
-    baseGrid[row*CLAY_SEGMENTS+col]=row===CLAY_ROWS?r:Math.max(r,baseGrid[(row+1)*CLAY_SEGMENTS+col]+.008);
-  }
-}
+const baseGrid = BLENDER_CLAY_GRID;
 function sampleGrid(grid:number[],y:number,angle:number) {
   const row=clamp((y-.13)/2.3*CLAY_ROWS,0,CLAY_ROWS),col=((angle%TAU+TAU)%TAU)/TAU*CLAY_SEGMENTS;
   const r0=Math.floor(row),r1=Math.min(CLAY_ROWS,r0+1),c0=Math.floor(col),c1=wrap(c0+1),fx=col%1,fy=row%1;
@@ -41,6 +25,7 @@ function sampleGrid(grid:number[],y:number,angle:number) {
   const upper=grid[r1*CLAY_SEGMENTS+c0]*(1-fx)+grid[r1*CLAY_SEGMENTS+c1]*fx;
   return lower*(1-fy)+upper*fy;
 }
+export function clayOffset(surface:ClaySurface,y:number,angle:number){return sampleGrid(surface.offsets,y,angle);}
 export function baseRadius(y:number,angle:number) { return sampleGrid(baseGrid,y,angle); }
 export function clayRadius(surface: ClaySurface, y: number, angle: number) {
   return baseRadius(y,angle)+sampleGrid(surface.offsets,y,angle);
