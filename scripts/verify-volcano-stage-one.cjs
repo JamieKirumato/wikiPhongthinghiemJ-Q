@@ -23,3 +23,10 @@ const after=clay.traceClayFlow(shell,.9);
 assert.ok(after.some((p,i)=>Math.abs(p.angle-before[i].angle)>.02),'A nearby connected groove changes the computed flow path');
 for(let col=0;col<96;col++)for(let row=0;row<32;row++)assert.ok(clay.clayRadius(shell,.13+row/32*2.3,col/96*Math.PI*2)>=clay.clayRadius(shell,.13+(row+1)/32*2.3,col/96*Math.PI*2)-.001,'Clay remains a descending, unfolded shell');
 console.log('Color does not change CO2; bounded drops/runoff and terrain-dependent flow passed.');
+const built=clay.createClay();
+for(let i=0;i<35;i++)clay.sculptClay(built,.24,1.2,'add');
+for(let row=0;row<clay.CLAY_ROWS;row++)for(let col=0;col<clay.CLAY_SEGMENTS;col++){
+  const a=col/clay.CLAY_SEGMENTS*Math.PI*2,y=.13+row/clay.CLAY_ROWS*2.3;
+  assert.ok(clay.clayRadius(built,y,a)>=clay.clayRadius(built,y+2.3/clay.CLAY_ROWS,a)-.001,'Repeated low clay additions cannot fold past the fixed base');
+}
+console.log('Pressed clay: repeated additions preserve an unfolded shell and fixed base.');

@@ -1,7 +1,7 @@
 /** Editable radial clay shell around a fixed, open cup. Not a geological model. */
 export type ClayTool = 'add' | 'smooth' | 'channel' | 'remove';
-export const CLAY_ROWS = 32;
-export const CLAY_SEGMENTS = 96;
+export const CLAY_ROWS = 48;
+export const CLAY_SEGMENTS = 128;
 export type ClaySurface = { offsets: number[]; revision: number };
 const TAU = Math.PI * 2;
 const wrap = (n: number) => (n % CLAY_SEGMENTS + CLAY_SEGMENTS) % CLAY_SEGMENTS;
@@ -9,19 +9,41 @@ const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n
 export function createClay(): ClaySurface {
   return { offsets: Array((CLAY_ROWS + 1) * CLAY_SEGMENTS).fill(0), revision: 0 };
 }
-export function baseRadius(y: number, a: number) {
-  const t = clamp((y - .13) / 2.3, 0, 1);
-  const body=(1.92 - 1.43 * Math.pow(t, .72)) * (1 + .075 * Math.sin(a * 3 + t) + .035 * Math.sin(a * 7 - t * 2));
-  return body + Math.sin(t*Math.PI)*(.035*Math.sin(y*6+a*3)+.009*Math.sin(y*30+a*5));
+export const CLAY_PATCHES = Array.from({ length: 24 }, (_, i) => ({
+  y: .32 + (i % 6) * .34 + .08 * Math.sin(i * 3.1),
+  a: i * 2.39996,
+  width: .22 + (i % 3) * .065,
+  height: .18 + (i % 4) * .045,
+  lift: .2 + (i % 4) * .045,
+}));
+const profile = [1.9, 1.75, 1.6, 1.48, 1.34, 1.2, 1.08, .94, .80, .65, .48];
+const baseGrid = Array((CLAY_ROWS + 1) * CLAY_SEGMENTS).fill(0);
+for (let col=0;col<CLAY_SEGMENTS;col++) {
+  const angle=col/CLAY_SEGMENTS*TAU;
+  for (let row=CLAY_ROWS;row>=0;row--) {
+    const t=row/CLAY_ROWS,y=.13+t*2.3,index=Math.min(9,Math.floor(t*10)),f=t*10-index;
+    let r=profile[index]*(1-f)+profile[index+1]*f;
+    r*=1+Math.sin(Math.PI*t)*(.1*Math.sin(angle*3+.5)+.055*Math.cos(angle*2-1));
+    for (const patch of CLAY_PATCHES) {
+      const da=Math.atan2(Math.sin(angle-patch.a),Math.cos(angle-patch.a));
+      const distance=((y-patch.y)/patch.height)**2+(da/patch.width)**2; r+=patch.lift*Math.exp(-(distance**2));
+    }
+    // Broad pressed shoulders and one imperfect natural channel, rather than a cone.
+    const groove=Math.atan2(Math.sin(angle-1.2-.08*Math.sin(t*7)),Math.cos(angle-1.2-.08*Math.sin(t*7)));
+    r-=.11*Math.exp(-((groove/.105)**2))*Math.sin(Math.PI*t);
+    baseGrid[row*CLAY_SEGMENTS+col]=row===CLAY_ROWS?r:Math.max(r,baseGrid[(row+1)*CLAY_SEGMENTS+col]+.008);
+  }
 }
+function sampleGrid(grid:number[],y:number,angle:number) {
+  const row=clamp((y-.13)/2.3*CLAY_ROWS,0,CLAY_ROWS),col=((angle%TAU+TAU)%TAU)/TAU*CLAY_SEGMENTS;
+  const r0=Math.floor(row),r1=Math.min(CLAY_ROWS,r0+1),c0=Math.floor(col),c1=wrap(c0+1),fx=col%1,fy=row%1;
+  const lower=grid[r0*CLAY_SEGMENTS+c0]*(1-fx)+grid[r0*CLAY_SEGMENTS+c1]*fx;
+  const upper=grid[r1*CLAY_SEGMENTS+c0]*(1-fx)+grid[r1*CLAY_SEGMENTS+c1]*fx;
+  return lower*(1-fy)+upper*fy;
+}
+export function baseRadius(y:number,angle:number) { return sampleGrid(baseGrid,y,angle); }
 export function clayRadius(surface: ClaySurface, y: number, angle: number) {
-  const row = clamp((y - .13) / 2.3 * CLAY_ROWS, 0, CLAY_ROWS);
-  const col = ((angle % TAU + TAU) % TAU) / TAU * CLAY_SEGMENTS;
-  const r0 = Math.floor(row), r1 = Math.min(CLAY_ROWS, r0 + 1), c0 = Math.floor(col), c1 = wrap(c0 + 1);
-  const at = (r: number, c: number) => surface.offsets[r * CLAY_SEGMENTS + wrap(c)];
-  const lower = at(r0, c0) * (1 - col % 1) + at(r0, c1) * (col % 1);
-  const upper = at(r1, c0) * (1 - col % 1) + at(r1, c1) * (col % 1);
-  return baseRadius(y, angle) + lower * (1 - row % 1) + upper * (row % 1);
+  return baseRadius(y,angle)+sampleGrid(surface.offsets,y,angle);
 }
 export function clayHeight(surface: ClaySurface, radius: number, angle: number) {
   let lo = .13, hi = 2.43;
@@ -59,6 +81,12 @@ export function sculptClay(surface: ClaySurface, y: number, angle: number, tool:
     const next = baseRadius(y + 2.3 / CLAY_ROWS, a) + surface.offsets[(row + 1) * CLAY_SEGMENTS + col];
     surface.offsets[row * CLAY_SEGMENTS + col] = Math.max(surface.offsets[row * CLAY_SEGMENTS + col], next + .008 - baseRadius(y, a));
   }
+  for (let col=0;col<CLAY_SEGMENTS;col++) for (let row=1;row<CLAY_ROWS-1;row++) {
+    const a=col/CLAY_SEGMENTS*TAU,y=.13+row/CLAY_ROWS*2.3;
+    const lower=clayRadius(surface,y-2.3/CLAY_ROWS,a);
+    const k=row*CLAY_SEGMENTS+col;
+    surface.offsets[k]=Math.min(surface.offsets[k],lower-.008-baseRadius(y,a));
+  }
   surface.revision++;
 }
 export type FlowPoint = { x: number; y: number; z: number; angle: number };
@@ -77,7 +105,7 @@ export function traceClayFlow(surface: ClaySurface, startAngle: number): FlowPoi
       }
       angle = bestAngle;
     }
-    const y = Math.min(lastY, clayHeight(surface, radius, angle) + .022);
+    const y = Math.min(lastY, clayHeight(surface, radius, angle) + .035);
     lastY = y;
     points.push({ x: Math.cos(angle) * radius + .09, y, z: Math.sin(angle) * radius, angle });
   }

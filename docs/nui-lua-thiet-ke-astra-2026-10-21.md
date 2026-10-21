@@ -1,5 +1,9 @@
 # Đề xuất thiết kế Núi lửa của con — 21/10/2026
 
+## Bản xanh ngọc đã được duyệt và triển khai
+
+Người dùng chọn bản vẽ lại của GPT-6 Astra: cảnh tràn màn hình, núi nâu cacao có mảng đắp, khay chữ nhật xanh ngọc và cụm dụng cụ bên phải; điện thoại sắp dụng cụ thành hàng dưới núi. Bản triển khai dùng hình học Three.js có thể nặn/xoay, chất liệu đất và nền phòng từ ImageGen, không dùng ảnh concept làm cảnh tương tác tĩnh. Giữ nhỏ màu, xúc/rót/dừng, lưu ảnh, cốc mới giữ dáng núi và so sánh; đường chảy tiếp tục theo bề mặt đã nặn. Xem [nguồn và prompt tài nguyên](nui-lua-assets-xanh-ngoc.md). Các mô tả bên dưới lưu lại đề xuất và các lượt thử trước.
+
 GPT-6 Astra được người dùng yêu cầu trực tiếp thiết kế hướng giao diện và hiệu ứng. Codex tổng hợp và dùng ImageGen tích hợp để dựng ảnh minh họa. Tài liệu này là đề xuất, chưa triển khai và chưa thử với trẻ. Đợt sửa đang xuất bản chỉ bỏ mặt bàn tròn và kéo dài bàn chữ nhật hiện có.
 
 **Cập nhật sau khi người dùng duyệt hướng:** đã triển khai bản thử giao diện kem–đỏ–vàng, logo dung nham đỏ, hai khay Nặn núi/Thử, giọng Việt cục bộ, nhỏ từng giọt màu, nặn trực tiếp trên vỏ núi với hoàn tác và đường chảy tính theo bề mặt. Cốc mới giữ dáng núi; lưu tối đa ba hình cùng lượng bột/giấm/màu để so sánh trong phiên chơi. Bản thử bắt đầu từ vỏ núi có sẵn, chưa có dựng từ cốc trống, khay nhiều loại miếng đất hoặc tự cấp lại công thức đã lưu. Bọt và đường nước là minh họa định tính, không phải mô hình thủy động lực hay hiệu chuẩn hóa học. Đã bổ sung kiểm tra màu không tăng CO₂, hữu hạn giọt/nước tràn và rãnh làm đổi đường chảy. Chưa thử với trẻ. Antigravity CLI đã nhận yêu cầu rà soát ngắn nhưng chưa trả tệp nhận xét; không coi là một lượt review hoàn tất.

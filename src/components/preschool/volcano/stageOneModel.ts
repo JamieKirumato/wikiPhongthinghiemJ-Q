@@ -256,14 +256,14 @@ export function advanceStageOne(state: StageOneState, dt: number): void {
     if (state.reaction.liquidMl > .05) state.colorMix += ((1 - Math.exp(-state.colorDrops * .65)) - state.colorMix) * (1 - Math.exp(-stepDt * 1.6));
     // Liquid is redistributed from cup to tray, never created by the animation.
     const top = cupWaterY(state) + Math.min(.6, state.reaction.foam * 3);
-    const overflow = Math.max(0, Math.min(1, (top - 2.4) * 4));
+    const overflow = Math.max(0, Math.min(1, (top - 2.57) * 4));
     state.runoffMl += Math.min(Math.max(0, state.reaction.liquidMl - state.runoffMl), stepDt * overflow * 4);
     remaining -= stepDt;
   }
 }
 
 export function cupWaterY(state: StageOneState) {
-  return 1.975 + Math.min(Math.max(0, state.reaction.liquidMl - state.runoffMl) / 100, 1) * .34;
+  return 2.145 + Math.min(Math.max(0, state.reaction.liquidMl - state.runoffMl) / 100, 1) * .34;
 }
 
 /** One intentional drop per press; cosmetic, without changing CO2 or reagent amounts. */
