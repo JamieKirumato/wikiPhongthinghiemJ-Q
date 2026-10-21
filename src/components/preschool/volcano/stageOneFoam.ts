@@ -1,116 +1,56 @@
 import * as THREE from 'three';
-import { ReactionState } from './reaction';
+import { StageOneState } from './stageOneModel';
+import { ClaySurface, traceClayFlow } from './clayModel';
 
-/** Qualitative rendering driven by the existing gas/foam model; no extra reagent or gas. */
-export function createStageOneFoam(scene: THREE.Scene, radius: (y: number, angle: number) => number) {
-  const bubbleGeometry = new THREE.SphereGeometry(1, 12, 9);
-  const bubbleMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0xfffcee, roughness: .24, metalness: 0, clearcoat: .75,
-    clearcoatRoughness: .13,
+/** Qualitative fizz and finite wet traces. No implicit soap, heat or extra liquid. */
+export function createStageOneFoam(scene: THREE.Scene, surface:()=>ClaySurface) {
+  const geometry=new THREE.SphereGeometry(1,12,8);
+  const bubbleMaterial=new THREE.MeshPhysicalMaterial({color:0xfffcf0,roughness:.13,transparent:true,opacity:.58,clearcoat:1,depthWrite:false});
+  const bubbles=new THREE.InstancedMesh(geometry,bubbleMaterial,120);bubbles.frustumCulled=false;scene.add(bubbles);
+  const wetBase=new THREE.MeshPhysicalMaterial({color:0xe4dfca,roughness:.11,transparent:true,opacity:.68,clearcoat:1,depthWrite:false,side:THREE.DoubleSide});
+  const angles=[.5,1.2,2.4,3.5,4.65,5.65];
+  const paths=angles.map((angle,index)=>{
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(73*6),3));
+    const uv:number[]=[],indices:number[]=[];
+    for(let j=0;j<=72;j++){uv.push(j/72,0,j/72,1);if(j<72){const k=j*2;indices.push(k,k+1,k+2,k+1,k+3,k+2);}}
+    g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(indices);
+    const reach={value:0},m=wetBase.clone();
+    m.onBeforeCompile=shader=>{shader.uniforms.uReach=reach;shader.vertexShader='varying vec2 vWetUv;\n'+shader.vertexShader.replace('#include <uv_vertex>','#include <uv_vertex>\nvWetUv=uv;');shader.fragmentShader='uniform float uReach;varying vec2 vWetUv;\n'+shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.a*=1.0-smoothstep(max(0.0,uReach-.035),uReach,vWetUv.x);');};
+    const mesh=new THREE.Mesh(g,m);mesh.receiveShadow=true;mesh.frustumCulled=false;scene.add(mesh);
+    return{mesh,reach,angle,weight:.8+(index%3)*.2};
   });
-  const mouth = new THREE.InstancedMesh(bubbleGeometry, bubbleMaterial, 150);
-  const runoff = new THREE.InstancedMesh(bubbleGeometry, bubbleMaterial, 260);
-  mouth.castShadow = runoff.castShadow = true;
-  mouth.frustumCulled = runoff.frustumCulled = false;
-  mouth.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  runoff.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  scene.add(mouth, runoff);
-  const wetMaterial = new THREE.MeshPhysicalMaterial({
-    color: 0xe4dfca, transparent: true, opacity: .48, roughness: .12,
-    clearcoat: 1, depthWrite: false, side: THREE.DoubleSide,
-  });
-  const paths = [.48, 1.52, 2.48, 3.8, 5.15];
-  const fronts = paths.map(() => 0);
-  const ribbons = paths.map((angle, index) => {
-    const geometry = new THREE.BufferGeometry();
-    const vertices: number[] = [], uv: number[] = [], triangles: number[] = [];
-    for (let j = 0; j <= 72; j++) {
-      const t = j / 72, y = 2.43 - t * 2.29;
-      const center = angle + Math.sin(t * 8 + index) * .045;
-      const width = (.018 + t * .026) * (1 + Math.sin(t * 21 + index) * .23);
-      for (const sign of [-1, 1]) {
-        const a = center + sign * width;
-        const r = t < .07 ? .37 + (radius(y, a) - .37) * t / .07 : radius(y, a) + .028;
-        vertices.push(Math.cos(a) * r + (1 - t) * .09, y, Math.sin(a) * r);
-        uv.push(t, sign);
-      }
-      if (j < 72) { const k = j * 2; triangles.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
-    }
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-    geometry.setIndex(triangles); geometry.computeVertexNormals();
-    const reach = { value: 0 }, material = wetMaterial.clone();
-    material.onBeforeCompile = shader => {
-      shader.uniforms.uReach = reach;
-      shader.vertexShader = 'varying vec2 vWetUv;\n' + shader.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\nvWetUv=uv;');
-      shader.fragmentShader = 'uniform float uReach;varying vec2 vWetUv;\n' + shader.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.a*=1.0-smoothstep(max(0.0,uReach-.06),uReach,vWetUv.x);');
-    };
-    const mesh = new THREE.Mesh(geometry, material); mesh.receiveShadow = true; scene.add(mesh);
-    return { mesh, reach };
-  });
-  const puddleGeometry = new THREE.CircleGeometry(1, 64);
-  const puddle = new THREE.Mesh(puddleGeometry, wetMaterial);
-  puddle.rotation.x = -Math.PI / 2; puddle.position.set(.09, .105, 0); scene.add(puddle);
-  const dummy = new THREE.Object3D();
-  let lastGas = 0, activity = 0, visualFoam = 0, clock = 0, wetness = 0;
-
+  const puddleGeometry=new THREE.CircleGeometry(1,64),puddle=new THREE.Mesh(puddleGeometry,wetBase);puddle.rotation.x=-Math.PI/2;puddle.position.set(.09,.112,0);scene.add(puddle);
+  const dummy=new THREE.Object3D(),clear=new THREE.Color(0xe9e5d1),red=new THREE.Color(),pink=new THREE.Color(0xf7a18d),white=new THREE.Color(0xfffcf0);
+  let revision=-1,lastSurface:ClaySurface|undefined,lastGas=0,activity=0,clock=0;
+  function rebuild(){
+    const s=surface();if(s===lastSurface&&s.revision===revision)return;revision=s.revision;lastSurface=s;
+    paths.forEach(path=>{
+      const points=traceClayFlow(s,path.angle),position=path.mesh.geometry.getAttribute('position');
+      points.forEach((point,j)=>{const width=(.018+j/72*.028)*(1+Math.sin(j*.7+path.angle)*.18);for(let side=0;side<2;side++){const sign=side?1:-1;position.setXYZ(j*2+side,point.x-Math.sin(point.angle)*width*sign,point.y,point.z+Math.cos(point.angle)*width*sign);}});
+      position.needsUpdate=true;path.mesh.geometry.computeVertexNormals();path.mesh.geometry.computeBoundingSphere();
+    });
+  }
   return {
-    update(r: ReactionState, waterY: number, dt: number) {
-      if (r.gasMl < lastGas || !r.reacted) {
-        activity = visualFoam = wetness = clock = 0; fronts.fill(0);
+    update(state:StageOneState,waterY:number,dt:number){
+      rebuild();const r=state.reaction;
+      if(r.gasMl<lastGas||!r.reacted)activity=0;
+      const rate=Math.max(0,r.gasMl-lastGas)/Math.max(.001,dt);lastGas=r.gasMl;activity=THREE.MathUtils.lerp(activity,rate,1-Math.exp(-dt*5));clock+=dt;
+      const intensity=Math.min(1,r.foam*3+activity/650),count=r.reacted&&intensity>.003?Math.ceil(110*Math.sqrt(intensity)):0;
+      bubbleMaterial.color.copy(white).lerp(pink,state.colorMix*.55);
+      red.setHSL(.015,.9,.52-state.colorMix*.18,THREE.SRGBColorSpace);
+      wetBase.color.copy(clear).lerp(red,1-Math.exp(-state.colorMix*8));wetBase.opacity=.44+state.colorMix*.45;
+      const foamHeight=Math.min(.6,r.foam*3);
+      for(let i=0;i<count;i++){
+        const a=i*2.39996,radial=Math.sqrt(((i*17)%113)/113)*.32,phase=(clock*(.8+i%5*.1)+i*.618)%1,life=Math.sin(Math.PI*phase);
+        const size=(.014+(i%6)*.005)*(.3+life*.75);
+        dummy.position.set(.09+Math.cos(a)*radial,waterY+.018+foamHeight*(1-radial*1.3)+phase*.025,Math.sin(a)*radial);
+        dummy.scale.set(size,size*(.85+life*.2),size);dummy.updateMatrix();bubbles.setMatrixAt(i,dummy.matrix);
       }
-      const gasRate = Math.max(0, r.gasMl - lastGas) / Math.max(.001, dt);
-      lastGas = r.gasMl;
-      activity = THREE.MathUtils.lerp(activity, gasRate, 1 - Math.exp(-dt * 5));
-      visualFoam = THREE.MathUtils.lerp(visualFoam, r.foam, 1 - Math.exp(-dt * 7));
-      clock += dt;
-      const intensity = Math.min(1, visualFoam * 3.8 + activity / 600);
-      const count = r.reacted && intensity > .004 ? Math.ceil(145 * Math.sqrt(intensity)) : 0;
-      // Normalized foam is an illustration scale, not a calibrated liquid volume.
-      // Show the developing cap early enough to observe above the rim, without a jet.
-      const foamHeight = Math.min(.60, visualFoam * 3);
-      for (let i = 0; i < count; i++) {
-        const a = i * 2.39996, radial = Math.sqrt(((i * 17) % 149) / 149) * .32;
-        const phase = (clock * (.55 + i % 5 * .07) + i * .618) % 1;
-        const life = Math.sin(Math.PI * phase);
-        const size = (.021 + (i % 6) * .007) * (.4 + life * .65);
-        dummy.position.set(.09 + Math.cos(a) * radial, waterY + .018 + foamHeight * (1 - radial * 1.3) + phase * .035, Math.sin(a) * radial);
-        dummy.scale.set(size, size * (.85 + life * .2), size); dummy.updateMatrix();
-        mouth.setMatrixAt(i, dummy.matrix);
-      }
-      mouth.count = count; mouth.instanceMatrix.needsUpdate = true;
-      // Runoff begins only when the calculated froth reaches the physical cup lip.
-      const overflowing = Math.max(0, Math.min(1, (waterY + foamHeight - 2.40) * 4));
-      let flowCount = 0;
-      paths.forEach((angle, index) => {
-        if (overflowing > .01) fronts[index] = Math.min(1, fronts[index] + dt * overflowing * (.16 + index * .012));
-        ribbons[index].reach.value = fronts[index];
-        ribbons[index].mesh.visible = fronts[index] > .003;
-        const bubbleFlow = overflowing > .005 ? overflowing : intensity * .16;
-        for (let j = 0; j < 52 && fronts[index] > .003; j++) {
-          const seed = Math.sin((j + 1) * (index + 7) * 12.9898) * 43758.5453;
-          const scatter = seed - Math.floor(seed);
-          const phase = (clock * (.085 + index * .008) + scatter) % 1;
-          const t = phase * fronts[index];
-          const size = (.009 + scatter * scatter * .035) * Math.sqrt(bubbleFlow);
-          const a = angle + Math.sin(t * 8 + index) * .045 + Math.sin(j * 7) * (.02 + t * .025);
-          const y = 2.43 - t * 2.29;
-          const rr = t < .07 ? .37 + (radius(y, a) - .37) * t / .07 : radius(y, a) + .035;
-          dummy.position.set(Math.cos(a) * rr + (1 - t) * .09, y + size * .5, Math.sin(a) * rr);
-          dummy.scale.set(size * (1 + scatter * .25), size * .65, size * (1.1 + scatter * .35)); dummy.updateMatrix();
-          runoff.setMatrixAt(flowCount++, dummy.matrix);
-        }
-      });
-      runoff.count = flowCount; runoff.instanceMatrix.needsUpdate = true;
-      if (fronts.some(f => f >= .98)) wetness = Math.min(1, wetness + dt * overflowing * .08);
-      puddle.visible = wetness > .002;
-      puddle.scale.set(1.65 + wetness * .3, 1.25 + wetness * .25, 1);
+      bubbles.count=count;bubbles.instanceMatrix.needsUpdate=true;
+      paths.forEach(path=>{path.reach.value=Math.min(1,state.runoffMl/12*path.weight);path.mesh.visible=path.reach.value>.008;path.mesh.material.color.copy(wetBase.color);path.mesh.material.opacity=wetBase.opacity;});
+      const pool=Math.max(0,state.runoffMl-12);puddle.visible=pool>.05;
+      const size=Math.min(1.85,.35+Math.sqrt(pool/50)*1.5);puddle.scale.set(size,size*.8,1);
     },
-    dispose() {
-      mouth.removeFromParent(); runoff.removeFromParent(); puddle.removeFromParent();
-      mouth.dispose(); runoff.dispose(); bubbleGeometry.dispose(); bubbleMaterial.dispose();
-      puddleGeometry.dispose(); wetMaterial.dispose();
-      ribbons.forEach(({ mesh }) => { mesh.removeFromParent(); mesh.geometry.dispose(); mesh.material.dispose(); });
-    },
+    dispose(){bubbles.removeFromParent();bubbles.dispose();geometry.dispose();bubbleMaterial.dispose();paths.forEach(p=>{p.mesh.removeFromParent();p.mesh.geometry.dispose();p.mesh.material.dispose();});puddle.removeFromParent();puddleGeometry.dispose();wetBase.dispose();},
   };
 }
