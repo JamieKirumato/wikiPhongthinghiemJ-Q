@@ -21,6 +21,8 @@ export async function loadApprovedVolcano(){
         };
       }else if(name.includes('Clear vinegar')){
         material.transmission=0;material.transparent=true;material.opacity=.24;material.depthWrite=false;material.roughness=.09;
+      }else if(name.includes('Cocoa clay details')){
+        material.color.setRGB(.15,.052,.024);
       }else if(name.includes('Ruby transparent')){
         material.transmission=0;material.transparent=true;material.opacity=.9;material.roughness=.18;
       }

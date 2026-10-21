@@ -32,7 +32,7 @@ export const StageOneScene=forwardRef<StageOneSceneHandle,Props>(function StageO
     const camera=new THREE.PerspectiveCamera(30,1,.1,80),toolCamera=new THREE.PerspectiveCamera(30,1,.1,50);
     const controls=new OrbitControls(camera,renderer.domElement);controls.enablePan=false;controls.enableDamping=true;controls.minDistance=6.5;controls.maxDistance=24;controls.minPolarAngle=.83;controls.maxPolarAngle=1.29;
     let mainView:View={x:0,y:0,w:1,h:1},toolView:View={x:0,y:0,w:1,h:1};
-    const home=()=>{const fit=Math.max(1,1.4/camera.aspect);camera.position.set(.85*fit,1.05+3.6*fit,7.7*fit);controls.target.set(0,1.1,0);controls.update();};
+    const home=()=>{const fit=Math.max(1,1.4/camera.aspect);camera.position.set(.85*fit,1.05+3.6*fit,8*fit);controls.target.set(0,.9,0);controls.update();};
     const pmrem=new THREE.PMREMGenerator(renderer),room=new RoomEnvironment(),env=pmrem.fromScene(room,.04);room.dispose();pmrem.dispose();
     for(const world of [scene,toolScene]){
       world.environment=env.texture;world.environmentIntensity=.65;world.add(new THREE.HemisphereLight(0xffffff,0x928e7f,1.1));
