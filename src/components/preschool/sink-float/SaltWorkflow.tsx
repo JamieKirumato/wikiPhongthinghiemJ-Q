@@ -3,7 +3,7 @@ import { createPortal, flushSync } from 'react-dom';
 import {RimStirTool} from './RimStirTool';
 import { SaltWorkflowStep, StirRodProjection } from './types';
 import { soundEngine } from '../../../utils/audioEffects';
-import {advanceStirCircles,stirCircleProgress,StirCircleState} from './stirCircles';
+import {advanceStirGesture,stirGestureProgress,StirGestureState} from './stirGesture';
 import { RotateCcw, Sparkles } from 'lucide-react';
 
 interface SaltWorkflowProps {
@@ -224,7 +224,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   const stirStartProgressRef = useRef(activeStirProgress);
   const [isHoveringJarMouth, setIsHoveringJarMouth] = useState<boolean>(false);
   const [mouthReady, setMouthReady] = useState(false);
-  const stirCirclesRef = useRef<StirCircleState>({last:null,radians:0});
+  const stirGestureRef = useRef<StirGestureState>({last:null,radians:0,distance:0});
   const stirMotionRef = useRef({direction:0,sweep:0,lastAt:0});
   const putStirringAway = useCallback((keepJar=false)=>{
     if(!keepJar)setIsJarOpen(false);setRodProjection(null);
@@ -354,10 +354,11 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
         setRodProjection(previous=>projected|| (previous?{top:{x:previous.top.x+dx,y:previous.top.y+dy},bottom:{x:previous.bottom.x+dx,y:previous.bottom.y+dy}}:null));
         rodAnchorRef.current={x:px,y:py};
         if(!isInsideWater)stirMotionRef.current={direction:0,sweep:0,lastAt:0};
-        const centre=getStirCentre?.();
-        const previousRadians=stirCirclesRef.current.radians;
-        if(centre)stirCirclesRef.current=advanceStirCircles(stirCirclesRef.current,{x:px,y:py},centre,isInsideWater);
-        const turnDelta=stirCirclesRef.current.radians-previousRadians;
+        const centre=getStirCentre?.()||{x:px,y:py};
+        const previousRadians=stirGestureRef.current.radians;
+        const previousDistance=stirGestureRef.current.distance;
+        stirGestureRef.current=advanceStirGesture(stirGestureRef.current,{x:px,y:py},centre,isInsideWater);
+        const turnDelta=stirGestureRef.current.radians-previousRadians;
         if(Math.abs(turnDelta)>.01){
           const motionAt=performance.now();
           const direction=Math.sign(turnDelta);
@@ -369,12 +370,10 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
         if (isInsideWater && lastStirPosRef.current.wasInside) {
           // CHỈ TÍNH QUÃNG ĐƯỜNG KHI CẢ ĐIỂM TRƯỚC VÀ ĐIỂM NÀY ĐỀU Ở TRONG NƯỚC
           // Đảm bảo: "Chỉ chuyển động trong nước mới tăng tiến trình; vào/ra vùng không tạo bước nhảy."
-          const dx = px - lastStirPosRef.current.x;
-          const dy = py - lastStirPosRef.current.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
+          const dist = stirGestureRef.current.distance-previousDistance;
 
-          // Lọc các bước nhảy bất thường (> 70px)
-          if (dist > 2 && dist < 70) {
+          // Use accepted travel, including small moves accumulated across frames.
+          if (dist >= 2) {
             setStirWobble((prev) => prev + dist * 0.6);
 
             // Âm thanh khuấy nước
@@ -391,7 +390,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
             }
             if(pendingSaltSpoons<=0){lastStirPosRef.current={x:px,y:py,wasInside:true};return;}
             const previousProgress = progressRef.current;
-            const nextProgress = Math.min(100,Math.max(previousProgress,stirStartProgressRef.current+stirCircleProgress(stirCirclesRef.current)));
+            const nextProgress = Math.min(100,Math.max(previousProgress,stirStartProgressRef.current+stirGestureProgress(stirGestureRef.current)));
             progressRef.current = nextProgress;
             // The rod stays at display cadence; salinity needs fewer parent renders.
             if (nextProgress > previousProgress && (nowStir-lastProgressTimeRef.current>=80 || nextProgress>=100)) {
@@ -403,7 +402,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
               if (soundEnabled) soundEngine.playMagicChime();
               onSpoonCompleted();
               onStepChange('idle');setIsJarOpen(false);
-              stirCirclesRef.current = {last:null,radians:0};
+              stirGestureRef.current = {last:null,radians:0,distance:0};
               stirMotionRef.current={direction:0,sweep:0,lastAt:0};
               scoopStartRef.current = null;
               lastStirPosRef.current = { x: px, y: py, wasInside: false };
@@ -448,7 +447,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   }, [onResetSalt]);
 
   const rimTools=<RimStirTool active={workflowStep==='stirring'} highlighted={workflowStep==='holdingSpoon'||pendingSaltSpoons>0} disabled={disabled||workflowStep==='pouring'}
-    onTake={()=>{setIsJarOpen(false);setMouthReady(false);setIsHoveringJarMouth(false);scoopStartRef.current=null;rodDragRef.current=null;const centre=getStirCentre?.()||getToolAnchor?.()||pointerPos;setPointerPos(centre);rodAnchorRef.current=centre;setRodProjection(getStirRod?.(centre.x,centre.y)||null);onStepChange('stirring');stirStartProgressRef.current=progressRef.current;stirCirclesRef.current={last:null,radians:0};stirMotionRef.current={direction:0,sweep:0,lastAt:0};lastStirPosRef.current={...centre,wasInside:checkPointInWater(centre.x,centre.y)};if(checkPointInWater(centre.x,centre.y))onStirAtScreenPoint?.(centre.x,centre.y,0);onMessageUpdate(pendingSaltSpoons>0?'Con khuấy để muối tan rồi quan sát nhé.':'Con kéo thân đũa để khuấy và quan sát mặt nước nhé.');}}
+    onTake={()=>{setIsJarOpen(false);setMouthReady(false);setIsHoveringJarMouth(false);scoopStartRef.current=null;rodDragRef.current=null;const centre=getStirCentre?.()||getToolAnchor?.()||pointerPos;setPointerPos(centre);rodAnchorRef.current=centre;setRodProjection(getStirRod?.(centre.x,centre.y)||null);onStepChange('stirring');stirStartProgressRef.current=progressRef.current;stirGestureRef.current={last:checkPointInWater(centre.x,centre.y)?{...centre,angle:0}:null,radians:0,distance:0};stirMotionRef.current={direction:0,sweep:0,lastAt:0};lastStirPosRef.current={...centre,wasInside:checkPointInWater(centre.x,centre.y)};if(checkPointInWater(centre.x,centre.y))onStirAtScreenPoint?.(centre.x,centre.y,0);onMessageUpdate(pendingSaltSpoons>0?'Con đảo que nhẹ 2–3 lần để muối tan nhé.':'Con kéo thân đũa để khuấy và quan sát mặt nước nhé.');}}
     onPut={()=>putStirringAway()}/>;
   if(!toolsEnabled)return null;
   if (visualOnly) return <>
