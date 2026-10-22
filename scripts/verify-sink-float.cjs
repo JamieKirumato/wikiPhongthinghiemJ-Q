@@ -520,6 +520,28 @@ for(const shape of ['rectangle','square','cylinder','triangle']) {
   }
 }
 console.log('Passed: camera fills portrait, landscape and desktop frames without clipping all four tank shapes at multiple angles.');
+// A stationary tabletop needs a stable foot anchor and one distance for a full turn.
+for(const shape of ['rectangle','square','cylinder','triangle']) {
+  const dims=geometry.getTankDimensions(shape,'normal');
+  for(const aspect of [.65,1,1.77,3]) for(const pitch of [.08,.16,.4,.74,1.4]) {
+    const distance=framing.tankOrbitDistance(dims,aspect,pitch);
+    for(let step=0;step<24;step++) {
+      const yaw=step*Math.PI/12,camera=new THREE.PerspectiveCamera(40,aspect,.1,100);
+      camera.position.set(distance*Math.sin(yaw)*Math.cos(pitch),dims.height*.4+distance*Math.sin(pitch),distance*Math.cos(yaw)*Math.cos(pitch));
+      camera.lookAt(0,dims.height*.4,0);camera.updateMatrixWorld();
+      const foot=new THREE.Vector3(0,-.22,0),projected=foot.clone().project(camera);
+      const depth=foot.clone().sub(camera.position).dot(camera.getWorldDirection(new THREE.Vector3()));
+      camera.position.addScaledVector(new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion),(projected.y+.38)*depth*Math.tan(Math.PI/9));
+      camera.updateMatrixWorld();
+      assert.ok(Math.abs(foot.clone().project(camera).y+.38)<1e-8,'tank foot drifts on stationary tabletop');
+      for(const x of [-dims.width/2,dims.width/2]) for(const y of [-.22,dims.height]) for(const z of [-dims.depth/2,dims.depth/2]) {
+        const p=new THREE.Vector3(x,y,z).project(camera);
+        assert.ok(Math.abs(p.x)<=.881&&Math.abs(p.y)<=.881,`${shape} anchored orbit clips at ${aspect}, ${yaw}, ${pitch}`);
+      }
+    }
+  }
+}
+console.log('Passed: 360-degree tank rotation retains the table contact anchor and every corner, including overhead and narrow screens.');
 for(const shape of ['rectangle','square','cylinder','triangle']){
   const dims=geometry.getTankDimensions(shape,'normal'),water=dims.waterHeight;
   for(const aspect of [.45,1.5,2.2])for(const radius of [.2,.55,1.32]){

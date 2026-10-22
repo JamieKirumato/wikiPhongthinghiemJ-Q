@@ -36,6 +36,23 @@ export function tankCameraDistance(dims: TankDimensions, aspect: number, yaw: nu
   return distance;
 }
 
+/** Fit all azimuths with the tank's foot anchored on the photographed worktop. */
+export function tankOrbitDistance(dims:TankDimensions,aspect:number,pitch:number,tableY=-.22) {
+  const radius=Math.hypot(dims.width,dims.depth)/2;
+  const sin=Math.sin(pitch),cos=Math.cos(pitch);
+  const tanVertical=Math.tan(20*Math.PI/180);
+  const tanHorizontal=tanVertical*Math.max(.1,aspect);
+  const margin=.88,anchor=-.38;
+  let footDistance=0;
+  for(const y of [0,dims.height-tableY]) {
+    footDistance=Math.max(footDistance,
+      y*sin+radius*Math.hypot(cos,1/(tanHorizontal*margin)),
+      (y*(cos/tanVertical+margin*sin)+radius*Math.abs(margin*cos-sin/tanVertical))/(margin-anchor),
+      (y*(-cos/tanVertical+margin*sin)+radius*Math.abs(margin*cos+sin/tanVertical))/(margin+anchor));
+  }
+  return footDistance-(dims.height*.4-tableY)*sin;
+}
+
 /** Frame the observed object's whole path between the sand and water surface. */
 export function waterObservationDistance(base:number,dims:TankDimensions,waterLevel:number,aspect:number,yaw:number,pitch:number,target:{x:number;y:number;z:number},point:{x:number;z:number},radius:number) {
   let distance=base*(aspect<1?.9:.8);

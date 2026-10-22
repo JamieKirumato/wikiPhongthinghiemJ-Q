@@ -1,6 +1,6 @@
 import {overflowOutlets} from './overflowVisual';
 import {freshComparisonItem} from './comparisonTrial';
-import { tankCameraDistance, objectObservationDistance } from './cameraFraming';
+import { tankOrbitDistance, objectObservationDistance } from './cameraFraming';
 import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import * as THREE from 'three';
 import { TankDimensions, TankObject, TankScale, TankShape, InteractionMode, SaltWorkflowStep, StirRodProjection } from './types';
@@ -140,7 +140,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     const lastWaterGestureRef = useRef({time:0,x:0,y:0});
     const activePointerRef = useRef<number | null>(null);
     const mountRef = useRef<HTMLDivElement | null>(null);
-    const backdropRef = useRef<HTMLImageElement | null>(null);
     const observedCallbackRef = useRef(onItemObserved);
     observedCallbackRef.current = onItemObserved;
 
@@ -718,7 +717,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     holdingItemRef.current = holdingItemId;
     const inputLockedRef = useRef(inputLocked);
     inputLockedRef.current = inputLocked;
-    const floorRef = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null>(null);
     const contactShadowRef = useRef<THREE.Mesh | null>(null);
 
     // Exact mesh hits first, then a generous screen-space hand target for small objects.
@@ -808,20 +806,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       scene.add(objectsGroup);
       objectsGroupRef.current = objectsGroup;
 
-      // The approved scene photo supplies the tabletop texture, but the table
-      // itself shares the tank's 3D space so both stay in contact as the camera moves.
-      const tableFade = document.createElement('canvas');
-      tableFade.width = 2; tableFade.height = 256;
-      const fadeContext = tableFade.getContext('2d')!;
-      const fade = fadeContext.createLinearGradient(0,0,0,256);
-      fade.addColorStop(0,'#000'); fade.addColorStop(.4,'#000');
-      fade.addColorStop(.46,'#fff'); fade.addColorStop(1,'#fff');
-      fadeContext.fillStyle = fade; fadeContext.fillRect(0,0,2,256);
-      const fadeTexture = new THREE.CanvasTexture(tableFade);
-      const floor = new THREE.Mesh(new THREE.PlaneGeometry(400,400), new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false,transparent:true,alphaMap:fadeTexture}));
-      floor.rotation.x = -Math.PI/2; floor.position.y = TABLE_HEIGHT; floor.visible = false;
-      floor.renderOrder = -10;
-      scene.add(floor); floorRef.current = floor;
+      // Like the volcano, the photographed worktop stays in screen space.
+      // Only the live experiment and contact shadow change viewing angle.
       // Soft contact shadow, outside the tank group so it never becomes a picking target.
       const shadowCanvas = document.createElement('canvas');
       shadowCanvas.width = shadowCanvas.height = 128;
@@ -895,7 +881,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         if(overflowRef.current){disposeItemModel(overflowRef.current);overflowRef.current=null;}
         sandTextureRef.current?.dispose();
         saltGeom.dispose(); saltMat.dispose();
-        floor.geometry.dispose(); floor.material.dispose(); fadeTexture.dispose();
         contactShadow.geometry.dispose(); contactShadow.material.dispose(); shadowTexture.dispose();
         contactShadowRef.current = null;
         renderer.dispose();
@@ -905,43 +890,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         scene.clear();
       };
     }, []);
-
-    useEffect(() => {
-      const floor = floorRef.current;
-      if (!floor) return;
-      let cancelled = false;
-      floor.visible = false;
-      let tableTexture: THREE.CanvasTexture | null = null;
-      const source = new THREE.TextureLoader().load(`/assets/sink-float/scenes/${sceneSetting}.webp`, loaded => {
-        if (cancelled) return;
-        const image = loaded.image as HTMLImageElement;
-        const canvas = document.createElement('canvas');
-        canvas.width = image.naturalWidth;
-        canvas.height = Math.round(image.naturalHeight * .26);
-        const context = canvas.getContext('2d');
-        if (!context) return;
-        context.drawImage(image, 0, Math.round(image.naturalHeight * .64), image.naturalWidth, canvas.height, 0, 0, canvas.width, canvas.height);
-        tableTexture = new THREE.CanvasTexture(canvas);
-        tableTexture.colorSpace = THREE.SRGBColorSpace;
-        // One tabletop image spans the central 40 world units; the colour at
-        // its border extends to the horizon without exposing a plane edge.
-        tableTexture.repeat.set(10, 10);
-        tableTexture.offset.set(-4.5, -4.5);
-        floor.material.map = tableTexture;
-        floor.material.needsUpdate = true;
-        floor.visible = true;
-        source.dispose();
-      });
-      return () => {
-        cancelled = true;
-        if (floor.material.map === tableTexture) {
-          floor.material.map = null;
-          floor.material.needsUpdate = true;
-        }
-        tableTexture?.dispose();
-        source.dispose();
-      };
-    }, [sceneSetting]);
 
     // 2. DỰNG HÌNH HỌC BỂ KÍNH VÀ NƯỚC (RENDER ORDER & PALE CYAN TRANSPARENCY)
     useEffect(() => {
@@ -1367,26 +1315,16 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           !holdingItemRef.current &&
           workflowStepRef.current === 'idle'
         ) {
-          orbit.targetYaw += 0.005;
+          orbit.targetYaw += wallDt * .3;
         }
-        orbit.yaw += (orbit.targetYaw - orbit.yaw) * 0.12;
-        orbit.pitch += (orbit.targetPitch - orbit.pitch) * 0.12;
-        // A stationary photograph makes a camera orbit look like a tank spin.
-        // Shift the room with the viewpoint while keeping the tank fixed in 3D.
-        if (backdropRef.current && mountRef.current) {
-          const yawFromFront = orbit.yaw - DEFAULT_YAW;
-          const reach = Math.min(1, Math.abs(yawFromFront) / 1.05);
-          const pitchFromFront = orbit.pitch - DEFAULT_PITCH;
-          const scale = 1 + Math.max(reach * .22, Math.abs(pitchFromFront) * .36);
-          const panX = -Math.sin(yawFromFront) * mountRef.current.clientWidth * .088;
-          const panY = pitchFromFront * mountRef.current.clientHeight * .12;
-          backdropRef.current.style.transform = `translate3d(${panX}px, ${panY}px, 0) scale(${scale})`;
-        }
+        const orbitBlend = 1 - Math.exp(-wallDt * 12);
+        orbit.yaw += (orbit.targetYaw - orbit.yaw) * orbitBlend;
+        orbit.pitch += (orbit.targetPitch - orbit.pitch) * orbitBlend;
 
         // Fit all eight corners at the current angle. Always fit the NORMAL
         // tank so selecting 50% never auto-zooms the small tank back to full size.
         const fitDims = getTankDimensions(s, 'normal');
-        let r = tankCameraDistance(fitDims, camera?.aspect || 1, orbit.yaw, orbit.pitch);
+        let r = tankOrbitDistance(fitDims, camera?.aspect || 1, orbit.pitch);
         if(carryingTrayRef.current||holdingItemRef.current||orbit.isDragging||workflowStepRef.current!=='idle'||inputLockedRef.current)dipFocusRef.current=null;
         const focus=dipFocusRef.current;
         const focusItem=focus&&currentTime<focus.expiresAt?itemsRef.current.find(item=>item.id===focus.itemId&&item.inTank):null;
@@ -1415,7 +1353,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         }
         r*=dropFocus ? 1+(dropFocusRatioRef.current-1)*dipFocusBlendRef.current : 1-.27*dipFocusBlendRef.current;
         r*=zoomRef.current;
-        if(mountRef.current){mountRef.current.dataset.observationFocus=String(!!focusItem&&dropFocus);mountRef.current.dataset.observationZoom=(tankCameraDistance(fitDims,camera?.aspect||1,orbit.yaw,orbit.pitch)*zoomRef.current/r).toFixed(3);}
+        if(mountRef.current){mountRef.current.dataset.observationFocus=String(!!focusItem&&dropFocus);mountRef.current.dataset.observationZoom=(tankOrbitDistance(fitDims,camera?.aspect||1,orbit.pitch)*zoomRef.current/r).toFixed(3);}
         if(mountRef.current){
           mountRef.current.dataset.observationSpeed=observing?'0.4':'1';
           mountRef.current.dataset.observationTracking=focusTarget?'object':'tank';
@@ -1433,9 +1371,14 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           camera.position.set(cx+targetX, cy, cz+targetZ);
           camera.lookAt(targetX, targetY, targetZ);
           camera.updateMatrixWorld();
-          // The table and tank now share the same world coordinates. The camera
-          // alone orbits their fixed centre, including at a steep top-down angle.
+          // Keep the tank planted on the stationary photographic worktop.
+          // Camera-up translation retains the orientation used by all raycasts.
           const tableContact = new THREE.Vector3(0, TABLE_HEIGHT, 0);
+          const projectedContact = tableContact.clone().project(camera);
+          const depth = tableContact.clone().sub(camera.position).dot(camera.getWorldDirection(new THREE.Vector3()));
+          const shift = (projectedContact.y + .38) * depth * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * (1 - focusBlend);
+          camera.position.addScaledVector(new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion), shift);
+          camera.updateMatrixWorld();
           if (mountRef.current) mountRef.current.dataset.tableContactY = tableContact.project(camera).y.toFixed(4);
           updateTrayPreview();
           if(heldIdRef.current&&orbit.isDragging===2){
@@ -1977,11 +1920,10 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         orbit.startX = e.clientX;
         orbit.startY = e.clientY;
 
-        // Keep the camera in front of the single-viewpoint room photograph.
-        orbit.targetYaw = Math.max(-.93, Math.min(1.17, orbit.targetYaw - dx * 0.005));
-        orbit.yaw = orbit.targetYaw;
-        orbit.targetPitch = Math.max(0.08, Math.min(1.4, orbit.targetPitch + dy * 0.004));
-        orbit.pitch = orbit.targetPitch;
+        // OrbitControls-style angular travel, independent of viewport size.
+        const radiansPerPixel = Math.PI * 2 / Math.max(320, mount.clientHeight);
+        orbit.targetYaw -= dx * radiansPerPixel;
+        orbit.targetPitch = Math.max(.08, Math.min(.74, orbit.targetPitch + dy * radiansPerPixel));
         return;
       }
 
@@ -2115,7 +2057,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
     return (
       <div className="lab-canvas">
-        <SceneBackdrop setting={sceneSetting} imageRef={backdropRef}/>
+        <SceneBackdrop setting={sceneSetting} extendTable/>
         <div
           ref={mountRef}
           onPointerDown={handlePointerDown}
