@@ -3,7 +3,8 @@ export interface StirCircleState {
   radians: number;
 }
 
-export const REQUIRED_STIR_CIRCLES = 5;
+// A short, symbolic stir lets children focus on the change in the water.
+export const REQUIRED_STIR_CIRCLES = 2.5;
 
 /** Count continuous turns around the visible water centre, never straight strokes. */
 export function advanceStirCircles(state:StirCircleState, point:{x:number;y:number}, centre:{x:number;y:number}, inside:boolean):StirCircleState {

@@ -1,13 +1,13 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),ts=require('typescript');
 const code=ts.transpileModule(fs.readFileSync('src/components/preschool/sink-float/SaltWorkflow.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.React,esModuleInterop:true}}).outputText;
 function mount(step){
-  const listeners=new Map(),effects=[],calls=[];
-  const react={createElement:()=>null,useState:v=>[v,()=>{}],useRef:v=>({current:v}),useCallback:fn=>fn,useEffect:fn=>effects.push(fn)};
+  const listeners=new Map(),effects=[],calls=[],elements=[],frames=new Map(),rodPositions=[];let frameId=0;
+  const react={createElement:(type,props,...children)=>{elements.push({type,props,children});return null;},useState:v=>[v,()=>{}],useRef:v=>({current:v}),useCallback:fn=>fn,useEffect:fn=>effects.push(fn)};
   const module={exports:{}};
-  vm.runInNewContext(code,{module,exports:module.exports,require:name=>name==='react'?react:name==='react-dom'?{createPortal:v=>v}:name==='./stirCircles'?{advanceStirCircles:()=>({last:null,radians:0}),stirCircleProgress:()=>0}:{},window:{addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)},clearTimeout,document:{body:{}},performance});
-  module.exports.SaltWorkflow({visualOnly:true,workflowStep:step,saltSpoons:0,activeStirProgress:0,currentDensity:1,onPourAtScreenPoint:(x,y)=>calls.push({x,y}),checkPointOverMouth:x=>x>200,onStepChange(){},onStirProgressUpdate(){},onSpoonCompleted(){},onResetSalt(){},checkPointInWater:()=>false,onMessageUpdate(){},soundEnabled:false});
+  vm.runInNewContext(code,{module,exports:module.exports,require:name=>name==='react'?react:name==='react-dom'?{createPortal:v=>v}:name==='./stirCircles'?{advanceStirCircles:()=>({last:null,radians:0}),stirCircleProgress:()=>0}:{},window:{addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)},requestAnimationFrame:fn=>{frames.set(++frameId,fn);return frameId;},cancelAnimationFrame:id=>frames.delete(id),clearTimeout,document:{body:{}},performance});
+  module.exports.SaltWorkflow({visualOnly:true,workflowStep:step,saltSpoons:0,activeStirProgress:0,currentDensity:1,onPourAtScreenPoint:(x,y)=>calls.push({x,y}),getStirRod:(x,y)=>{rodPositions.push({x,y});return null;},checkPointOverMouth:x=>x>200,onStepChange(){},onStirProgressUpdate(){},onSpoonCompleted(){},onResetSalt(){},checkPointInWater:()=>false,onMessageUpdate(){},soundEnabled:false});
   const cleanup=effects.map(fn=>fn());
-  return {listeners,calls,dispose:()=>cleanup.forEach(fn=>fn?.())};
+  return {listeners,calls,elements,frames,rodPositions,dispose:()=>cleanup.forEach(fn=>fn?.())};
 }
 const holding=mount('holdingSpoon');
 assert.equal(holding.listeners.has('pointerdown'),false);
@@ -17,6 +17,22 @@ holding.dispose();assert.equal(holding.listeners.has('pointermove'),false);
 const pouring=mount('pouring');pouring.listeners.get('pointermove')({clientX:700,clientY:600});assert.equal(pouring.calls.length,0,'a pouring spoon stays in place and does not pour again');pouring.dispose();
 const empty=mount('scoopMode');empty.listeners.get('pointermove')({clientX:250,clientY:300});assert.equal(empty.calls.length,0,'an empty spoon cannot pour');empty.dispose();
 console.log('Passed: filled spoon auto-pours on pointer movement without a press/tilt, freezes while pouring, ignores an empty spoon, and cleans up listeners.');
+
+const stirring=mount('stirring');
+const grab=stirring.elements.find(element=>element.props?.onGrab).props.onGrab;
+grab({button:0,pointerId:1,clientX:0,clientY:0,preventDefault(){},stopPropagation(){},currentTarget:{setPointerCapture(){}}});
+for(let x=1;x<=20;x++)stirring.listeners.get('pointermove')({pointerId:1,clientX:x,clientY:100});
+assert.equal(stirring.frames.size,1,'a burst of pointer events schedules only one display frame');
+assert.equal(stirring.rodPositions.length,0);
+[...stirring.frames.values()][0]();
+assert.deepEqual(stirring.rodPositions,[{x:20,y:100}],'the rod uses the most recent pointer position');
+stirring.listeners.get('pointermove')({pointerId:1,clientX:25,clientY:105});
+stirring.listeners.get('pointerup')();
+assert.deepEqual(stirring.rodPositions.at(-1),{x:25,y:105},'release flushes the final position before releasing capture');
+assert.equal(stirring.frames.size,0);
+stirring.listeners.get('pointermove')({pointerId:1,clientX:30,clientY:110});
+stirring.dispose();assert.equal(stirring.frames.size,0,'unmount cancels the pending frame');assert.equal(stirring.listeners.size,0);
+console.log('Passed: rod movement is coalesced per frame, release keeps the final position, and unmount clears input and frames.');
 
 // Exercise the actual parent callbacks: multiple pours accumulate before any stirring.
 const parent=fs.readFileSync('src/components/preschool/SimSinkOrFloatLab.tsx','utf8');
@@ -38,16 +54,16 @@ const circleModule={exports:{}};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/components/preschool/sink-float/stirCircles.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{module:circleModule,exports:circleModule.exports});
 const circles=circleModule.exports,centre={x:100,y:100};
 let turn={last:null,radians:0};
-for(let i=0;i<=72*5;i++){
+for(let i=0;i<=72*2.5;i++){
   const angle=i*Math.PI/36;
   turn=circles.advanceStirCircles(turn,{x:100+32*Math.cos(angle),y:100+32*Math.sin(angle)},centre,true);
-  if(i<72*5)assert.ok(circles.stirCircleProgress(turn)<100);
+  if(i<72*2.5)assert.ok(circles.stirCircleProgress(turn)<100);
 }
 assert.equal(circles.stirCircleProgress(turn),100);
 let square={last:null,radians:0};
-for(let i=0;i<5;i++)for(const [x,y] of [[100,86],[114,100],[100,114],[86,100],[100,86]])square=circles.advanceStirCircles(square,{x,y},centre,true);
-assert.equal(circles.stirCircleProgress(square),100,'five small, brisk hand circles must finish without an on-screen counter');
+for(let i=0;i<3;i++)for(const [x,y] of [[100,86],[114,100],[100,114],[86,100],[100,86]])square=circles.advanceStirCircles(square,{x,y},centre,true);
+assert.equal(circles.stirCircleProgress(square),100,'three small, brisk hand circles must finish without an on-screen counter');
 let stroke={last:null,radians:0};
 for(let i=0;i<80;i++)stroke=circles.advanceStirCircles(stroke,{x:60+i%2*70,y:100},centre,true);
 assert.equal(circles.stirCircleProgress(stroke),0,'straight back-and-forth strokes cannot dissolve salt');
-console.log('Passed: five circular turns dissolve salt; straight strokes and short movement do not.');
+console.log('Passed: 2.5 circular turns dissolve salt; three small hand circles also finish, and straight strokes do not.');

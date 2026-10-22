@@ -119,7 +119,7 @@ export const RealisticStirringHand: React.FC<{
   <svg data-held-stir-rod aria-label={onGrab?'Kéo đũa để khuấy nước':undefined} aria-hidden={onGrab?undefined:true} width="44" height={Math.hypot(rod.bottom.x-rod.top.x,rod.bottom.y-rod.top.y)}
     onPointerDown={onGrab} onPointerUp={onRelease} onPointerCancel={onRelease} onLostPointerCapture={onRelease}
     className="fixed pointer-events-none z-[80] drop-shadow-lg"
-    style={{left:rod.top.x-22,top:rod.top.y,touchAction:'none',pointerEvents:onGrab?'auto':undefined,cursor:onGrab?'grab':undefined,transformOrigin:'22px 0',transform:`rotate(${-Math.atan2(rod.bottom.x-rod.top.x,rod.bottom.y-rod.top.y)*180/Math.PI}deg)`}}>
+    style={{left:0,top:0,touchAction:'none',pointerEvents:onGrab?'auto':undefined,cursor:onGrab?'grab':undefined,willChange:'transform',transformOrigin:'22px 0',transform:`translate3d(${rod.top.x-22}px,${rod.top.y}px,0) rotate(${-Math.atan2(rod.bottom.x-rod.top.x,rod.bottom.y-rod.top.y)*180/Math.PI}deg)`}}>
     <rect width="44" height="100%" fill="transparent"/>
     <rect x="18" width="8" height="100%" rx="4" fill="#d6aa6e" stroke="#93642e" strokeWidth="1.5"/>
     <path d={`M21 5V${Math.max(5,Math.hypot(rod.bottom.x-rod.top.x,rod.bottom.y-rod.top.y)-5)}`} stroke="#f5dbaa" strokeWidth="2"/>
@@ -262,6 +262,8 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
   });
 
   const lastSoundTimeRef = useRef<number>(0);
+  const lastProgressTimeRef = useRef(0);
+  const pointerMoveHandlerRef = useRef<(event: PointerEvent) => void>(() => {});
   const jarMouthRef = useRef<HTMLDivElement | null>(null);
   const pourTimeoutRef = useRef<number | null>(null);
 
@@ -275,9 +277,41 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
     };
   }, []);
 
+  // Keep input subscribed across progress renders; draw only the latest position each frame.
+  useEffect(() => {
+    let frame: number | null = null;
+    let pending: PointerEvent | null = null;
+    const flushMove = () => {
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
+      const event = pending;
+      pending = null;
+      if (event) pointerMoveHandlerRef.current(event);
+    };
+    const move = (event: PointerEvent) => {
+      if (!rodDragRef.current) {
+        pointerMoveHandlerRef.current(event);
+        return;
+      }
+      pending = event;
+      if (frame === null) frame = requestAnimationFrame(flushMove);
+    };
+    window.addEventListener('pointermove', move);
+    // Flush the final position before React releases the rod's pointer capture.
+    window.addEventListener('pointerup', flushMove, true);
+    window.addEventListener('pointercancel', flushMove, true);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', flushMove, true);
+      window.removeEventListener('pointercancel', flushMove, true);
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
+  }, []);
+
   // Lắng nghe di chuột toàn trang khi đang trong quy trình xúc / khuấy muối
   useEffect(() => {
     if (workflowStep === 'idle' && !isJarOpen) {
+      pointerMoveHandlerRef.current = () => {};
       lastStirPosRef.current = { x: 0, y: 0, wasInside: false };
       return;
     }
@@ -359,7 +393,11 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
             const previousProgress = progressRef.current;
             const nextProgress = Math.min(100,Math.max(previousProgress,stirStartProgressRef.current+stirCircleProgress(stirCirclesRef.current)));
             progressRef.current = nextProgress;
-            onStirProgressUpdate(nextProgress);
+            // The rod stays at display cadence; salinity needs fewer parent renders.
+            if (nextProgress > previousProgress && (nowStir-lastProgressTimeRef.current>=80 || nextProgress>=100)) {
+              onStirProgressUpdate(nextProgress);
+              lastProgressTimeRef.current=nowStir;
+            }
 
             if (nextProgress >= 100 && previousProgress < 100) {
               if (soundEnabled) soundEngine.playMagicChime();
@@ -381,12 +419,7 @@ export const SaltWorkflow: React.FC<SaltWorkflowProps> = ({
       }
     };
 
-    window.addEventListener('pointermove', handleWindowPointerMove);
-    return () => {
-      window.removeEventListener('pointermove', handleWindowPointerMove);
-
-
-    };
+    pointerMoveHandlerRef.current = handleWindowPointerMove;
   }, [
     workflowStep, isJarOpen, saltSpoons,pendingSaltSpoons, onStirAtScreenPoint, onPourAtScreenPoint, checkPointOverMouth, getStirCentre,getStirRod,
     checkPointInWater,
