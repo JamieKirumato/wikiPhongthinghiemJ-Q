@@ -1,6 +1,7 @@
 import {overflowOutlets} from './overflowVisual';
 import {freshComparisonItem} from './comparisonTrial';
-import { tankOrbitDistance, objectObservationDistance } from './cameraFraming';
+import { tankOrbitDistance } from './cameraFraming';
+import {CameraPresentation,ObservationFocus,DropRecording,ViewRect,usableCameraRect,observationContext,contextCameraDistance,recordPose,replayPose} from './cameraObservation';
 import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import * as THREE from 'three';
 import { TankDimensions, TankObject, TankScale, TankShape, InteractionMode, SaltWorkflowStep, StirRodProjection } from './types';
@@ -51,6 +52,9 @@ export interface ThreeTankCanvasHandle {
   resetDefaultView: () => void;
   resetSideView: () => void;
   resetTopView: () => void;
+  stopCameraAssist: () => void;
+  observeLastItem: () => void;
+  replayLastDrop: () => void;
   refreshObservations: () => void;
   stirAtScreenPoint: (x: number, y: number, strength?: number, direction?: number, touchesSand?:boolean) => void;
   setSaltDissolveProgress: (progress: number) => void;
@@ -83,6 +87,8 @@ interface ThreeTankCanvasProps {
   onItemObserved?: (itemId: string, status: 'floating' | 'sunk') => void;
   onDipFloater?: () => void;
   onTrayPreviewPosition?: (point:{x:number;y:number})=>void;
+  onCameraStateChange?: (state:CameraPresentation)=>void;
+  cameraLayoutKey?: string;
 }
 
 // Cấu hình vật thể 3D thế giới (World Units)
@@ -115,7 +121,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       showXRay,
       onItemObserved,
       onDipFloater,
-      onTrayPreviewPosition
+      onTrayPreviewPosition,
+      onCameraStateChange,
+      cameraLayoutKey
     },
     ref
   ) => {
@@ -165,10 +173,18 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     const simulationTimeRef=useRef(performance.now()/1000);
     const sandEffectsRef=useRef<Array<{group:THREE.Group;grains:THREE.Points;velocities:Float32Array;age:number}>>([]);
     const lastSandPointRef=useRef<{x:number;z:number;time:number}|null>(null);
-    const dipFocusRef = useRef<{itemId:string;expiresAt:number;kind?:'drop';settledAt?:number}|null>(null);
+    const dipFocusRef = useRef<ObservationFocus|null>(null);
+    const recordingRef=useRef<DropRecording|null>(null);
+    const replayRef=useRef<{mesh:THREE.Group;startedAt:number;record:DropRecording}|null>(null);
+    const lastReleasedIdRef=useRef<string|null>(null);
+    const cameraStateCallbackRef=useRef(onCameraStateChange);cameraStateCallbackRef.current=onCameraStateChange;
+    const lastCameraStateRef=useRef('');
+    const safeCameraRectRef=useRef<ViewRect|null>(null);
+    const cameraLayoutDirtyRef=useRef(true);
+    const cameraReadyRef=useRef(false);
+    const desiredCameraRef=useRef(new THREE.PerspectiveCamera(40,1,.1,100));
     const dipFocusBlendRef = useRef(0);
     const dipFocusPointRef = useRef({x:0,y:dims.height*.4,z:0});
-    const focusKindRef = useRef<'drop'|'dip'>('dip');
     const dropFocusRatioRef = useRef(1);
     const lastDipRippleRef = useRef(0);
     const squashUntilRef = useRef(new Map<string,number>());
@@ -334,7 +350,50 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       const held=plan.position.clone().project(plan.camera);
       previewPositionCallbackRef.current?.({x:plan.rect.left+(held.x+1)*plan.rect.width/2,y:plan.rect.top+(1-held.y)*plan.rect.height/2});
       previewContactRef.current=plan.contact?.point??null;
+      if(mountRef.current)mountRef.current.dataset.dropPlan=JSON.stringify({id:request.item.id,x:plan.position.x,y:plan.position.y,z:plan.position.z,vx:plan.velocity.x,vy:plan.velocity.y,vz:plan.velocity.z,contact:plan.contact?.point});
     };
+
+    const stopCameraAssist=useCallback(()=>{
+      dipFocusRef.current=null;
+      const replay=replayRef.current;
+      if(replay){
+        const original=itemMeshesRef.current.get(replay.record.item.id);if(original)original.visible=true;
+        sceneRef.current?.remove(replay.mesh);disposeItemModel(replay.mesh);replayRef.current=null;
+      }
+    },[]);
+
+    const startDropObservation=(item:TankObject)=>{
+      stopCameraAssist();
+      if(mountRef.current)mountRef.current.dataset.lastRelease=JSON.stringify({id:item.id,x:item.x,y:item.y,z:item.z,vx:item.vx,vy:item.vy,vz:item.vz});
+      const radius=ITEM_WORLD_SCALES[itemKind(item.id)]?.radius??.4;
+      if(item.outsideTank||!isPointInsideFootprint(item.x,item.z,shapeRef.current,dimsRef.current,radius))return;
+      lastReleasedIdRef.current=item.id;
+      const now=performance.now();
+      recordingRef.current={item:{...item},water:displayedWaterLevelRef.current,poses:[],startedAt:simulationTimeRef.current,complete:false};
+      dipFocusRef.current={itemId:item.id,expiresAt:now+32000,kind:'drop'};
+      const mesh=itemMeshesRef.current.get(item.id),q=mesh?.quaternion;
+      recordPose(recordingRef.current,{t:0,x:item.x,y:item.y,z:item.z,angle:item.angle,qx:q?.x??0,qy:q?.y??0,qz:q?.z??0,qw:q?.w??1,status:item.status,settled:false});
+    };
+
+    useEffect(()=>{cameraLayoutDirtyRef.current=true;},[cameraLayoutKey]);
+    useEffect(()=>{
+      const mark=()=>{cameraLayoutDirtyRef.current=true;};
+      const root=mountRef.current?.closest('.lab-experience');
+      const observer=new ResizeObserver(mark);
+      if(root)observer.observe(root);
+      if(mountRef.current)observer.observe(mountRef.current);
+      window.addEventListener('resize',mark);window.addEventListener('scroll',mark,true);
+      const control=(event:PointerEvent)=>{
+        const target=event.target as Element|null;
+        if(target?.closest('[data-camera-controls]'))return;
+        if(target?.closest('button,a,input,select,[role="button"],[role="checkbox"]'))stopCameraAssist();
+      };
+      window.addEventListener('pointerdown',control,true);
+      return()=>{observer.disconnect();window.removeEventListener('resize',mark);window.removeEventListener('scroll',mark,true);window.removeEventListener('pointerdown',control,true);stopCameraAssist();};
+    },[stopCameraAssist]);
+    useEffect(()=>{
+      stopCameraAssist();recordingRef.current=null;lastReleasedIdRef.current=null;
+    },[shape,scale,waterLevel,waterDensity,stopCameraAssist]);
 
     // IMPERATIVE API EXPOSED TO PARENT
     useImperativeHandle(ref, () => ({
@@ -556,6 +615,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const next=itemsRef.current.map(i=>i.id===item.id?{...i,inTank:true,outsideTank:false,status:'falling' as const,settled:false,x:plan?.position.x??0,z:plan?.position.z??0,y:plan?.position.y??dimsRef.current.height+.8,vx:0,vy:0,vz:0,vRot:itemKind(i.id)==='item-leaf'?45:['item-spoon','item-keys'].includes(itemKind(i.id))?85:0}:i);
         trayPreviewRef.current=null;previewContactRef.current=null;
         itemsRef.current=next;onUpdateItems(next);setDropPreview(null);
+        const released=next.find(i=>i.id===item.id);if(released)startDropObservation(released);
       },
       previewDropAtScreenPos:(item,screenX,screenY,screenVelocity)=>{
         if(inputLockedRef.current)return;
@@ -566,7 +626,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         setDropPreview(null);
         trayPreviewRef.current=null;previewContactRef.current=null;
         // Identical world-space release, independent of camera angle or viewport.
-        onUpdateItems(itemsRef.current.map(i=>i.id===item.id?{...freshComparisonItem(item),inTank:true,status:'falling',y:dimsRef.current.height+.8}:freshComparisonItem(i)));
+        const next=itemsRef.current.map(i=>i.id===item.id?{...freshComparisonItem(item),inTank:true,status:'falling' as const,y:dimsRef.current.height+.8}:freshComparisonItem(i));
+        itemsRef.current=next;onUpdateItems(next);
+        const released=next.find(i=>i.id===item.id);if(released)startDropObservation(released);
       },
       dropOrThrowItemAtScreenPos: (
         item: TankObject,
@@ -595,8 +657,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
         vx=plan.velocity.x;vy=plan.velocity.y;vz=plan.velocity.z;
 
-        onUpdateItems(
-          itemsRef.current.map((i) =>
+        const next=itemsRef.current.map((i) =>
             i.id === item.id
               ? {
                   ...i,
@@ -609,16 +670,18 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
                   vz,
                   vRot: itemKind(i.id)==='item-leaf' ? Math.max(-90,Math.min(90,40+vx*12)) : ['item-spoon','item-keys'].includes(itemKind(i.id)) ? Math.max(60,Math.min(240,60+Math.hypot(vx,vz,vy)*25))*(vx<0?-1:1) : i.vRot,
                   settled: false,
-                  status: 'falling',
+                  status: 'falling' as const,
                   outsideTank: startsOutside
                 }
               : i
-          )
-        );
+          );
+        itemsRef.current=next;onUpdateItems(next);
+        const released=next.find(i=>i.id===item.id);if(released)startDropObservation(released);
 
       },
 
       cancelActiveGesture: () => {
+        stopCameraAssist();
         activePointerRef.current = null;
         setDropPreview(null);
         trayPreviewRef.current=null;previewContactRef.current=null;
@@ -629,7 +692,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       },
 
       resetDefaultView: () => {
-        dipFocusRef.current=null;
+        stopCameraAssist();
         zoomRef.current = 1;
         orbitRef.current.targetYaw = DEFAULT_YAW;
         orbitRef.current.targetPitch = DEFAULT_PITCH;
@@ -638,17 +701,33 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
       refreshObservations: () => { itemsRef.current = itemsRef.current.map(item => item.inTank ? {...item, settled:false} : item); },
       resetSideView: () => {
-        dipFocusRef.current=null;
+        stopCameraAssist();
         orbitRef.current.targetYaw = 0;
         orbitRef.current.targetPitch = 0.08;
         orbitRef.current.isAutoRotating = false;
       },
       resetTopView: () => {
-        dipFocusRef.current=null;
+        stopCameraAssist();
         zoomRef.current = 1;
         orbitRef.current.targetYaw = DEFAULT_YAW;
         orbitRef.current.targetPitch = 1.4;
         orbitRef.current.isAutoRotating = false;
+      },
+      stopCameraAssist,
+      observeLastItem:()=>{
+        if(carryingTrayRef.current||holdingItemRef.current||workflowStepRef.current!=='idle')return;
+        const item=itemsRef.current.find(i=>i.id===lastReleasedIdRef.current&&i.inTank&&!i.outsideTank);if(!item)return;
+        stopCameraAssist();dipFocusRef.current={itemId:item.id,expiresAt:Infinity,kind:'near'};
+      },
+      replayLastDrop:()=>{
+        const record=recordingRef.current;
+        if(!record?.complete||record.poses.length<2||carryingTrayRef.current||holdingItemRef.current||workflowStepRef.current!=='idle'||!sceneRef.current)return;
+        stopCameraAssist();
+        const cfg=ITEM_WORLD_SCALES[itemKind(record.item.id)]||{size:.8,radius:.4};
+        const mesh=createItemModel(record.item.id,cfg.size,record.item.image,cfg.radius);
+        applyItemDamage(mesh,record.item.id,record.item.damage);
+        sceneRef.current.add(mesh);replayRef.current={mesh,startedAt:performance.now(),record};
+        dipFocusRef.current={itemId:record.item.id,kind:'replay',expiresAt:performance.now()+(record.poses[record.poses.length-1].t/.4)*1000+1400};
       },
       setSaltDissolveProgress: (progress: number) => { dissolveProgressRef.current = progress; },
       stirAtScreenPoint: (x: number, y: number, strength = 1, direction = 0, touchesSand=false) => {
@@ -1299,12 +1378,17 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const d = dimsRef.current;
         const s = shapeRef.current;
         const currentWaterDensity = waterDensityRef.current;
-        const busy=carryingTrayRef.current||holdingItemRef.current||orbit.isDragging||workflowStepRef.current!=='idle'||inputLockedRef.current;
-        if(busy)dipFocusRef.current=null;
-        // Start observing just above entry so children can see contact, not only its aftermath.
-        const approaching=!busy&&itemsRef.current.find(item=>item.inTank&&!item.outsideTank&&item.status==='falling'&&!item.settled&&item.y-(ITEM_WORLD_SCALES[itemKind(item.id)]?.radius??.4)<displayedWaterLevelRef.current+1.8);
-        if(approaching&&dipFocusRef.current?.itemId!==approaching.id)dipFocusRef.current={itemId:approaching.id,expiresAt:currentTime+30000,kind:'drop'};
-        const observing=dipFocusRef.current?.kind==='drop'&&currentTime<dipFocusRef.current.expiresAt;
+        const cameraFrozen=!!(carryingTrayRef.current||holdingItemRef.current||heldIdRef.current||orbit.isDragging===2||workflowStepRef.current!=='idle'||(inputLockedRef.current&&!introGroupRef.current));
+        const busy=cameraFrozen||!!orbit.isDragging||inputLockedRef.current;
+        if(busy)stopCameraAssist();
+        if(recordingRef.current&&!itemsRef.current.some(item=>item.id===recordingRef.current?.item.id&&item.inTank)){
+          stopCameraAssist();recordingRef.current=null;lastReleasedIdRef.current=null;
+        }
+        if(dipFocusRef.current&&currentTime>=dipFocusRef.current.expiresAt)stopCameraAssist();
+        const activeFocus=dipFocusRef.current;
+        const activeItem=activeFocus&&itemsRef.current.find(item=>item.id===activeFocus.itemId&&item.inTank&&!item.outsideTank);
+        if(activeFocus&&!activeItem)stopCameraAssist();
+        const observing=!!activeItem&&dipFocusRef.current?.kind==='drop';
         const dt=wallDt*(observing ? .4 : 1);
         simulationTimeRef.current+=dt;
 
@@ -1317,69 +1401,74 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         ) {
           orbit.targetYaw += wallDt * .3;
         }
-        const orbitBlend = 1 - Math.exp(-wallDt * 12);
-        orbit.yaw += (orbit.targetYaw - orbit.yaw) * orbitBlend;
-        orbit.pitch += (orbit.targetPitch - orbit.pitch) * orbitBlend;
-
-        // Fit all eight corners at the current angle. Always fit the NORMAL
-        // tank so selecting 50% never auto-zooms the small tank back to full size.
-        const fitDims = getTankDimensions(s, 'normal');
-        let r = tankOrbitDistance(fitDims, camera?.aspect || 1, orbit.pitch);
-        if(carryingTrayRef.current||holdingItemRef.current||orbit.isDragging||workflowStepRef.current!=='idle'||inputLockedRef.current)dipFocusRef.current=null;
-        const focus=dipFocusRef.current;
-        const focusItem=focus&&currentTime<focus.expiresAt?itemsRef.current.find(item=>item.id===focus.itemId&&item.inTank):null;
-        if(focus?.kind==='drop'&&focusItem?.settled&&!focus.settledAt){focus.settledAt=currentTime;focus.expiresAt=Math.min(focus.expiresAt,currentTime+2200);}
-        const focusTarget=focusItem&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches?1:0;
-        const focusEase=1-Math.exp(-wallDt*1.35);
-        dipFocusBlendRef.current+=(focusTarget-dipFocusBlendRef.current)*focusEase;
-        // Tracking responds faster than zoom, keeping a moving object in view.
-        // Retain the last point on exit, then blend gently back to the tank view.
-        if(focusTarget&&focusItem){
-          const trackingEase=1-Math.exp(-wallDt*7);
-          dipFocusPointRef.current.x+=(focusItem.x-dipFocusPointRef.current.x)*trackingEase;
-          dipFocusPointRef.current.y+=(focusItem.y-dipFocusPointRef.current.y)*trackingEase;
-          dipFocusPointRef.current.z+=(focusItem.z-dipFocusPointRef.current.z)*trackingEase;
+        if(!cameraFrozen){
+          const orbitBlend = 1 - Math.exp(-wallDt * 12);
+          orbit.yaw += (orbit.targetYaw - orbit.yaw) * orbitBlend;
+          orbit.pitch += (orbit.targetPitch - orbit.pitch) * orbitBlend;
         }
-        if(focusItem)focusKindRef.current=focus?.kind==='drop'?'drop':'dip';
-        const dropFocus=focusKindRef.current==='drop';
+        const mount=mountRef.current;
+        if(mount&&cameraLayoutDirtyRef.current&&!cameraFrozen){
+          const rect=mount.getBoundingClientRect(),root=mount.closest('.lab-experience');
+          const visual=window.visualViewport;
+          const viewport={left:visual?.offsetLeft??0,top:visual?.offsetTop??0,right:(visual?.offsetLeft??0)+(visual?.width??window.innerWidth),bottom:(visual?.offsetTop??0)+(visual?.height??window.innerHeight)};
+          const masks=Array.from(root?.querySelectorAll('.lab-heading,.lab-dock,.premium-scene-prompt,.premium-water-label,.premium-scene-controls,.camera-replay-label,.teacher-controls-panel,[role="dialog"]')??[])
+            .filter(element=>element.getClientRects().length&&getComputedStyle(element).visibility!=='hidden').map(element=>element.getBoundingClientRect());
+          safeCameraRectRef.current=usableCameraRect(rect,viewport,masks);
+          cameraLayoutDirtyRef.current=false;
+        }
+        const fitDims = getTankDimensions(s, 'normal');
+        const baseDistance=tankOrbitDistance(fitDims,camera?.aspect||1,orbit.pitch);
+        let r=baseDistance;
+        const focus=dipFocusRef.current;
+        const replay=replayRef.current;
+        const played=replay?replayPose(replay.record,(currentTime-replay.startedAt)/1000*.4):null;
+        const focusItem=focus?(played&&replay?{...replay.record.item,...played}:itemsRef.current.find(item=>item.id===focus.itemId&&item.inTank&&!item.outsideTank)):null;
+        if(focus?.kind==='drop'&&focusItem?.settled&&focus.settledAt===undefined){focus.settledAt=currentTime;focus.expiresAt=Math.min(focus.expiresAt,currentTime+1500);}
+        const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const safe=safeCameraRectRef.current;
+        const focusTarget=!!focusItem&&!!safe&&!reducedMotion?1:0;
+        const focusEase=1-Math.exp(-wallDt*2.8);
+        dipFocusBlendRef.current+=(focusTarget-dipFocusBlendRef.current)*focusEase;
+        if(dipFocusBlendRef.current<.001)dipFocusBlendRef.current=0;
         const focusBlend=dipFocusBlendRef.current;
+        const water=replay?.record.water??displayedWaterLevelRef.current;
+        const radius=focusItem?(ITEM_WORLD_SCALES[itemKind(focusItem.id)]?.radius??.4):.4;
+        const context=focusItem?observationContext(focusItem,radius,water,sandHeight(d)):null;
+        if(context){
+          const ease=1-Math.exp(-wallDt*9);
+          dipFocusPointRef.current.x+=(context.target.x-dipFocusPointRef.current.x)*ease;
+          dipFocusPointRef.current.y+=(context.target.y-dipFocusPointRef.current.y)*ease;
+          dipFocusPointRef.current.z+=(context.target.z-dipFocusPointRef.current.z)*ease;
+        }
         const targetX=dipFocusPointRef.current.x*focusBlend;
         const targetZ=dipFocusPointRef.current.z*focusBlend;
         const targetY=d.height*.4+(dipFocusPointRef.current.y-d.height*.4)*focusBlend;
-        if(dropFocus&&focusItem){
-          const radius=ITEM_WORLD_SCALES[itemKind(focusItem.id)]?.radius??.4;
-          const observationDistance=objectObservationDistance(r,camera?.aspect||1,orbit.yaw,orbit.pitch,{x:targetX,y:targetY,z:targetZ},focusItem,radius);
-          dropFocusRatioRef.current=observationDistance/r;
+        if(context&&camera&&mount&&safe){
+          const distance=contextCameraDistance(baseDistance,camera.aspect,orbit.yaw,orbit.pitch,{x:targetX,y:targetY,z:targetZ},context.bounds,safe,mount.clientWidth,mount.clientHeight);
+          dropFocusRatioRef.current=distance/baseDistance;
         }
-        r*=dropFocus ? 1+(dropFocusRatioRef.current-1)*dipFocusBlendRef.current : 1-.27*dipFocusBlendRef.current;
-        r*=zoomRef.current;
-        if(mountRef.current){mountRef.current.dataset.observationFocus=String(!!focusItem&&dropFocus);mountRef.current.dataset.observationZoom=(tankOrbitDistance(fitDims,camera?.aspect||1,orbit.pitch)*zoomRef.current/r).toFixed(3);}
-        if(mountRef.current){
-          mountRef.current.dataset.observationSpeed=observing?'0.4':'1';
-          mountRef.current.dataset.observationTracking=focusTarget?'object':'tank';
-          // Project the tracked object for focused browser verification.
-          if(focusItem&&camera){
-            mountRef.current.dataset.observationObjectY=focusItem.y.toFixed(3);
-            mountRef.current.dataset.observationTargetY=targetY.toFixed(3);
-          }
+        // Manual overview zoom cannot crop the object/context during assistance.
+        r=baseDistance*zoomRef.current+(baseDistance*dropFocusRatioRef.current-baseDistance*zoomRef.current)*focusBlend;
+        if(camera&&(!cameraFrozen||!cameraReadyRef.current)){
+          const desired=desiredCameraRef.current;
+          desired.copy(camera,false);desired.clearViewOffset();desired.updateProjectionMatrix();
+          desired.position.set(targetX+r*Math.sin(orbit.yaw)*Math.cos(orbit.pitch),targetY+r*Math.sin(orbit.pitch),targetZ+r*Math.cos(orbit.yaw)*Math.cos(orbit.pitch));
+          desired.lookAt(targetX,targetY,targetZ);desired.updateMatrixWorld();
+          const tableContact=new THREE.Vector3(0,TABLE_HEIGHT,0),projected=tableContact.clone().project(desired);
+          const depth=tableContact.clone().sub(desired.position).dot(desired.getWorldDirection(new THREE.Vector3()));
+          const shift=(projected.y+.38)*depth*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))*(1-focusBlend);
+          desired.position.addScaledVector(new THREE.Vector3(0,1,0).applyQuaternion(desired.quaternion),shift);
+          const ease=!cameraReadyRef.current||reducedMotion?1:1-Math.exp(-wallDt*8);
+          camera.position.lerp(desired.position,ease);camera.quaternion.slerp(desired.quaternion,ease);
+          if(safe&&mount&&focusBlend>0){
+            const width=mount.clientWidth,height=mount.clientHeight;
+            camera.setViewOffset(width,height,(width/2-(safe.left+safe.right)/2)*focusBlend,(height/2-(safe.top+safe.bottom)/2)*focusBlend,width,height);
+          }else camera.clearViewOffset();
+          camera.updateMatrixWorld();cameraReadyRef.current=true;
+          if(mount)mount.dataset.tableContactY=tableContact.project(camera).y.toFixed(4);
         }
-        const cx = r * Math.sin(orbit.yaw) * Math.cos(orbit.pitch);
-        const cy = targetY + r * Math.sin(orbit.pitch);
-        const cz = r * Math.cos(orbit.yaw) * Math.cos(orbit.pitch);
-
-        if (camera) {
-          camera.position.set(cx+targetX, cy, cz+targetZ);
-          camera.lookAt(targetX, targetY, targetZ);
-          camera.updateMatrixWorld();
-          // Keep the tank planted on the stationary photographic worktop.
-          // Camera-up translation retains the orientation used by all raycasts.
-          const tableContact = new THREE.Vector3(0, TABLE_HEIGHT, 0);
-          const projectedContact = tableContact.clone().project(camera);
-          const depth = tableContact.clone().sub(camera.position).dot(camera.getWorldDirection(new THREE.Vector3()));
-          const shift = (projectedContact.y + .38) * depth * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * (1 - focusBlend);
-          camera.position.addScaledVector(new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion), shift);
-          camera.updateMatrixWorld();
-          if (mountRef.current) mountRef.current.dataset.tableContactY = tableContact.project(camera).y.toFixed(4);
+        // Preview and release always use this same camera, including while frozen.
+        if(camera){
           updateTrayPreview();
           if(heldIdRef.current&&orbit.isDragging===2){
             const held=itemsRef.current.find(item=>item.id===heldIdRef.current),samples=dragSamplesRef.current,first=samples[0],last=samples[samples.length-1];
@@ -1389,11 +1478,33 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             }
           }
           const contact=previewContactRef.current;
-          if(contact&&mountRef.current){
-            const rect=mountRef.current.getBoundingClientRect(),p=contact.clone().project(camera);
+          if(contact&&mount){
+            const rect=mount.getBoundingClientRect(),p=contact.clone().project(camera);
             const next={x:(p.x+1)*rect.width/2,y:(1-p.y)*rect.height/2,inside:true};
             setDropPreview(prev=>prev&&Math.abs(prev.x-next.x)<.2&&Math.abs(prev.y-next.y)<.2?prev:next);
           }else if(trayPreviewRef.current)setDropPreview(null);
+        }
+        const canNear=itemsRef.current.some(item=>item.id===lastReleasedIdRef.current&&item.inTank&&!item.outsideTank);
+        const presentation:CameraPresentation={mode:focus?.kind==='replay'?'replay':focus?.kind==='near'?'near':focus?'follow':'overview',canReplay:!!recordingRef.current?.complete&&recordingRef.current.poses.length>1,canNear,busy:cameraFrozen};
+        const presentationKey=JSON.stringify(presentation);
+        if(presentationKey!==lastCameraStateRef.current){lastCameraStateRef.current=presentationKey;cameraStateCallbackRef.current?.(presentation);}
+        if(mount&&camera){
+          mount.dataset.observationFocus=String(!!focusItem);
+          mount.dataset.observationItemId=focusItem?.id??'';
+          mount.dataset.observationPhase=cameraFrozen?'holding':focus?.kind==='replay'?'replay':focusItem?.settled?'settled':focusItem?.status==='falling'?'entry':focusItem?'travel':focusBlend>0?'return':'overview';
+          mount.dataset.observationSpeed=observing?'0.4':'1';
+          mount.dataset.observationTracking=focusTarget?'object':'tank';
+          mount.dataset.observationZoom=(baseDistance*zoomRef.current/r).toFixed(3);
+          mount.dataset.cameraPose=[...camera.position.toArray(),...camera.quaternion.toArray(),...(camera.view?[camera.view.offsetX,camera.view.offsetY]:[0,0])].map(value=>value.toFixed(6)).join(',');
+          mount.dataset.observationSafeRect=JSON.stringify(safe);
+          mount.dataset.observationActualPoint=activeItem?JSON.stringify({x:activeItem.x,y:activeItem.y,z:activeItem.z,status:activeItem.status,settled:activeItem.settled}):'';
+          if(focusItem){
+            const p=new THREE.Vector3(focusItem.x,focusItem.y,focusItem.z).project(camera);
+            const surface=new THREE.Vector3(focusItem.x,water,focusItem.z).project(camera);
+            mount.dataset.observationObjectScreen=JSON.stringify({x:(p.x+1)*mount.clientWidth/2,y:(1-p.y)*mount.clientHeight/2});
+            mount.dataset.observationWaterScreen=JSON.stringify({x:(surface.x+1)*mount.clientWidth/2,y:(1-surface.y)*mount.clientHeight/2});
+            mount.dataset.observationObjectY=focusItem.y.toFixed(3);mount.dataset.observationTargetY=targetY.toFixed(3);
+          }
         }
 
         // TÍNH THỂ TÍCH PHẦN CHÌM THỰC TẾ (SUBMERGED VOLUME)
@@ -1640,7 +1751,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
                 playWaterContact(item.id, Math.abs(vy));
               }
               vy=waterEntryVelocity(vy,willFloat);
-              if(dipFocusRef.current?.itemId!==item.id)dipFocusRef.current={itemId:item.id,expiresAt:currentTime+30000,kind:'drop'};
               status = willFloat ? 'floating' : 'sunk';
             }
             itemsChanged = true;
@@ -1650,7 +1760,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
               spawnWaterReaction(x, z, Math.min(6, Math.abs(vy)), true);
               if (soundEnabled) playWaterContact(item.id, Math.abs(vy));
               vy=waterEntryVelocity(vy,willFloat);
-              if(dipFocusRef.current?.itemId!==item.id)dipFocusRef.current={itemId:item.id,expiresAt:currentTime+30000,kind:'drop'};
             }
             // Nằm trong nước
             if (willFloat) {
@@ -1669,7 +1778,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
               vy += forceY * dt;
               y += vy * dt;
-              if(dipFocusRef.current?.kind!=='drop'&&dipFocusRef.current?.itemId===item.id && currentTime<dipFocusRef.current.expiresAt
+              if(dipFocusRef.current?.kind==='near'&&dipFocusRef.current?.itemId===item.id && currentTime<dipFocusRef.current.expiresAt
                 && y+itemR>effectiveWaterHeight-.5 && Math.abs(vy)>.06 && currentTime-lastDipRippleRef.current>170){
                 spawnWaterReaction(x,z,1.2,false);lastDipRippleRef.current=currentTime;
               }
@@ -1782,6 +1891,19 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           }
         }
 
+        const recording=recordingRef.current;
+        if(recording&&!recording.complete){
+          const item=itemsRef.current.find(item=>item.id===recording.item.id&&item.inTank);
+          const q=itemMeshesRef.current.get(recording.item.id)?.quaternion;
+          if(item&&q)recordPose(recording,{t:simulationTimeRef.current-recording.startedAt,x:item.x,y:item.y,z:item.z,angle:item.angle,qx:q.x,qy:q.y,qz:q.z,qw:q.w,status:item.status,settled:item.settled});
+          else if(!item)recordingRef.current=null;
+        }
+        if(replay&&played&&replayRef.current===replay){
+          const original=itemMeshesRef.current.get(replay.record.item.id);if(original)original.visible=false;
+          replay.mesh.position.set(played.x,played.y,played.z);
+          replay.mesh.quaternion.set(played.qx,played.qy,played.qz,played.qw).normalize();
+        }
+
         if (renderer && scene && camera) {
           renderer.render(scene, camera);
         }
@@ -1804,6 +1926,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       const mount = mountRef.current;
       if (!mount || !cameraRef.current) return;
 
+      stopCameraAssist();
       unlockImpactAudio();
       if (carryingTrayItem || heldIdRef.current) return;
       activePointerRef.current = e.pointerId;
@@ -1976,9 +2099,6 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             if(soundEnabled) playWaterSwish(1.2);
             lastWaterGestureRef.current.time = gestureNow;
           }
-          if(previous && previous.weightGrams/previous.volumeMl<waterDensityRef.current && nowInside && clampedY<surfaceY-.1){
-            dipFocusRef.current={itemId:holdingItemId,expiresAt:gestureNow+4200};
-          }
           if (previous && wasInside && nowInside && previous.y-itemR > surfaceY && clampedY-itemR <= surfaceY) {
             playWaterContact(holdingItemId, 2);
             spawnWaterReaction(clampedPos.x, clampedPos.z, 1.5, true);
@@ -2024,14 +2144,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       const id=heldIdRef.current;
       if (orbitRef.current.isDragging===2 && id) {
         const heldItem=itemsRef.current.find(item=>item.id===id);
-        if (e.type!=='pointercancel'&&heldItem && heldItem.weightGrams/heldItem.volumeMl < waterDensityRef.current && !heldItem.outsideTank && heldItem.y < displayedWaterLevelRef.current-.1) {
-          dipFocusRef.current={itemId:id,expiresAt:performance.now()+4200};
-          spawnWaterReaction(heldItem.x,heldItem.z,2.4,false);
-          onDipFloater?.();
-        }
-        if(e.type!=='pointercancel'&&heldItem&&!heldItem.outsideTank&&heldItem.y-(ITEM_WORLD_SCALES[itemKind(id)]?.radius??.4)<=displayedWaterLevelRef.current&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
-          dipFocusRef.current={itemId:id,expiresAt:performance.now()+12000,kind:'drop'};
-        }
+        if(e.type!=='pointercancel'&&heldItem&&heldItem.weightGrams/heldItem.volumeMl<waterDensityRef.current&&!heldItem.outsideTank&&heldItem.y<displayedWaterLevelRef.current-.1)onDipFloater?.();
         const samples=dragSamplesRef.current, first=samples[0], last=samples[samples.length-1];
         const v=e.type==='pointercancel'||!first||!last ? {vx:0,vy:0} : gestureVelocity(last.x-first.x,last.y-first.y,(performance.now()-first.t)/1000);
         const worldVelocity=throwVelocity(cameraRef.current!,v);
@@ -2044,6 +2157,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           return {...item,x:safe.x,z:safe.z,outsideTank:false,vRot:itemKind(item.id)==='item-leaf'?Math.max(-90,Math.min(90,40+v.vx*.12)):['item-spoon','item-keys'].includes(itemKind(item.id))?Math.max(60,Math.min(240,Math.hypot(v.vx,v.vy)*.3))*(v.vx<0?-1:1):item.vRot,vx:worldVelocity.x,vz:worldVelocity.z,vy:worldVelocity.y,settled:false,status};
         });
         itemsRef.current=next; onUpdateItems(next); onMessageUpdate('Con vừa buông tay. Hãy quan sát vật sẽ đi đâu nhé!');
+        const released=next.find(item=>item.id===id);if(e.type!=='pointercancel'&&released)startDropObservation(released);
       }
       heldIdRef.current=null; orbitRef.current.isDragging=0; onHoldItem(null); onInteractionModeChange('interact');
       if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);
@@ -2051,7 +2165,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
     useEffect(() => {
       const mount=mountRef.current;if(!mount)return;
-      const wheel=(e:WheelEvent)=>{if(inputLockedRef.current||workflowStepRef.current!=='idle'||holdingItemRef.current||carryingTrayRef.current)return;e.preventDefault();dipFocusRef.current=null;zoomRef.current=boundedZoom(zoomRef.current,e.deltaY);};
+      const wheel=(e:WheelEvent)=>{if(inputLockedRef.current||workflowStepRef.current!=='idle'||holdingItemRef.current||carryingTrayRef.current)return;e.preventDefault();stopCameraAssist();zoomRef.current=boundedZoom(zoomRef.current,e.deltaY);};
       mount.addEventListener('wheel',wheel,{passive:false});return()=>mount.removeEventListener('wheel',wheel);
     },[]);
 

@@ -15,7 +15,9 @@ import {
   X,
   Compass,
   Eye,
-  ArrowDownToLine,
+  Scan,
+  ZoomIn,
+  CirclePlay,
   Waves
 } from 'lucide-react';
 import { BookOpen, Pencil, Plus, Users, Droplets } from 'lucide-react';
@@ -37,6 +39,7 @@ import {
 } from './sink-float/types';
 import { getTankDimensions, clampToTankBoundary } from './sink-float/tankGeometry';
 import { ThreeTankCanvas, ITEM_WORLD_SCALES, ThreeTankCanvasHandle } from './sink-float/ThreeTankCanvas';
+import {CameraPresentation} from './sink-float/cameraObservation';
 import { brineDensity, waterVolumeMl, SALT_GRAMS_PER_SPOON } from './sink-float/salinity';
 import { SaltWorkflow } from './sink-float/SaltWorkflow';
 import { WaterPitcher } from './sink-float/WaterPitcher';
@@ -376,6 +379,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
 
   // ThreeTankCanvas imperative ref
   const threeTankRef = useRef<ThreeTankCanvasHandle | null>(null);
+  const [cameraPresentation,setCameraPresentation]=useState<CameraPresentation>({mode:'overview',canNear:false,canReplay:false,busy:false});
   const pourTimeoutRef = useRef<number | null>(null);
 
   // Âm thanh & Giọng nói Cô Mimi
@@ -701,15 +705,10 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     setMessage('Đã chuyển sang góc nhìn ngang thành bể để quan sát sát mặt nước!');
   };
 
-  const handleResetTopView = () => {
-    markUserInteracted();
-    threeTankRef.current?.resetTopView();
-    setMessage('Đã chuyển sang góc nhìn từ trên cao xuống bể!');
-  };
-
   // Dọn bể: vớt đồ vật trả về khay & dọn sạch hạt muối
   const handleResetAllTank = () => {
     markUserInteracted();
+    threeTankRef.current?.stopCameraAssist();
     actionTimersRef.current.forEach(clearTimeout);
     actionTimersRef.current.clear();
     setRaceRunning(false);
@@ -1238,7 +1237,9 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                 sceneSetting={sceneSetting}
                 floorSpills={floorSpills}
                 overflowAt={overflowAt}
-                inputLocked={introLocked || pouringWater}
+                inputLocked={introLocked || pouringWater || showPreparation || showExperienceSettings || showTeacherControls}
+                onCameraStateChange={setCameraPresentation}
+                cameraLayoutKey={`${advanced}-${dockTab}-${showTeacherControls}-${showObservationBoard}-${comparisonMode}-${cameraPresentation.mode}`}
                 waterLevel={dimensions.waterHeight+sandHeight(dimensions)+addedWaterHeight(addedWaterMl,tankShape,dimensions)}
                 scale={tankScale}
                 dims={dimensions}
@@ -1268,12 +1269,13 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
                 <p>🥚 Thả trứng vào nước ngọt. Sau đó thêm muối, khuấy và nhìn lại trứng.</p>
                 {saltSpoons>0&&workflowStep==='idle'&&<button className="mt-2 min-h-[44px] rounded-xl bg-sky-200 px-3 font-black text-xs" onClick={handleResetSalt}>🚰 Đổi lại nước ngọt</button>}
               </div>}
-              <div className="premium-scene-controls" onClick={event=>event.stopPropagation()}>
-                <button onClick={handleResetDefaultView} title="Góc nhìn mặc định" aria-label="Góc nhìn mặc định"><Compass size={21}/></button>
-                <button onClick={handleResetSideView} title="Góc nhìn ngang" aria-label="Góc nhìn ngang"><Eye size={21}/></button>
-                 <button onClick={handleResetTopView} title="Góc nhìn từ trên cao" aria-label="Góc nhìn từ trên cao"><ArrowDownToLine size={21}/></button>
+              <div className="premium-scene-controls" data-camera-controls onClick={event=>event.stopPropagation()}>
+                <button data-camera-choice disabled={cameraPresentation.busy||introLocked} onClick={handleResetDefaultView} aria-label="Toàn cảnh" aria-pressed={cameraPresentation.mode==='overview'}><Scan size={23}/><span>Toàn cảnh</span></button>
+                <button data-camera-choice disabled={cameraPresentation.busy||introLocked||!cameraPresentation.canNear} onClick={()=>threeTankRef.current?.observeLastItem()} aria-label="Nhìn gần" aria-pressed={cameraPresentation.mode==='near'||cameraPresentation.mode==='follow'}><ZoomIn size={23}/><span>Nhìn gần</span></button>
+                <button data-camera-choice disabled={cameraPresentation.busy||introLocked||!cameraPresentation.canReplay} onClick={()=>threeTankRef.current?.replayLastDrop()} aria-label="Xem lại" aria-pressed={cameraPresentation.mode==='replay'}><CirclePlay size={23}/><span>Xem lại</span></button>
                 <button disabled={comparisonBusy} onClick={handleResetAllTank}><RotateCcw size={19}/> Thử lại</button>
               </div>
+              {cameraPresentation.mode==='replay'&&<div className="camera-replay-label" role="status">▶ Xem lại · 0,4×</div>}
               {LADLE_ENABLED&&(carriedBucketVisible||bucketWater.ml>0||bucketWater.fullBuckets.length>0)&&<div ref={bucketRef} data-water-bucket aria-label="Các xô hứng nước" className="lab-bucket absolute bottom-5 left-5 z-30 pointer-events-none flex flex-wrap items-end gap-2 max-w-[calc(100%-40px)]">
                 {bucketWater.fullBuckets.map((_,index)=><div key={index} aria-label="Xô đã đầy" className="relative w-12">
                   <svg viewBox="0 0 120 120" width="48" height="48" aria-hidden="true"><path d="M17 43L27 99Q60 115 93 99L103 43" fill="#ffd59c" stroke="#b87838" strokeWidth="4"/><ellipse cx="60" cy="43" rx="43" ry="15" fill="#86dcea" stroke="#b87838" strokeWidth="4"/><path d="M23 38C15 5 105 5 97 38" fill="none" stroke="#d09450" strokeWidth="5"/></svg>
