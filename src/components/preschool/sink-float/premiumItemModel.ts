@@ -3,6 +3,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createItemModel as createPrimitive, disposeItemModel as disposePrimitive } from './itemModels';
 import { itemKind } from './playPhysics';
 
+import {attachApprovedModel} from './approvedItemModels';
+
 let apple: Promise<THREE.Group> | undefined;
 const surfaceTextures=new Map<string,THREE.CanvasTexture>();
 function surfaceTexture(kind:string) {
@@ -46,6 +48,7 @@ export function createItemModel(id: string, size: number, _image?: string, radiu
       }
     }
   });
+  attachApprovedModel(group,id,size,radius);
   if (itemKind(id) === 'item-apple') {
     void loadApple().then(template => {
       if (group.userData.disposed || group.userData.damage) return;

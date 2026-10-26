@@ -7,9 +7,12 @@ import * as THREE from 'three';
 import { TankDimensions, TankObject, TankScale, TankShape, InteractionMode, SaltWorkflowStep, StirRodProjection } from './types';
 import { resolveTankWall, clampToTankBoundary, isPointInsideFootprint, getTankDimensions } from './tankGeometry';
 import { floatingCenterY } from './buoyancy';
+import {createTransmissionBackdrop} from './transmissionBackdrop';
 import { applyItemDamage } from './itemModels';
-import { createItemModel, disposeItemModel } from './premiumItemModel';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import {createItemModel,disposeItemModel} from './premiumItemModel';
+import {applyApprovedVisualPose,preloadApprovedModels} from './approvedItemModels';
+import {updateApprovedOptics} from './approvedMaterials';
+import {configureObjectStudio} from './objectStudio';
 import { BoatVisual, createFoilBoat, animateFoilBoat, disposeFoilBoat } from './foilBoat';
 import { damageFromImpact, gestureVelocity, floorEggDamage } from './impactPhysics';
 import { playImpact, playWaterSwish, unlockImpactAudio } from './impactAudio';
@@ -145,6 +148,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
     const baseWaterLevelRef=useRef(waterLevel);
     baseWaterLevelRef.current=waterLevel;
     const displayedWaterLevelRef=useRef(waterLevel);
+    const transmissionBackdropRef=useRef<ReturnType<typeof createTransmissionBackdrop>|null>(null);
+    useEffect(()=>{transmissionBackdropRef.current?.setSetting(sceneSetting);},[sceneSetting]);
+    useEffect(()=>{void preloadApprovedModels().catch(()=>{});},[]);
     const lastWaterGestureRef = useRef({time:0,x:0,y:0});
     const activePointerRef = useRef<number | null>(null);
     const mountRef = useRef<HTMLDivElement | null>(null);
@@ -854,27 +860,10 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFShadowMap;
       rendererRef.current = renderer;
-      const environmentRoom = new RoomEnvironment();
-      const environmentGenerator = new THREE.PMREMGenerator(renderer);
-      const environment = environmentGenerator.fromScene(environmentRoom, .04);
-      scene.environment = environment.texture;
-      scene.environmentIntensity = .6;
-      environmentRoom.dispose(); environmentGenerator.dispose();
-      renderer.domElement.style.display = 'block';
-
+      const studio=configureObjectStudio(renderer,scene,{center:new THREE.Vector3(0,2.2,0),scale:4});
+      renderer.domElement.style.display='block';
       container.replaceChildren(renderer.domElement);
-
-      // Ánh sáng trong trẻo
-      const ambientLight = new THREE.HemisphereLight(0xfff8ed, 0xc9b198, 1.1);
-      scene.add(ambientLight);
-
-      const dirLight = new THREE.DirectionalLight(0xfff7e8, 1.8);
-      dirLight.position.set(-8, 14, 10);
-      scene.add(dirLight);
-
-      const rimLight = new THREE.DirectionalLight(0xbae6fd, 0.65);
-      rimLight.position.set(-8, 8, -10);
-      scene.add(rimLight);
+      const glassBackdrop=createTransmissionBackdrop(sceneSetting,width,height);transmissionBackdropRef.current=glassBackdrop;
 
       // Groups
       const tankGroup = new THREE.Group();
@@ -937,7 +926,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const h = mountRef.current.clientHeight || 520;
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
-        renderer.setSize(w, h);
+        renderer.setSize(w, h);glassBackdrop.resize(w,h);
       };
       window.addEventListener('resize', handleResize);
       const resizeObserver = new ResizeObserver(handleResize);
@@ -961,10 +950,10 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         sandTextureRef.current?.dispose();
         saltGeom.dispose(); saltMat.dispose();
         contactShadow.geometry.dispose(); contactShadow.material.dispose(); shadowTexture.dispose();
-        contactShadowRef.current = null;
+        contactShadowRef.current = null;glassBackdrop.dispose();transmissionBackdropRef.current=null;
         renderer.dispose();
         if(boatMeshRef.current){disposeFoilBoat(boatMeshRef.current);boatMeshRef.current=null;}
-        environment.dispose();
+        studio.dispose();
         itemMeshesRef.current.clear();
         scene.clear();
       };
@@ -1045,9 +1034,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
       // Khối nước PALE CYAN trong suốt, không ám tối
       const waterVolumeMat = new THREE.MeshBasicMaterial({
-        color: 0x1eafcb,
+        color: 0xa9d8df,
         transparent: true,
-        opacity: 0.23,
+        opacity: 0.055,
         toneMapped: false,
         depthWrite: false,
         side: THREE.DoubleSide
@@ -1055,11 +1044,11 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
 
       // Mặt trên nước trong suốt nhấp nhô nhẹ
       const waterSurfaceMat = new THREE.MeshPhongMaterial({
-        color: 0x8de3ee,
+        color: 0xd4eef1,
         specular: 0xe9ffff,
         shininess: 100,
         transparent: true,
-        opacity: 0.2,
+        opacity: 0.1,
         toneMapped: false,
         depthWrite: false,
         side: THREE.DoubleSide
@@ -1433,7 +1422,10 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const focusBlend=dipFocusBlendRef.current;
         const water=replay?.record.water??displayedWaterLevelRef.current;
         const radius=focusItem?(ITEM_WORLD_SCALES[itemKind(focusItem.id)]?.radius??.4):.4;
-        const context=focusItem?observationContext(focusItem,radius,water,sandHeight(d)):null;
+        const contextWater=focus?.kind==='near'&&focusItem&&itemKind(focusItem.id)==='item-marble'?focusItem.y+radius:water;
+        const context=focusItem?observationContext(focusItem,radius,contextWater,sandHeight(d)):null;
+        const marbleNear=focus?.kind==='near'&&focusItem&&itemKind(focusItem.id)==='item-marble';
+        if(context&&marbleNear&&focusItem){const patch=radius+.14;context.bounds.minX=focusItem.x-patch;context.bounds.maxX=focusItem.x+patch;context.bounds.minZ=focusItem.z-patch;context.bounds.maxZ=focusItem.z+patch;context.target.y=focusItem.y;}
         if(context){
           const ease=1-Math.exp(-wallDt*9);
           dipFocusPointRef.current.x+=(context.target.x-dipFocusPointRef.current.x)*ease;
@@ -1444,7 +1436,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         const targetZ=dipFocusPointRef.current.z*focusBlend;
         const targetY=d.height*.4+(dipFocusPointRef.current.y-d.height*.4)*focusBlend;
         if(context&&camera&&mount&&safe){
-          const distance=contextCameraDistance(baseDistance,camera.aspect,orbit.yaw,orbit.pitch,{x:targetX,y:targetY,z:targetZ},context.bounds,safe,mount.clientWidth,mount.clientHeight);
+          const distance=contextCameraDistance(baseDistance*(marbleNear?.4:1),camera.aspect,orbit.yaw,orbit.pitch,{x:targetX,y:targetY,z:targetZ},context.bounds,safe,mount.clientWidth,mount.clientHeight);
           dropFocusRatioRef.current=distance/baseDistance;
         }
         // Manual overview zoom cannot crop the object/context during assistance.
@@ -1693,7 +1685,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             const safe=clampToTankBoundary(item.x,item.z,itemR,s,d);
             const y=Math.max(item.y,itemR+sandHeight(d));
             const mesh=itemMeshesRef.current.get(item.id);
-            if(mesh)mesh.position.set(safe.x,y,safe.z);
+            if(mesh){mesh.position.set(safe.x,y,safe.z);applyApprovedVisualPose(mesh,{...item,y},effectiveWaterHeight,sandHeight(d),currentTime,currentWaterDensity);}
             if(safe.x!==item.x||safe.z!==item.z||y!==item.y){itemsChanged=true;return {...item,...safe,y};}
             return item;
           }
@@ -1702,6 +1694,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             const safe=clampToTankBoundary(item.x,item.z,itemR,s,d);
             const mesh=itemMeshesRef.current.get(item.id);
             if(mesh){mesh.position.set(safe.x,targetY+Math.sin(currentTime*.0015+safe.x)*.006,safe.z);if(itemKind(item.id)==='item-leaf')mesh.traverse(child=>{if(child instanceof THREE.Sprite)child.material.rotation=THREE.MathUtils.degToRad(78+Math.sin(currentTime*.0015+safe.x)*3);});}
+            if(mesh)applyApprovedVisualPose(mesh,{...item,y:targetY},effectiveWaterHeight,sandHeight(d),currentTime,currentWaterDensity);
             if(Math.abs(targetY-item.y)>.005||safe.x!==item.x||safe.z!==item.z) {itemsChanged=true;return {...item,...safe,y:targetY,vy:0};}
             return item;
           }
@@ -1845,6 +1838,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
             mesh.position.set(x, y, z);
             if(mesh.userData.photoAsset)mesh.traverse(child=>{if(child instanceof THREE.Sprite)child.material.rotation=THREE.MathUtils.degToRad(angle);});
             mesh.rotation.set(0.05, Math.sin(currentTime * 0.0003 + x) * 0.12, THREE.MathUtils.degToRad(angle));
+            applyApprovedVisualPose(mesh,{...item,x,y,z,angle,status,settled},effectiveWaterHeight,sandHeight(d),currentTime,currentWaterDensity);
           }
 
           return {
@@ -1891,11 +1885,13 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           }
         }
 
+        for(const mesh of itemMeshesRef.current.values())updateApprovedOptics(mesh,effectiveWaterHeight);
+        if(replay)updateApprovedOptics(replay.mesh,water);
         const recording=recordingRef.current;
         if(recording&&!recording.complete){
           const item=itemsRef.current.find(item=>item.id===recording.item.id&&item.inTank);
-          const q=itemMeshesRef.current.get(recording.item.id)?.quaternion;
-          if(item&&q)recordPose(recording,{t:simulationTimeRef.current-recording.startedAt,x:item.x,y:item.y,z:item.z,angle:item.angle,qx:q.x,qy:q.y,qz:q.z,qw:q.w,status:item.status,settled:item.settled});
+          const visual=itemMeshesRef.current.get(recording.item.id),q=visual?.quaternion;
+          if(item&&q&&visual)recordPose(recording,{t:simulationTimeRef.current-recording.startedAt,x:visual.position.x,y:visual.position.y,z:visual.position.z,angle:item.angle,qx:q.x,qy:q.y,qz:q.z,qw:q.w,status:item.status,settled:item.settled});
           else if(!item)recordingRef.current=null;
         }
         if(replay&&played&&replayRef.current===replay){
@@ -1905,6 +1901,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
         }
 
         if (renderer && scene && camera) {
+          const plate=transmissionBackdropRef.current;
+          scene.background=plate?.ready&&itemsRef.current.some(item=>item.inTank&&itemKind(item.id)==='item-marble')?plate.texture:null;
           renderer.render(scene, camera);
         }
 
