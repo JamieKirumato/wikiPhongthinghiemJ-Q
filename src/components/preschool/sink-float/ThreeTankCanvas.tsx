@@ -1009,9 +1009,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       // Đáy cát (renderOrder: 0, depthWrite: true)
       const sandCanvas=document.createElement('canvas'); sandCanvas.width=256; sandCanvas.height=256;
       const sandContext=sandCanvas.getContext('2d')!;
-      sandContext.fillStyle='#f1e8d2'; sandContext.fillRect(0,0,256,256);
+      sandContext.fillStyle='#e5eae7'; sandContext.fillRect(0,0,256,256);
       let seed=12345;
-      for(let i=0;i<18000;i++) {seed=(seed*1664525+1013904223)>>>0;const x=(seed>>>16)%256;seed=(seed*1664525+1013904223)>>>0;const y=(seed>>>16)%256;sandContext.fillStyle=['#e9dcc0','#f3e9d3','#e5d7b9','#f8efdf'][i%4];sandContext.fillRect(x,y,1,1);}
+      for(let i=0;i<18000;i++) {seed=(seed*1664525+1013904223)>>>0;const x=(seed>>>16)%256;seed=(seed*1664525+1013904223)>>>0;const y=(seed>>>16)%256;sandContext.fillStyle=['#dce4df','#eaf0eb','#d7e1dc','#f0f3ef'][i%4];sandContext.fillRect(x,y,1,1);}
       const sandTexture=new THREE.CanvasTexture(sandCanvas); sandTexture.wrapS=sandTexture.wrapT=THREE.RepeatWrapping;sandTexture.repeat.set(2,2);sandTexture.colorSpace=THREE.SRGBColorSpace;
       sandTextureRef.current=sandTexture;
       const sandMaterial = new THREE.MeshBasicMaterial({
@@ -1027,28 +1027,46 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           float a=sin(vMapUv.x*31.+sin(vMapUv.y*23.+causticTime*.35)*2.);
           float b=sin(vMapUv.y*28.+sin(vMapUv.x*29.-causticTime*.3)*2.3);
           float lightVein=pow(max(0.,1.-abs(a+b)*.7),16.);
-          diffuseColor.rgb+=vec3(.08,.13,.13)*lightVein;
+          diffuseColor.rgb+=vec3(.035,.055,.065)*lightVein;
         `);
       };
       sandMaterial.userData.causticTime=causticTime;sandMaterialRef.current=sandMaterial;
 
-      // Khối nước PALE CYAN trong suốt, không ám tối
+      // Approved Blender water study: pale blue depth over a neutral, readable floor.
+      // This changes only the display material, equally for fresh and salt water.
       const waterVolumeMat = new THREE.MeshBasicMaterial({
-        color: 0xa9d8df,
+        color: 0xb2d0db,
         transparent: true,
-        opacity: 0.055,
+        opacity: 0.22,
         toneMapped: false,
         depthWrite: false,
         side: THREE.DoubleSide
       });
+      waterVolumeMat.onBeforeCompile=shader=>{
+        shader.uniforms.waterBodyHeight={value:dims.waterHeight};
+        shader.vertexShader=shader.vertexShader.replace('#include <common>',`#include <common>
+uniform float waterBodyHeight;
+varying float waterBodyDepth;
+`).replace('#include <begin_vertex>',`#include <begin_vertex>
+waterBodyDepth=clamp(1.-position.y/max(waterBodyHeight,.001),0.,1.);
+`);
+        shader.fragmentShader=shader.fragmentShader.replace('#include <common>',`#include <common>
+varying float waterBodyDepth;
+`).replace('#include <color_fragment>',`#include <color_fragment>
+// A continuous tint avoids stripes while leaving submerged objects visible.
+diffuseColor.rgb*=mix(vec3(1.08,1.04,1.02),vec3(.88,.96,1.),waterBodyDepth);
+diffuseColor.a*=mix(.82,1.12,waterBodyDepth);
+`);
+      };
+      waterVolumeMat.customProgramCacheKey=()=> 'sink-float-approved-water-v1';
 
       // Mặt trên nước trong suốt nhấp nhô nhẹ
       const waterSurfaceMat = new THREE.MeshPhongMaterial({
-        color: 0xd4eef1,
-        specular: 0xe9ffff,
-        shininess: 100,
+        color: 0xb8d6df,
+        specular: 0xb5ced8,
+        shininess: 80,
         transparent: true,
-        opacity: 0.1,
+        opacity: 0.28,
         toneMapped: false,
         depthWrite: false,
         side: THREE.DoubleSide
@@ -1290,7 +1308,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       const surface = waterSurfaceMeshRef.current;
       if (surface) {
         const waterline = new THREE.LineSegments(new THREE.EdgesGeometry(surface.geometry),
-          new THREE.LineBasicMaterial({color: 0xd8ffff, transparent: true, opacity: 0.85, depthWrite: false}));
+          new THREE.LineBasicMaterial({color: 0xcfe7ed, transparent: true, opacity: 0.64, depthWrite: false}));
         waterline.rotation.copy(surface.rotation);
         waterline.position.copy(surface.position);
         waterline.renderOrder = 4;
@@ -1549,7 +1567,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
           const surfaceMaterial=waterSurfaceMeshRef.current.material as THREE.MeshPhongMaterial;
           const stir=stirWaterRef.current;
           surfaceMaterial.userData.updateWater?.(seconds,waterImpulsesRef.current,stir??undefined);
-          surfaceMaterial.opacity=stir&&seconds-stir.time<1.2 ? .44 : .2;
+          surfaceMaterial.opacity=stir&&seconds-stir.time<1.2 ? .38 : .28;
           waterSurfaceMeshRef.current.position.y = effectiveWaterHeight;
         }
         if (waterlineRef.current && waterSurfaceMeshRef.current) {
