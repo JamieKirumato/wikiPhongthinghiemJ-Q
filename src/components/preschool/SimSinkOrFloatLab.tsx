@@ -118,7 +118,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-keys',
     name: 'Chùm chìa khóa',
     icon: '🔑',
-    image: '/assets/items/approved-3d/keys-v7.webp',
+    image: '/assets/items/approved-3d/keys-v7-alpha.png',
     size: 0.78,
     weightGrams: 42,
     volumeMl: 10,
@@ -142,7 +142,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-spoon',
     name: 'Thìa inox',
     icon: '🥄',
-    image: '/assets/items/approved-3d/spoon-v7.webp',
+    image: '/assets/items/approved-3d/spoon-v7-alpha.png',
     size: 0.88,
     weightGrams: 35,
     volumeMl: 7,
@@ -166,7 +166,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-egg',
     name: 'Quả trứng',
     icon: '🥚',
-    image: '/assets/items/approved-3d/egg-v6.webp',
+    image: '/assets/items/approved-3d/egg-v6-alpha.png',
     size: 0.75,
     weightGrams: 55,
     volumeMl: 50,
@@ -238,7 +238,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-duck',
     name: 'Vịt cao su',
     icon: '🐥',
-    image: '/assets/items/approved-3d/duck-v6.webp',
+    image: '/assets/items/approved-3d/duck-v6-alpha.png',
     size: 0.98,
     weightGrams: 12,
     volumeMl: 55,
@@ -262,7 +262,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-pingpong',
     name: 'Bóng đá',
     icon: '⚪',
-    image: '/assets/items/approved-3d/football-v3.webp',
+    image: '/assets/items/approved-3d/football-v3-alpha.png',
     size: 0.96,
     weightGrams: 430,
     volumeMl: 5500,
@@ -286,7 +286,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
     id: 'item-leaf',
     name: 'Chiếc lá',
     icon: '🍃',
-    image: '/assets/items/approved-3d/leaf-v7.webp',
+    image: '/assets/items/approved-3d/leaf-v7-alpha.png',
     size: 0.82,
     weightGrams: 1,
     volumeMl: 5,
@@ -335,7 +335,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
 // 4 món đồ quen thuộc nhất dành cho lứa tuổi 3 - 4
 PLAY_ITEMS_PRESETS.push(
   {...PLAY_ITEMS_PRESETS[0],id:'item-coin',name:'Đồng xu',icon:'🪙',image:'/assets/items/approved/coin.png',size:.65,weightGrams:6,volumeMl:.8,desc:'Đồng xu kim loại',densityNote:'Kim loại đặc',floatsDefault:false},
-  {...PLAY_ITEMS_PRESETS[0],id:'item-marble',name:'Viên bi',icon:'🔮',image:'/assets/items/approved-3d/marble-v7.webp',size:.65,weightGrams:12,volumeMl:5,desc:'Viên bi thủy tinh đặc',densityNote:'Thủy tinh đặc',floatsDefault:false}
+  {...PLAY_ITEMS_PRESETS[0],id:'item-marble',name:'Viên bi',icon:'🔮',image:'/assets/items/approved-3d/marble-v7-alpha.png',size:.65,weightGrams:12,volumeMl:5,desc:'Viên bi thủy tinh đặc',densityNote:'Thủy tinh đặc',floatsDefault:false}
 );
 const AGE_3_4_ITEM_IDS = ['item-pebble', 'item-duck', 'item-apple', 'item-egg'];
 
