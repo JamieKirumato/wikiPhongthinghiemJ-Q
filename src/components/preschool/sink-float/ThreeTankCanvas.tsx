@@ -1395,8 +1395,9 @@ diffuseColor.a*=mix(.82,1.12,waterBodyDepth);
         const activeFocus=dipFocusRef.current;
         const activeItem=activeFocus&&itemsRef.current.find(item=>item.id===activeFocus.itemId&&item.inTank&&!item.outsideTank);
         if(activeFocus&&!activeItem)stopCameraAssist();
-        const observing=!!activeItem&&dipFocusRef.current?.kind==='drop';
-        const dt=wallDt*(observing ? .4 : 1);
+        // Live physics keeps one clock; camera focus must never slow or speed up the tank.
+        // Slow motion belongs only to replayPose's separate visual playback clock.
+        const dt=wallDt;
         simulationTimeRef.current+=dt;
 
         // Camera Orbit (Tự xoay chỉ chạy khi ở chế độ orbit, không cầm đồ vật và không ở quy trình muối)
@@ -1502,7 +1503,8 @@ diffuseColor.a*=mix(.82,1.12,waterBodyDepth);
           mount.dataset.observationFocus=String(!!focusItem);
           mount.dataset.observationItemId=focusItem?.id??'';
           mount.dataset.observationPhase=cameraFrozen?'holding':focus?.kind==='replay'?'replay':focusItem?.settled?'settled':focusItem?.status==='falling'?'entry':focusItem?'travel':focusBlend>0?'return':'overview';
-          mount.dataset.observationSpeed=observing?'0.4':'1';
+          mount.dataset.observationSpeed=String(wallDt>0?dt/wallDt:1);
+          mount.dataset.simulationTime=simulationTimeRef.current.toFixed(4);
           mount.dataset.observationTracking=focusTarget?'object':'tank';
           mount.dataset.observationZoom=(baseDistance*zoomRef.current/r).toFixed(3);
           mount.dataset.cameraPose=[...camera.position.toArray(),...camera.quaternion.toArray(),...(camera.view?[camera.view.offsetX,camera.view.offsetY]:[0,0])].map(value=>value.toFixed(6)).join(',');
