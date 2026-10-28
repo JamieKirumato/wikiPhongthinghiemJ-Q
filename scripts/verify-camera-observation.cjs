@@ -31,6 +31,38 @@ for(const [width,height] of [[920,620],[370,470],[390,610],[700,350]]){
 }
 }
 console.log('Passed: complete object and real water reference fit in safe desktop/portrait frames at entry, descent and rest, including large objects.');
+const members=[
+ {id:'egg',inTank:true,x:-3.2,y:.83,z:1.3,radius:.42},
+ {id:'ball',inTank:true,x:3.1,y:3.3,z:-1.2,radius:1.32},
+ {id:'stone',inTank:true,x:.4,y:5.8,z:.7,radius:.3},
+ {id:'returned',inTank:false}, {id:'outside',inTank:true,outsideTank:true}
+];
+const groupFocus={itemId:'stone',itemIds:['egg','ball','stone','returned','outside','missing'],kind:'drop',expiresAt:999};
+const snapshot=JSON.stringify(members);
+assert.deepEqual(Array.from(observation.observationGroupItems(groupFocus,members),item=>item.id),['egg','ball','stone']);
+assert.deepEqual(Array.from(observation.observationGroupItems(groupFocus,members.filter(item=>item.id!=='stone')),item=>item.id),['egg','ball']);
+assert.equal(observation.observationGroupContext([],2.5,.41),null);
+assert.equal(JSON.stringify(observation.observationGroupContext([members[0]],2.5,.41)),JSON.stringify(observation.observationContext(members[0],members[0].radius,2.5,.41)));
+for(const [width,height] of [[942,534],[370,493],[700,350]]){
+ const aspect=width/height,safe={left:10,top:104,right:width-10,bottom:height-74};
+ for(const yaw of [-1.4,.12,2.4])for(const pitch of [.08,.7,1.4]){
+  const context=observation.observationGroupContext(members.slice(0,3),2.5,.41);
+  const distance=observation.contextCameraDistance(18,aspect,yaw,pitch,context.target,context.bounds,safe,width,height);
+  const camera=new THREE.PerspectiveCamera(40,aspect,.1,100);
+  camera.position.set(context.target.x+distance*Math.sin(yaw)*Math.cos(pitch),context.target.y+distance*Math.sin(pitch),context.target.z+distance*Math.cos(yaw)*Math.cos(pitch));
+  camera.lookAt(context.target.x,context.target.y,context.target.z);
+  camera.setViewOffset(width,height,width/2-(safe.left+safe.right)/2,height/2-(safe.top+safe.bottom)/2,width,height);camera.updateMatrixWorld();
+  for(const item of members.slice(0,3)){
+   const bounds=observation.observationContext(item,item.radius,2.5,.41).bounds;
+   for(const x of [bounds.minX,bounds.maxX])for(const y of [bounds.minY,bounds.maxY])for(const z of [bounds.minZ,bounds.maxZ]){
+    const point=new THREE.Vector3(x,y,z).project(camera),px=(point.x+1)*width/2,py=(1-point.y)*height/2;
+    assert.ok(px>=safe.left-.01&&px<=safe.right+.01&&py>=safe.top-.01&&py<=safe.bottom+.01,`group clips ${item.id} at ${width}x${height}`);
+   }
+  }
+ }
+}
+assert.equal(JSON.stringify(members),snapshot,'group framing must not modify physical objects');
+console.log('Passed: mixed sinking/floating/airborne groups fit desktop and portrait safe frames, ignore removed objects, and leave physics untouched.');
 const record={item:{id:'exact-drop-id'},water:2.5,startedAt:0,complete:false,poses:[]};
 for(let n=0;n<=60;n++)observation.recordPose(record,{t:n/60,x:n/60,y:6-n/12,z:-n/100,angle:n,qx:0,qy:0,qz:0,qw:1,status:n<30?'falling':'sunk',settled:n===60});
 const before=JSON.stringify(record);

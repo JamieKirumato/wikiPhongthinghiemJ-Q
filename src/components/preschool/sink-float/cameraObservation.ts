@@ -2,7 +2,7 @@ import {TankObject} from './types';
 
 export interface ViewRect {left:number;top:number;right:number;bottom:number}
 export interface CameraPresentation {mode:'overview'|'follow'|'near'|'replay';canReplay:boolean;canNear:boolean;busy:boolean}
-export interface ObservationFocus {itemId:string;expiresAt:number;kind:'drop'|'near'|'replay';settledAt?:number}
+export interface ObservationFocus {itemId:string;itemIds?:string[];expiresAt:number;kind:'drop'|'near'|'replay';settledAt?:number}
 export interface RecordedPose {t:number;x:number;y:number;z:number;angle:number;qx:number;qy:number;qz:number;qw:number;settled:boolean;status:TankObject['status']}
 export interface DropRecording {item:TankObject;water:number;poses:RecordedPose[];startedAt:number;complete:boolean}
 
@@ -25,6 +25,26 @@ export function observationContext(point:{x:number;y:number;z:number},radius:num
   const bounds={minX:point.x-Math.max(margin,patch),maxX:point.x+Math.max(margin,patch),minZ:point.z-Math.max(margin,patch),maxZ:point.z+Math.max(margin,patch),minY:Math.min(point.y-margin,water-.08),maxY:Math.max(point.y+margin,water+.12)};
   if(point.y-radius<bed+.25)bounds.minY=Math.min(bounds.minY,bed-.1);
   return {bounds,target:{x:point.x,y:(point.y*2+water)/3,z:point.z}};
+}
+
+/** Resolve exact members from live state; removed or returned objects cannot widen the frame. */
+export function observationGroupItems(focus:ObservationFocus,items:readonly TankObject[]) {
+  const ids=new Set(focus.itemIds??[focus.itemId]);
+  return items.filter(item=>ids.has(item.id)&&item.inTank&&!item.outsideTank);
+}
+
+/** Union actual object extents and their water references, without predicting any outcome. */
+export function observationGroupContext(points:readonly {x:number;y:number;z:number;radius:number}[],water:number,bed:number) {
+  if(!points.length)return null;
+  const contexts=points.map(point=>observationContext(point,point.radius,water,bed));
+  if(contexts.length===1)return contexts[0];
+  const bounds={...contexts[0].bounds};
+  for(const context of contexts.slice(1)){
+    bounds.minX=Math.min(bounds.minX,context.bounds.minX);bounds.maxX=Math.max(bounds.maxX,context.bounds.maxX);
+    bounds.minY=Math.min(bounds.minY,context.bounds.minY);bounds.maxY=Math.max(bounds.maxY,context.bounds.maxY);
+    bounds.minZ=Math.min(bounds.minZ,context.bounds.minZ);bounds.maxZ=Math.max(bounds.maxZ,context.bounds.maxZ);
+  }
+  return {bounds,target:{x:(bounds.minX+bounds.maxX)/2,y:(bounds.minY+bounds.maxY)/2,z:(bounds.minZ+bounds.maxZ)/2}};
 }
 
 /** Fit context corners in the safe portion of a 40-degree camera frustum. */

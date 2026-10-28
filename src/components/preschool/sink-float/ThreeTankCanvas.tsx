@@ -1,7 +1,7 @@
 import {overflowOutlets} from './overflowVisual';
 import {freshComparisonItem} from './comparisonTrial';
 import { tankOrbitDistance } from './cameraFraming';
-import {CameraPresentation,ObservationFocus,DropRecording,ViewRect,usableCameraRect,observationContext,contextCameraDistance,recordPose,replayPose} from './cameraObservation';
+import {CameraPresentation,ObservationFocus,DropRecording,ViewRect,usableCameraRect,observationGroupItems,observationGroupContext,contextCameraDistance,recordPose,replayPose} from './cameraObservation';
 import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import * as THREE from 'three';
 import { TankDimensions, TankObject, TankScale, TankShape, InteractionMode, SaltWorkflowStep, StirRodProjection } from './types';
@@ -376,7 +376,7 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       lastReleasedIdRef.current=item.id;
       const now=performance.now();
       recordingRef.current={item:{...item},water:displayedWaterLevelRef.current,poses:[],startedAt:simulationTimeRef.current,complete:false};
-      dipFocusRef.current={itemId:item.id,expiresAt:now+32000,kind:'drop'};
+      dipFocusRef.current={itemId:item.id,itemIds:itemsRef.current.filter(i=>i.inTank&&!i.outsideTank).map(i=>i.id),expiresAt:now+32000,kind:'drop'};
       const mesh=itemMeshesRef.current.get(item.id),q=mesh?.quaternion;
       recordPose(recordingRef.current,{t:0,x:item.x,y:item.y,z:item.z,angle:item.angle,qx:q?.x??0,qy:q?.y??0,qz:q?.z??0,qw:q?.w??1,status:item.status,settled:false});
     };
@@ -722,8 +722,9 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       stopCameraAssist,
       observeLastItem:()=>{
         if(carryingTrayRef.current||holdingItemRef.current||workflowStepRef.current!=='idle')return;
-        const item=itemsRef.current.find(i=>i.id===lastReleasedIdRef.current&&i.inTank&&!i.outsideTank);if(!item)return;
-        stopCameraAssist();dipFocusRef.current={itemId:item.id,expiresAt:Infinity,kind:'near'};
+        const members=itemsRef.current.filter(i=>i.inTank&&!i.outsideTank);
+        const item=members.find(i=>i.id===lastReleasedIdRef.current)??members[members.length-1];if(!item)return;
+        stopCameraAssist();dipFocusRef.current={itemId:item.id,itemIds:members.map(i=>i.id),expiresAt:Infinity,kind:'near'};
       },
       replayLastDrop:()=>{
         const record=recordingRef.current;
@@ -1389,11 +1390,20 @@ diffuseColor.a*=mix(.82,1.12,waterBodyDepth);
         const busy=cameraFrozen||!!orbit.isDragging||inputLockedRef.current;
         if(busy)stopCameraAssist();
         if(recordingRef.current&&!itemsRef.current.some(item=>item.id===recordingRef.current?.item.id&&item.inTank)){
-          stopCameraAssist();recordingRef.current=null;lastReleasedIdRef.current=null;
+          if(dipFocusRef.current?.kind==='replay')stopCameraAssist();
+          recordingRef.current=null;lastReleasedIdRef.current=null;
+        }
+        const settlingFocus=dipFocusRef.current;
+        if(settlingFocus?.kind==='drop'){
+          const members=observationGroupItems(settlingFocus,itemsRef.current);
+          if(members.length&&members.every(item=>item.settled))settlingFocus.settledAt??=currentTime;
+          else settlingFocus.settledAt=undefined;
+          if(settlingFocus.settledAt!==undefined&&currentTime-settlingFocus.settledAt>=1500)stopCameraAssist();
         }
         if(dipFocusRef.current&&currentTime>=dipFocusRef.current.expiresAt)stopCameraAssist();
         const activeFocus=dipFocusRef.current;
-        const activeItem=activeFocus&&itemsRef.current.find(item=>item.id===activeFocus.itemId&&item.inTank&&!item.outsideTank);
+        const activeItems=activeFocus?observationGroupItems(activeFocus,itemsRef.current):[];
+        const activeItem=activeItems.find(item=>item.id===activeFocus?.itemId)??activeItems[activeItems.length-1];
         if(activeFocus&&!activeItem)stopCameraAssist();
         // Live physics keeps one clock; camera focus must never slow or speed up the tank.
         // Slow motion belongs only to replayPose's separate visual playback clock.
@@ -1430,8 +1440,8 @@ diffuseColor.a*=mix(.82,1.12,waterBodyDepth);
         const focus=dipFocusRef.current;
         const replay=replayRef.current;
         const played=replay?replayPose(replay.record,(currentTime-replay.startedAt)/1000*.4):null;
-        const focusItem=focus?(played&&replay?{...replay.record.item,...played}:itemsRef.current.find(item=>item.id===focus.itemId&&item.inTank&&!item.outsideTank)):null;
-        if(focus?.kind==='drop'&&focusItem?.settled&&focus.settledAt===undefined){focus.settledAt=currentTime;focus.expiresAt=Math.min(focus.expiresAt,currentTime+1500);}
+        const focusItems=focus?(played&&replay?[{...replay.record.item,...played}]:activeItems):[];
+        const focusItem=focusItems.find(item=>item.id===focus?.itemId)??focusItems[focusItems.length-1];
         const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         const safe=safeCameraRectRef.current;
         const focusTarget=!!focusItem&&!!safe&&!reducedMotion?1:0;
@@ -1441,9 +1451,9 @@ diffuseColor.a*=mix(.82,1.12,waterBodyDepth);
         const focusBlend=dipFocusBlendRef.current;
         const water=replay?.record.water??displayedWaterLevelRef.current;
         const radius=focusItem?(ITEM_WORLD_SCALES[itemKind(focusItem.id)]?.radius??.4):.4;
-        const contextWater=focus?.kind==='near'&&focusItem&&itemKind(focusItem.id)==='item-marble'?focusItem.y+radius:water;
-        const context=focusItem?observationContext(focusItem,radius,contextWater,sandHeight(d)):null;
-        const marbleNear=focus?.kind==='near'&&focusItem&&itemKind(focusItem.id)==='item-marble';
+        const marbleNear=focus?.kind==='near'&&focusItems.length===1&&focusItem&&itemKind(focusItem.id)==='item-marble';
+        const contextWater=marbleNear?focusItem.y+radius:water;
+        const context=observationGroupContext(focusItems.map(item=>({x:item.x,y:item.y,z:item.z,radius:ITEM_WORLD_SCALES[itemKind(item.id)]?.radius??.4})),contextWater,sandHeight(d));
         if(context&&marbleNear&&focusItem){const patch=radius+.14;context.bounds.minX=focusItem.x-patch;context.bounds.maxX=focusItem.x+patch;context.bounds.minZ=focusItem.z-patch;context.bounds.maxZ=focusItem.z+patch;context.target.y=focusItem.y;}
         if(context){
           const ease=1-Math.exp(-wallDt*9);
@@ -1495,14 +1505,15 @@ diffuseColor.a*=mix(.82,1.12,waterBodyDepth);
             setDropPreview(prev=>prev&&Math.abs(prev.x-next.x)<.2&&Math.abs(prev.y-next.y)<.2?prev:next);
           }else if(trayPreviewRef.current)setDropPreview(null);
         }
-        const canNear=itemsRef.current.some(item=>item.id===lastReleasedIdRef.current&&item.inTank&&!item.outsideTank);
+        const canNear=itemsRef.current.some(item=>item.inTank&&!item.outsideTank);
         const presentation:CameraPresentation={mode:focus?.kind==='replay'?'replay':focus?.kind==='near'?'near':focus?'follow':'overview',canReplay:!!recordingRef.current?.complete&&recordingRef.current.poses.length>1,canNear,busy:cameraFrozen};
         const presentationKey=JSON.stringify(presentation);
         if(presentationKey!==lastCameraStateRef.current){lastCameraStateRef.current=presentationKey;cameraStateCallbackRef.current?.(presentation);}
         if(mount&&camera){
           mount.dataset.observationFocus=String(!!focusItem);
           mount.dataset.observationItemId=focusItem?.id??'';
-          mount.dataset.observationPhase=cameraFrozen?'holding':focus?.kind==='replay'?'replay':focusItem?.settled?'settled':focusItem?.status==='falling'?'entry':focusItem?'travel':focusBlend>0?'return':'overview';
+          mount.dataset.observationItemIds=JSON.stringify(focusItems.map(item=>item.id));
+          mount.dataset.observationPhase=cameraFrozen?'holding':focus?.kind==='replay'?'replay':focusItems.length&&focusItems.every(item=>item.settled)?'settled':focusItems.some(item=>item.status==='falling')?'entry':focusItem?'travel':focusBlend>0?'return':'overview';
           mount.dataset.observationSpeed=String(wallDt>0?dt/wallDt:1);
           mount.dataset.simulationTime=simulationTimeRef.current.toFixed(4);
           mount.dataset.observationTracking=focusTarget?'object':'tank';
@@ -1510,6 +1521,10 @@ diffuseColor.a*=mix(.82,1.12,waterBodyDepth);
           mount.dataset.cameraPose=[...camera.position.toArray(),...camera.quaternion.toArray(),...(camera.view?[camera.view.offsetX,camera.view.offsetY]:[0,0])].map(value=>value.toFixed(6)).join(',');
           mount.dataset.observationSafeRect=JSON.stringify(safe);
           mount.dataset.observationActualPoint=activeItem?JSON.stringify({x:activeItem.x,y:activeItem.y,z:activeItem.z,status:activeItem.status,settled:activeItem.settled}):'';
+          mount.dataset.observationGroupScreen=JSON.stringify(focusItems.map(item=>{
+            const point=new THREE.Vector3(item.x,item.y,item.z).project(camera);
+            return {id:item.id,x:(point.x+1)*mount.clientWidth/2,y:(1-point.y)*mount.clientHeight/2,settled:item.settled};
+          }));
           if(focusItem){
             const p=new THREE.Vector3(focusItem.x,focusItem.y,focusItem.z).project(camera);
             const surface=new THREE.Vector3(focusItem.x,water,focusItem.z).project(camera);
