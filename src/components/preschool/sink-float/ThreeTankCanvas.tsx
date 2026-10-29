@@ -391,7 +391,8 @@ export const ThreeTankCanvas = forwardRef<ThreeTankCanvasHandle, ThreeTankCanvas
       window.addEventListener('resize',mark);window.addEventListener('scroll',mark,true);
       const control=(event:PointerEvent)=>{
         const target=event.target as Element|null;
-        if(target?.closest('[data-camera-controls]'))return;
+        // Browsing the basket is not selecting an object or switching tools.
+        if(target?.closest('[data-camera-controls],[data-camera-browse]'))return;
         if(target?.closest('button,a,input,select,[role="button"],[role="checkbox"]'))stopCameraAssist();
       };
       window.addEventListener('pointerdown',control,true);

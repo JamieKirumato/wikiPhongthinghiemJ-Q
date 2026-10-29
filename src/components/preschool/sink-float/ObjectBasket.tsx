@@ -29,7 +29,7 @@ export const ObjectBasket: React.FC<ObjectBasketProps> = ({items, selectedId, sh
     strip?.scrollBy({left: direction * strip.clientWidth, behavior: 'smooth'});
   };
   return <div role="group" aria-label="Rổ đồ vật" className={`lab-basket ${items.length > 4 ? 'lab-basket-paged' : ''}`}>
-    {items.length > 4 && <button className="lab-tray-arrow" aria-label="Đồ vật trước" disabled={edges.start} onClick={() => turnPage(-1)}><ChevronLeft/></button>}
+    {items.length > 4 && <button data-camera-browse className="lab-tray-arrow" aria-label="Đồ vật trước" disabled={edges.start} onClick={() => turnPage(-1)}><ChevronLeft/></button>}
     <div ref={stripRef} onScroll={updateEdges} className="lab-basket-items">
       {items.map(item => {
         const disabled = item.inTank && !item.damage;
@@ -47,7 +47,7 @@ export const ObjectBasket: React.FC<ObjectBasketProps> = ({items, selectedId, sh
         </button>;
       })}
     </div>
-    {items.length > 4 && <button className="lab-tray-arrow" aria-label="Đồ vật tiếp theo" disabled={edges.end} onClick={() => turnPage(1)}><ChevronRight/></button>}
+    {items.length > 4 && <button data-camera-browse className="lab-tray-arrow" aria-label="Đồ vật tiếp theo" disabled={edges.end} onClick={() => turnPage(1)}><ChevronRight/></button>}
   </div>;
 };
 export default ObjectBasket;

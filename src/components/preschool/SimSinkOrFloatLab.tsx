@@ -1116,6 +1116,14 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     setDockTab(next?'tools':'objects');
     setMessage(next?'Con thử thay đổi nước rồi quan sát đồ vật nhé.':STUDENT_PROMPT);
   };
+  // Showing tools changes the dock, not the experiment already in progress.
+  // Lesson changes still use switchExploration to prepare a fresh tank.
+  const toggleTools = () => {
+    if(pouringWater||holdingItemId||selectedTrayItem||draggingTrayItem||(workflowStep!=='idle'&&workflowStep!=='stirring'))return;
+    const next=!advanced;
+    setAdvanced(next);
+    setDockTab(next?'tools':'objects');
+  };
   const comparisonBusy=pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||(workflowStep!=='idle'&&workflowStep!=='stirring');
   const openPreparation=(tab:PreparationTab)=>{if(comparisonBusy)return;setPreparationTab(tab);setShowPreparation(true);};
   const beginTeacherLesson=(lesson:TeacherLesson)=>{
@@ -1324,7 +1332,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
           </div>}
           {false&&isTeacherMode&&!comparisonMode&&<button aria-pressed={showSecondTank} onClick={()=>setShowSecondTank(!showSecondTank)} className="min-h-[48px] rounded-2xl bg-violet-100 font-bold">{showSecondTank?'Ẩn bể 2':'Thêm bể 2'}</button>}
           {false&&isTeacherMode&&<button aria-expanded={showGuideModal} onClick={()=>setShowGuideModal(!showGuideModal)} className="min-h-[48px] rounded-2xl bg-amber-100 font-bold">📖 Hướng dẫn</button>}
-          {!isTeacherMode&&activityMode!=='boat-challenge'&&<button disabled={pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||(workflowStep!=='idle'&&workflowStep!=='stirring')} aria-label={advanced?'Thu gọn dụng cụ':'Mở thêm dụng cụ'} aria-pressed={advanced} onClick={()=>switchExploration(!advanced)} className="premium-tool-toggle min-h-[52px] rounded-2xl px-2 font-bold disabled:opacity-50"><Plus size={21}/>{advanced?'Thu gọn dụng cụ':'Thêm dụng cụ'}</button>}
+          {!isTeacherMode&&activityMode!=='boat-challenge'&&<button disabled={pouringWater||!!holdingItemId||!!selectedTrayItem||!!draggingTrayItem||(workflowStep!=='idle'&&workflowStep!=='stirring')} aria-label={advanced?'Thu gọn dụng cụ':'Mở thêm dụng cụ'} aria-pressed={advanced} onClick={toggleTools} className="premium-tool-toggle min-h-[52px] rounded-2xl px-2 font-bold disabled:opacity-50"><Plus size={21}/>{advanced?'Thu gọn dụng cụ':'Thêm dụng cụ'}</button>}
           {activityMode!=='boat-challenge'&&<div className="lab-tools" aria-label="Dụng cụ thí nghiệm" style={{display:advanced&&(dockTab==='tools'||introLocked)?undefined:'none'}}>
           {(advanced||ladleGuideReady) && !comparisonMode && (activityMode==='discovery'||activityMode==='egg-challenge') && <WaterPitcher
             disabled={comparisonMode || introLocked || pouringWater || !!holdingItemId || !!selectedTrayItem || !!draggingTrayItem || (workflowStep!=='idle'&&workflowStep!=='stirring') || interactionMode==='orbit'}
