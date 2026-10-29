@@ -42,7 +42,7 @@ export const ObjectBasket: React.FC<ObjectBasketProps> = ({items, selectedId, sh
               event.preventDefault(); onKeyboardPick(item);
             }
           }} className="lab-object">
-          <div className="lab-object-image"><img src={item.image} alt={item.name} draggable={false} style={{transform: `scale(${item.id.includes('item-marble') ? 1.04 : item.id.includes('item-wood') ? 1.01 : 1})`}}/></div>
+          <div className="lab-object-image"><img src={item.image} alt={item.name} className={item.id.startsWith('item-marble')?'marble-preview':undefined} draggable={false} style={{transform: `scale(${item.id.includes('item-marble') ? 1.04 : item.id.includes('item-wood') ? 1.01 : 1})`}}/></div>
           {showLabels && <span className="text-[11px] font-semibold truncate w-full text-center pb-1 pointer-events-none">{({'Hòn sỏi':'Sỏi','Quả trứng':'Trứng','Quả táo đỏ':'Táo','Vịt cao su':'Vịt','Bóng đá':'Bóng','Thìa inox':'Thìa'} as Record<string,string>)[item.name] || item.name}</span>}
         </button>;
       })}

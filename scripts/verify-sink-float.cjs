@@ -176,7 +176,16 @@ for(const id of ['pebble','keys','spoon','egg','apple','wood','duck','pingpong',
   models.disposeItemModel(model);
 }
 const clips=source('src/utils/preschoolNarration.ts');
-for (const [message,expected] of [['Muối đã tan. Con thấy gì?','dissolved'],['Hũ muối đã mở.','saltopen'],['Con đang xoay bể.','orbit'],['Vật rơi ngoài bể rồi.','miss']]) {
+for (const [message,expected] of [['Muối đã tan. Con thấy gì?','dissolved'],['Hũ muối đã mở.','saltopen'],['Con đang xoay bể.','orbit'],['Vật rơi ngoài bể rồi.','miss'],
+  ['Thìa đã trống. Con có thể xúc thêm muối.','spoon-empty'],
+  ['Thìa hết muối rồi. Con xúc thêm hoặc cất thìa nhé.','spoon-empty'],
+  ['Thìa đã có muối. Đưa thìa lên miệng bể.','scoop'],
+  ['Nước tràn ra ngoài bể rồi.','tank-overflow'],
+  ['Nước tràn vào thuyền rồi. Con bớt hàng và làm khô thuyền để thử lại nhé.','boatsink'],
+  ['Viên nhôm đang đi xuống. Con nhìn rồi thử hình khác nhé.','foil-sinking'],
+  ['Đã lấy hàng ra và làm khô thuyền. Con thử tiếp nhé.','boat-dry'],
+  ['Đã dọn đồ ở hai bể. Con có thể thả lại để so sánh.','items-returned'],
+  ['Còn muối ở đáy. Con nhìn lại đồ vật nhé.','salt-sediment']]) {
   assert.equal(clips.narrationClipFor(message),`/audio/vi/${expected}.mp3`);
 }
 const transcripts=JSON.parse(fs.readFileSync('public/audio/vi/transcripts.json','utf8'));

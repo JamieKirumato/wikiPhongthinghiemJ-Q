@@ -6,7 +6,7 @@ import {TankObject,TankShape,TankScale,InteractionMode} from './types';
 import {freshComparisonItem} from './comparisonTrial';
 import {SceneSetting} from './SceneBackdrop';
 
-export function ComparisonTank({presets,sceneSetting,pairedShape,pairedScale,trial,visualOnly=false}:{visualOnly?:boolean;presets:TankObject[];sceneSetting:SceneSetting;pairedShape?:TankShape;pairedScale?:TankScale;trial?:{token:number;item:TankObject}}){
+export function ComparisonTank({presets,sceneSetting,pairedShape,pairedScale,trial,resetToken=0,visualOnly=false}:{visualOnly?:boolean;presets:TankObject[];sceneSetting:SceneSetting;pairedShape?:TankShape;pairedScale?:TankScale;trial?:{token:number;item:TankObject};resetToken?:number}){
   const [ownShape,setShape]=useState<TankShape>('square'),[ownScale,setScale]=useState<TankScale>('normal');
   const shape=pairedShape??ownShape,scale=pairedScale??ownScale,paired=!!pairedShape;
   const [items,setItems]=useState<TankObject[]>(()=>presets.map(i=>({...i})));
@@ -16,7 +16,7 @@ export function ComparisonTank({presets,sceneSetting,pairedShape,pairedScale,tri
   const cleanup=useRef<(()=>void)|null>(null);
   const dims=getTankDimensions(shape,scale);
   const reset=()=>{cleanup.current?.();tank.current?.cancelActiveGesture();setSelected(null);setHeld(null);setItems(presets.map(i=>({...i,inTank:false,outsideTank:false,status:'basket',damage:undefined,settled:false})));};
-  useEffect(()=>{reset();},[presets.length,shape,scale]);
+  useEffect(()=>{reset();},[presets.length,shape,scale,resetToken]);
   useEffect(()=>()=>cleanup.current?.(),[]);
   useEffect(()=>{if(trial){tank.current?.resetDefaultView();tank.current?.dropComparisonItem(freshComparisonItem(trial.item));setMessage('Con nhìn vị trí của vật trong hai bể nhé.');}},[trial?.token]);
   const drop=(item:TankObject,x:number,y:number)=>{tank.current?.dropOrThrowItemAtScreenPos(item,x,y);setSelected(null);};

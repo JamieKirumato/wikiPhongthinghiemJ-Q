@@ -50,6 +50,11 @@
 .premium-notebook > header > button { min-height: 44px; min-width: 44px; display: grid; place-items: center; background: #f0eee5; border-radius: 14px; }
 .premium-notebook-body { min-height: 0; overflow: auto; padding: 22px 28px; }
 .premium-notebook-invitation { color: #6b7c85; font-size: 15px; margin-bottom: 20px; }
+.premium-notebook-clear-confirm { padding:16px; margin-bottom:18px; border:1px solid #e2c986; border-radius:16px; background:#fff5d9; }
+.premium-notebook-clear-confirm h3 { font-weight:800; margin-bottom:6px; }
+.premium-notebook-clear-confirm > div { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+.premium-notebook-clear-confirm button { min-height:44px; padding:8px 14px; border-radius:12px; background:white; font-weight:700; }
+.premium-notebook-clear-confirm button:last-child { background:#f9d27d; }
 .premium-notebook-empty { display: flex; flex-direction: column; align-items: center; gap: 15px; padding: 65px 20px; text-align: center; }
 .premium-notebook-empty svg { color: #0b9fac; }.premium-notebook-empty h3 { font-size: 24px; font-weight: 750; }.premium-notebook-empty p { color: #6e8087; }
 .premium-observation-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 15px; }
@@ -61,6 +66,7 @@
 .premium-mini-water { position: absolute; top: 45%; bottom: 0; inset-inline: 0; background: linear-gradient(#67d6e077,#08a4bc55); border-top: 2px solid #d0fdff; }
 .premium-mini-tank img { position: absolute; left: 50%; transform: translateX(-50%); width: 64px; height: 64px; object-fit: contain; mix-blend-mode: multiply; filter: drop-shadow(0 3px 2px #21474d22); }
 .premium-mini-tank img.at-surface { top: calc(45% - 31px); }.premium-mini-tank img.at-bottom { bottom: 5px; }
+.lab-object img.marble-preview,.premium-mini-tank img.marble-preview { mix-blend-mode:normal; }
 .premium-observation-result { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px; font-size: 13px; }.premium-observation-result span { color: #26848c; font-weight: 700; }
 .premium-observation-condition { padding: 0 14px 14px; color: #7a8b90; font-size: 10px; }
 .premium-comparison-record { padding: 16px; border-radius: 20px; background: #eaf7f3; margin-bottom: 22px; }.premium-comparison-record h3 { font-size: 16px; font-weight: 750; margin-bottom: 13px; }.premium-comparison-record > div { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }

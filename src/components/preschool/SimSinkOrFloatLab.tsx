@@ -335,7 +335,7 @@ const PLAY_ITEMS_PRESETS: TankObject[] = [
 // 4 món đồ quen thuộc nhất dành cho lứa tuổi 3 - 4
 PLAY_ITEMS_PRESETS.push(
   {...PLAY_ITEMS_PRESETS[0],id:'item-coin',name:'Đồng xu',icon:'🪙',image:'/assets/items/approved/coin.png',size:.65,weightGrams:6,volumeMl:.8,desc:'Đồng xu kim loại',densityNote:'Kim loại đặc',floatsDefault:false},
-  {...PLAY_ITEMS_PRESETS[0],id:'item-marble',name:'Viên bi',icon:'🔮',image:'/assets/items/approved-3d/marble-v7-alpha.png',size:.65,weightGrams:12,volumeMl:5,desc:'Viên bi thủy tinh đặc',densityNote:'Thủy tinh đặc',floatsDefault:false}
+  {...PLAY_ITEMS_PRESETS[0],id:'item-marble',name:'Viên bi',icon:'🔮',image:'/assets/items/approved-3d/marble-preview-v8.png',size:.65,weightGrams:12,volumeMl:5,desc:'Viên bi thủy tinh đặc',densityNote:'Thủy tinh đặc',floatsDefault:false}
 );
 const AGE_3_4_ITEM_IDS = ['item-pebble', 'item-duck', 'item-apple', 'item-egg'];
 
@@ -528,7 +528,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const [ageGroup, setAgeGroup] = useState<AgeGroup>('5-6');
 
   // 6. VÒNG LẶP HỌC TẬP (LEARNING LOOP): DỰ ĐOÁN & QUAN SÁT
-  const [predictions, setPredictions] = useState<Record<string, ItemPrediction>>({});
+  const [predictions] = useState<Record<string, ItemPrediction>>({});
   const [observations, setObservations] = useState<Record<string, ItemObserved>>({});
 
   const [eggSaltObserved, setEggSaltObserved] = useState<ItemObserved>('untested');
@@ -582,6 +582,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   const [isTeacherMode,setIsTeacherMode] = useState(false);
   const [showSecondTank,setShowSecondTank] = useState(false);
   const [comparisonMode,setComparisonMode]=useState(false);
+  const [comparisonResetToken,setComparisonResetToken]=useState(0);
   const [desktopComparison,setDesktopComparison]=useState(()=>window.matchMedia('(min-width: 1024px) and (any-pointer: fine)').matches);
   useEffect(()=>{
     const query=window.matchMedia('(min-width: 1024px) and (any-pointer: fine)');
@@ -684,7 +685,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     } else if (mode === 'egg-challenge') {
       setMessage('Thử Thách Quả Trứng: Làm cách nào để quả trứng tươi nổi bồng bềnh trên mặt nước? Bé hãy thử nghiệm nhé!');
     } else if (mode === 'boat-challenge') {
-      setMessage('Thử Thách Thuyền Nhôm: Tại sao cùng một lượng nhôm, uốn thành thuyền lại nổi và chở được nhiều hàng?');
+      setMessage('Cùng một miếng nhôm, con muốn thử hình nào?');
     } else if (mode === 'real-life') {
       setMessage('Khám phá thuyền, vật chứa khí và nước muối trong đời sống nhé!');
     }
@@ -708,6 +709,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
   // Dọn bể: vớt đồ vật trả về khay & dọn sạch hạt muối
   const handleResetAllTank = () => {
     markUserInteracted();
+    if(comparisonMode){setComparisonTrial(undefined);setComparisonResetToken(token=>token+1);}
     threeTankRef.current?.stopCameraAssist();
     actionTimersRef.current.forEach(clearTimeout);
     actionTimersRef.current.clear();
@@ -740,7 +742,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     setDraggingTrayItem(null);
     threeTankRef.current?.clearSaltGrains();
     if (soundEnabled) soundEngine.playNetScoop();
-    setMessage('Đã vớt sạch đồ vật trong bể về khay! Bé có thể thử lại từ đầu.');
+    setMessage(comparisonMode?'Đã dọn đồ ở hai bể. Con có thể thả lại để so sánh.':'Đã trả đồ về khay. Con muốn thử vật nào?');
   };
 
   // CÂU HỎI MỞ KHI THẢ ĐỒ VẬT VÀO BỂ (KHÔNG TIẾT LỘ TRƯỚC KẾT QUẢ)
@@ -806,9 +808,9 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
 
       if (!pred || pred === 'none') {
         if (result === 'floating') {
-          setMessage(`${itemName} đang nổi bồng bềnh trên mặt nước! Lực nâng của nước đang đỡ lấy vật.`);
+          setMessage(`${itemName} nổi ở mặt nước. Con thấy phần nào ở trên mặt nước?`);
         } else {
-          setMessage(`${itemName} đã chìm xuống đáy cát. Nước không nâng nổi vật này. Bé thử vật khác nhé!`);
+          setMessage(`${itemName} chìm xuống đáy. Con muốn thử lại không?`);
         }
       } else {
         if (pred === 'curious') {
@@ -990,7 +992,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     setSaltSpoons(previous => previous + pendingSaltSpoons);
     setActiveStirProgress(0);
     setItems(previous => previous.map(item => item.inTank ? {...item, settled: false} : item));
-    setMessage(excessGrams>0?'Nước đã rất mặn. Muối dư có thể đọng dưới đáy; con vẫn có thể thử thêm.':'Muối đã tan. Con thấy quả trứng thay đổi thế nào?');
+    setMessage(excessGrams>0?'Còn muối ở đáy. Con nhìn lại đồ vật nhé.':'Muối đã tan. Con nhìn lại đồ vật nhé.');
     setPendingSaltSpoons(0);
   }, [pendingSaltSpoons,saltSpoons,tankShape,dimensions]);
 
@@ -1008,7 +1010,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
     setWorkflowStep('idle');
     threeTankRef.current?.clearSaltGrains();
     if (soundEnabled) soundEngine.playWaterSplash(false);
-    setMessage('Đã thay nước mới tinh khiết! Nước trở lại là nước ngọt trong vắt.');
+    setMessage('Đã thay nước thường. Con thử lại nhé.');
   }, [soundEnabled, markUserInteracted]);
 
   // Đổ muối vào miệng bể
@@ -1028,7 +1030,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
         pourTimeoutRef.current=null;
         setWorkflowStep('scoopMode');
 
-        setMessage('Thìa đã trống. Con có thể xúc thêm muối, hoặc chọn que khuấy.');
+        setMessage('Thìa hết muối rồi. Con xúc thêm hoặc cất thìa nhé.');
       }, 1400);
     },
     [workflowStep, soundEnabled, spoonFraction,pendingSaltSpoons]
@@ -1237,7 +1239,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
               }}
               className={`lab-scene ${selectedTrayItem || draggingTrayItem ? 'lab-scene-ready' : ''}`}
             >
-              <div className="premium-scene-prompt" role="status"><Volume2 size={23}/>{selectedTrayItem?'Con chạm vào bể để thả nhé':comparisonMode?'Con thử và so sánh nhé':advanced?'Con muốn thay đổi điều gì?':'Con muốn thử vật nào?'}</div>
+              <div className="premium-scene-prompt" role="status"><Volume2 size={23}/>{selectedTrayItem?'Con chạm vào bể để thả nhé':workflowStep==='holdingSpoon'?'Đưa thìa lên miệng bể để đổ muối.':workflowStep==='pouring'?'Muối đang rơi vào nước.':workflowStep==='stirring'?'Khuấy nhẹ rồi nhìn muối nhé.':workflowStep==='scoopMode'?(pendingSaltSpoons>0?'Thìa hết muối. Con xúc thêm hoặc cất thìa nhé.':'Con xúc một thìa muối nhé.'):message.startsWith('Muối đã tan.')||message.startsWith('Còn muối ở đáy.')?message:comparisonMode?'Con thử và so sánh nhé':advanced?'Con muốn thay đổi điều gì?':'Con muốn thử vật nào?'}</div>
               <div className="premium-water-label"><Droplets size={17}/>{comparisonMode?'Bể A · ':''}{dissolvedFraction>0?'Nước muối':'Nước thường'}{workflowStep==='stirring'?' · Đang khuấy':''}</div>
               <ThreeTankCanvas
                 ref={threeTankRef}
@@ -1295,7 +1297,7 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
             </div>
           )}
 
-          {(isTeacherMode||comparisonMode)&&<div className={showSecondTank||comparisonMode?'flex flex-1 min-w-0 min-h-0':'hidden'}><ComparisonTank visualOnly={true} presets={comparisonMode?PLAY_ITEMS_PRESETS:basketPresets} sceneSetting={sceneSetting} pairedShape={comparisonMode?tankShape:undefined} pairedScale={comparisonMode?tankScale:undefined} trial={comparisonMode?comparisonTrial:undefined}/></div>}
+          {(isTeacherMode||comparisonMode)&&<div className={showSecondTank||comparisonMode?'flex flex-1 min-w-0 min-h-0':'hidden'}><ComparisonTank visualOnly={true} presets={comparisonMode?PLAY_ITEMS_PRESETS:basketPresets} sceneSetting={sceneSetting} pairedShape={comparisonMode?tankShape:undefined} pairedScale={comparisonMode?tankScale:undefined} trial={comparisonMode?comparisonTrial:undefined} resetToken={comparisonResetToken}/></div>}
         </main>
         <div className="premium-reflect"><BookOpen size={25}/><span>Con thấy điều gì?</span><button onClick={()=>setShowConclusionPicker(true)}><Pencil size={17}/> Kể lại</button></div>
 
@@ -1756,8 +1758,8 @@ export const SimSinkOrFloatLab: React.FC<Props> = ({ onBackToTable, isStandalone
       {/* ======================================================== */}
       {/* 4. MODAL: BẢNG QUAN SÁT TRANH ẢNH & LỊCH SỬ THỬ NGHIỆM    */}
       {/* ======================================================== */}
-      {showObservationBoard&&<ObservationNotebook history={trialHistory} onClose={()=>setShowObservationBoard(false)} onReset={()=>{
-        setShowObservationBoard(false);handleResetAllTank();handleResetSalt();setTrialHistory([]);setObservations({});setPredictions({});setEggChallengeAttempts(0);setEggSaltObserved('untested');
+      {showObservationBoard&&<ObservationNotebook history={trialHistory} onClose={()=>setShowObservationBoard(false)} onClear={()=>{
+        setTrialHistory([]);
       }}/>}
 
       {/* ======================================================== */}

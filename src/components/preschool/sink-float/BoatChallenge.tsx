@@ -38,10 +38,10 @@ export const BoatChallenge: React.FC<Props> = ({ soundEnabled, onMessageUpdate, 
     if (totalMass > capacity && !flooded) {
       setFlooded(true);
       setAttempts(value => value + 1);
-      callbackRef.current(hull === 'ball' ? 'Viên nhôm đang đi xuống. Con thử đổi hình dạng nhé!' : 'Nước tràn vào thuyền rồi. Con thử bớt hàng, làm khô thuyền rồi đổi hình dạng nhé!');
+      callbackRef.current(hull === 'ball' ? 'Viên nhôm đang đi xuống. Con nhìn rồi thử hình khác nhé.' : 'Nước tràn vào thuyền rồi. Con bớt hàng và làm khô thuyền để thử lại nhé.');
       if (soundEnabled) soundEngine.playBubbleGlug();
     } else if (!flooded) {
-      callbackRef.current(cargo ? 'Con vừa thêm hàng. Mép thuyền đang ở đâu so với mặt nước?' : 'Con hãy chọn hình dạng và thử chở hàng. Điều gì sẽ xảy ra?');
+      callbackRef.current(cargo ? 'Thuyền đang chở hàng. Con nhìn mép thuyền nhé.' : 'Cùng một miếng nhôm, con muốn thử hình nào?');
     }
   }, [totalMass, capacity, flooded, cargo, soundEnabled, hull]);
 
@@ -52,7 +52,7 @@ export const BoatChallenge: React.FC<Props> = ({ soundEnabled, onMessageUpdate, 
   };
   const reset = (nextHull = hull) => {
     setHull(nextHull); setCargo(0); setFlooded(false);
-    callbackRef.current('Mình đã lấy hàng ra và làm khô thuyền. Con có thể thử cách khác nhé!');
+    callbackRef.current('Đã lấy hàng ra và làm khô thuyền. Con thử tiếp nhé.');
   };
   const dragCargo = (event: React.PointerEvent<HTMLButtonElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -77,9 +77,9 @@ export const BoatChallenge: React.FC<Props> = ({ soundEnabled, onMessageUpdate, 
 
   return <div className="lab-scene premium-boat-scene" ref={sceneRef} role="group" aria-label="Bể thuyền chở hàng">
     <ThreeTankCanvas sceneSetting={sceneSetting} shape="rectangle" scale="normal" dims={dims} items={[]} onUpdateItems={()=>{}} waterDensity={1} interactionMode="interact" onInteractionModeChange={()=>{}} holdingItemId={null} onHoldItem={()=>{}} workflowStep="idle" onPourSaltAtPoint={()=>{}} soundEnabled={soundEnabled} onMessageUpdate={onMessageUpdate} showXRay={false} boatVisual={{hull,cargo,immersion,sinking}}/>
-    <div className="premium-scene-prompt">Con thử chở thêm nhé!</div>
+    <div className="premium-scene-prompt">{sinking?'Con muốn thay đổi gì để thử lại?':cargo?'Con nhìn mép thuyền nhé.':'Con chọn hình rồi thử nhé.'}</div>
     {showHint&&<div className="premium-boat-hint">{attempts>0?'Con thử mép thuyền cao hơn. Thêm một kiện mỗi lần rồi quan sát.':'Khi thêm hàng, mép thuyền gần mặt nước hay xa hơn?'}</div>}
-    <div className="premium-boat-status" role="status">{sinking?hull==='ball'?'Viên nhôm đã chìm':'Nước vào thuyền rồi. Con thử lại nhé!':cargo+' kiện hàng · Con nhìn mép thuyền nhé.'}</div>
+    <div className="premium-boat-status" role="status">{sinking?hull==='ball'?'Viên nhôm đang đi xuống':'Nước tràn vào thuyền. Con bớt hàng và làm khô để thử lại nhé.':cargo+' kiện hàng · Con nhìn mép thuyền nhé.'}</div>
     {controlsHost?createPortal(controls,controlsHost):controls}
   </div>;
 };
