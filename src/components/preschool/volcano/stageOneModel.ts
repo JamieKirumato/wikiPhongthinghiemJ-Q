@@ -24,8 +24,9 @@ import {
   advanceReaction,
   createReaction,
 } from './reaction';
+import { createClay, ClaySurface, ClayTool } from './clayModel';
 
-export type HeldTool = 'spoon' | 'vinegar' | null;
+export type HeldTool = 'spoon' | 'vinegar' | 'color' | null;
 export type ToolZone = 'bowl' | 'crater' | 'tray';
 
 export interface StageOneState {
@@ -42,6 +43,13 @@ export interface StageOneState {
   tilt: number;
   pouring: boolean;
   target: ToolZone | null;
+  clay: ClaySurface;
+  clayTool: ClayTool | null;
+  colorDrops: number;
+  colorStock: number;
+  colorDropAge: number;
+  colorMix: number;
+  runoffMl: number;
 }
 
 export const INITIAL_VINEGAR_ML = 60;
@@ -76,6 +84,13 @@ export function createStageOne(): StageOneState {
     tilt: 0,
     pouring: false,
     target: null,
+    clay: createClay(),
+    clayTool: null,
+    colorDrops: 0,
+    colorStock: 12,
+    colorDropAge: 10,
+    colorMix: 0,
+    runoffMl: 0,
   };
 }
 
@@ -237,8 +252,28 @@ export function advanceStageOne(state: StageOneState, dt: number): void {
     const stepDt = Math.min(remaining, MAX_SUBSTEP_DT);
     transferStep(state, stepDt);
     advanceReaction(state.reaction, stepDt * CHEMISTRY_TIME_SCALE);
+    state.colorDropAge += stepDt;
+    if (state.reaction.liquidMl > .05) state.colorMix += ((1 - Math.exp(-state.colorDrops * .65)) - state.colorMix) * (1 - Math.exp(-stepDt * 1.6));
+    // Liquid is redistributed from cup to tray, never created by the animation.
+    const top = cupWaterY(state) + Math.min(.6, state.reaction.foam * 3);
+    const overflow = Math.max(0, Math.min(1, (top - 2.57) * 4));
+    state.runoffMl += Math.min(Math.max(0, state.reaction.liquidMl - state.runoffMl), stepDt * overflow * 4);
     remaining -= stepDt;
   }
+}
+
+export function cupWaterY(state: StageOneState) {
+  return 1.79 + Math.min(Math.max(0, state.reaction.liquidMl - state.runoffMl) / 120, 1) * .74;
+}
+
+/** One intentional drop per press; cosmetic, without changing CO2 or reagent amounts. */
+export function addColorDrop(state: StageOneState) {
+  if (state.held !== 'color' || state.target !== 'crater' || state.colorStock <= 0) return false;
+  state.colorDrops++;
+  state.colorStock--;
+  state.colorDropAge = 0;
+  addIngredient(state.reaction, 'color');
+  return true;
 }
 
 /**
